@@ -1,0 +1,28 @@
+# PlatformIO
+.pio/
+
+# Local VS Code and editor state
+.vscode/*.log
+.vscode/ipch/
+.vscode/.browse.c_cpp.db*
+
+# JavaScript dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Operating system files
+.DS_Store
+Thumbs.db
