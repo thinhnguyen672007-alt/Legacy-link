@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+# Legacy-link-
+Configuration-Driven Low-Cost Gateway for Legacy Equipment
+=======
 # Legacy-link
 
 Configuration-driven, low-cost gateway for connecting legacy equipment to modern software.
@@ -67,3 +71,4 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Ke
 ## License
 
 No license has been selected yet. Until one is added, the default copyright rules apply and reuse is not automatically permitted.
+>>>>>>> 88d89047f3cfbe17b0f9bed18c3ec50966a4e2e1
