@@ -10,13 +10,26 @@ void setup() {
 }
 
 void loop() {
+    static char inputBuffer[128];
+    static size_t inputLength = 0;
 
-    if (Serial.available() > 0) {
+    while (Serial.available() > 0) {
+        const char receivedByte = static_cast<char>(Serial.read());
 
-        String receivedData = Serial.readStringUntil('\n'); 
-        
+        if (receivedByte == '\r') {
+            continue;
+        }
 
-        Serial.print("[ESP32 Vang Lại]: ");
-        Serial.println(receivedData);
+        if (receivedByte == '\n') {
+            inputBuffer[inputLength] = '\0';
+            Serial.print("[ESP32 Vang Lại]: ");
+            Serial.println(inputBuffer);
+            inputLength = 0;
+        } else if (inputLength < sizeof(inputBuffer) - 1) {
+            inputBuffer[inputLength++] = receivedByte;
+        } else {
+            inputLength = 0;
+            Serial.println("[ESP32] Input too long");
+        }
     }
 }
