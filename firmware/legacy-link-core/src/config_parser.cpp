@@ -1,3 +1,12 @@
+/**
+ * @file config_parser.cpp
+ * @brief BỘ PHIÊN DỊCH & CẤU HÌNH TỰ ĐỘNG (Config-driven Core)
+ * 
+ * Vai trò:
+ * 1. Nhận JSON từ Backend (qua MQTT/Serial) và bóc tách thành C Struct an toàn (không rò rỉ RAM).
+ * 2. Tự động ra lệnh cho phần cứng ESP32 (UART2) thay đổi tốc độ (Baud, Parity...) 
+ *    để tương thích ngay lập tức với máy CNC mới mà KHÔNG cần nạp lại code.
+ */
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include "driver/uart.h"
