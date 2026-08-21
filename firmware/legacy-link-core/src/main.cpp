@@ -1,5 +1,6 @@
-#include <Arduino.h>
 #include "config_parser.h"
+#include "modbus_reader.h"
+#include <Arduino.h>
 
 void setup() {
   Serial.begin(115200);
@@ -32,7 +33,8 @@ void loop() {
       if (inputLength > 0) {
         Serial.printf("\n[RECV] %u bytes received\r\n", inputLength);
         apply_new_configuration(inputBuffer);
-        Serial.printf("[SYS] Free RAM after config: %u bytes\r\n\n", ESP.getFreeHeap());
+        Serial.printf("[SYS] Free RAM after config: %u bytes\r\n\n",
+                      ESP.getFreeHeap());
       }
 
       inputLength = 0;
@@ -41,6 +43,19 @@ void loop() {
     } else {
       inputLength = 0;
       Serial.println("[ERROR] Input too long (max 511 bytes)");
+    }
+  }
+  // Chạy vòng lặp Modbus nếu đã nhận được cấu hình hợp lệ
+  if (is_config_valid) {
+    static unsigned long last_poll_time = 0;
+    unsigned long current_time = millis();
+
+    // Dùng non-blocking timer (millis) thay vì delay() để không làm kẹt quá
+    // trình đọc JSON
+    if (current_time - last_poll_time >=
+        global_device_config.sampling_interval_ms) {
+      last_poll_time = current_time;
+      modbus_poll_data(&global_device_config);
     }
   }
 }
