@@ -51,6 +51,4 @@ void modbus_poll_data(const device_config_t *cfg) {
       Serial.printf("[%s] Modbus Error: 0x%02X\r\n", reg->key, result);
     }
   }
-
-  // (Nhớ đóng ngoặc nhọn của vòng lặp for nhé)
 }
