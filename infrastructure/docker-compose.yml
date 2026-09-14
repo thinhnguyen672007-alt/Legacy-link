@@ -17,11 +17,32 @@ services:
     ports:
       - "${MQTT_PORT:-1883}:1883"
     volumes:
-      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro #syntax: HOST_PATH:CONTAINER_PATH:MODE
-      # Container path used by the Mosquitto image for its config file
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/config/passwd:/mosquitto/config/passwd:ro
-      - ./mosquitto/log:/mosquitto/log
+      # `selinux: z` is applied on SELinux-enabled Linux hosts and ignored by
+      # Docker Desktop on Windows/macOS.
+      - type: bind
+        source: ./mosquitto/config/mosquitto.conf
+        target: /mosquitto/config/mosquitto.conf
+        read_only: true
+        bind:
+          selinux: z
+      - type: bind
+        source: ./mosquitto/data
+        target: /mosquitto/data
+        bind:
+          create_host_path: true
+          selinux: z
+      - type: bind
+        source: ./mosquitto/config/passwd
+        target: /mosquitto/config/passwd
+        read_only: true
+        bind:
+          selinux: z
+      - type: bind
+        source: ./mosquitto/log
+        target: /mosquitto/log
+        bind:
+          create_host_path: true
+          selinux: z
     networks:
       - legacy-link-net
 
@@ -31,46 +52,6 @@ networks:
     driver: bridge
 
 
-
-
-
-
-
-# version: '3.8'
-
-# services:
-#   # ----------------------------------------------------------------------------
-#   # Mosquitto MQTT Broker
-#   # Central message bus connecting ESP32 hardware, backend, and simulators.
-#   # ----------------------------------------------------------------------------
-#   mosquitto:
-#     image: eclipse-mosquitto:2
-#     container_name: ${MQTT_CONTAINER_NAME:-legacy-link-mosquitto}
-#     restart: unless-stopped
-#     ports:
-#       # Exposes port 1883 to host machine (configurable via .env)
-#       - "${MQTT_PORT:-1883}:1883"
-#     volumes:
-#       # Mount static configuration (Read-Only) chỗ này là chỗ nó mount vào file để lấy mosquitto.conf chứ ko phải đọc trong local
-#       - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-#       # Mount password file (Read-Only)
-#       - ./mosquitto/config/passwd:/mosquitto/config/passwd:ro
-#       # Mount runtime database folder for persistent messages
-#       - ./mosquitto/data:/mosquitto/data
-#       # Mount logs directory
-#       - ./mosquitto/log:/mosquitto/log
-#     networks:
-#       - legacy-link-net
-
-# # ------------------------------------------------------------------------------
-# # Isolated Bridge Network
-# # Allows future services (Backend, Database) to communicate with Mosquitto
-# # by service hostname (e.g. `mosquitto:1883`) without exposing unnecessary ports.
-# # ------------------------------------------------------------------------------
-# networks:
-#   legacy-link-net:
-#     name: ${DOCKER_NETWORK_NAME:-legacy-link-net}
-#     driver: bridge
 
 # # ==============================================================================
 # # [NOTE] Future Service Expansion:

@@ -12,7 +12,7 @@ In industrial and laboratory environments, legacy equipment (PLCs, sensors, mete
 
 **Legacy-link** solves this by using a low-cost microcontroller gateway (ESP32) running custom firmware (`firmware/legacy-link-core`). The gateway reads raw serial frames, translates them into structured JSON payloads, and forwards them over the local network via **MQTT**.
 
-The infrastructure layer hosts the containerized **Eclipse Mosquitto MQTT Broker**, which acts as the decoupled, real-time message bus uniting edge devices, backend services, and testing simulators.
+The infrastructure layer hosts the containerized **Eclipse Mosquitto MQTT Broker**, which acts as the decoupled, real-time message bus uniting edge devices and backend services.
 
 ---
 
@@ -27,7 +27,6 @@ graph TD
 
     subgraph Infrastructure Layer [Docker: legacy-link-net]
         ESP32 -->|TCP 1883 / MQTT Auth| Broker[Mosquitto MQTT Broker\nContainer: legacy-link-mosquitto]
-        Sim[Hardware Simulators\nsimulators/] -.->|TCP 1883 / MQTT Auth| Broker
         Broker <-->|Docker Internal DNS: mosquitto:1883| Backend[Backend Core API\nbackend/]
         Backend <-->|Internal Port 5432| DB[(Time-Series / Relational DB\nPostgreSQL / TimescaleDB)]
     end
@@ -62,7 +61,7 @@ graph TD
 ### 4. Communication Ports & Protocols
 | Service / Container | Port (Host:Container) | Protocol | Scope & Usage |
 | :--- | :--- | :--- | :--- |
-| **Mosquitto MQTT** | `1883:1883` | TCP / MQTT | Primary communication bus for ESP32 gateway, backend services, and simulators. |
+| **Mosquitto MQTT** | `1883:1883` | TCP / MQTT | Primary communication bus for ESP32 gateway and backend services. |
 | **Mosquitto WebSockets** | `9001:9001` *(Optional)* | TCP / WS | Reserved for optional direct browser telemetry streaming if needed. |
 | **Future Backend** | `8000:8000` *(Tentative)* | HTTP / WS | RESTful configuration API and real-time dashboard sockets. |
 | **Future Database** | `5432:5432` *(Internal)* | TCP | Persistent storage for sensor logs and device registry. Not exposed to public host. |
@@ -86,7 +85,6 @@ graph TD
 - **Role-Based Accounts:**
   - `esp32_gateway`: Restricted to publishing telemetry and subscribing to its own command topic.
   - `backend_service`: Full subscribe access (`legacy-link/#`) to ingest data and dispatch commands.
-  - `simulator_client`: Dedicated test user for simulator verification.
 - **Credential Storage:**
   - Passwords are encrypted/hashed via SHA512-PBKDF2 in `mosquitto/config/passwd`.
   - The actual `passwd` file and `.env` are strictly excluded from version control via `.gitignore`.
@@ -174,7 +172,7 @@ Hệ thống được chia làm 3 tầng rõ rệt:
 
 | Dịch vụ | Cổng ánh xạ (Host:Container) | Giao thức | Ý nghĩa & Đối tượng sử dụng |
 | :--- | :---: | :---: | :--- |
-| **Mosquitto MQTT** | `1883:1883` | TCP / MQTT | Cổng chính cho ESP32 ngoài đời thực kết nối vào, đồng thời backend và simulators cũng kết nối qua cổng này. |
+| **Mosquitto MQTT** | `1883:1883` | TCP / MQTT | Cổng chính cho ESP32 ngoài đời thực và backend kết nối qua MQTT. |
 | **Mosquitto WebSocket** | `9001:9001` | TCP / WS | *(Tùy chọn tương lai)* Cổng mở nếu frontend dashboard muốn nhận luồng dữ liệu thời gian thực trực tiếp từ broker. |
 | **Backend API** | `8000:8000` *(Dự kiến)* | HTTP / WS | Cung cấp REST API cấu hình thiết bị và WebSocket cho giao diện quản trị. |
 | **Database** | `5432` *(Chỉ nội bộ Docker)* | TCP | Cổng cơ sở dữ liệu PostgreSQL/TimescaleDB. Không cần mở ra máy host để đảm bảo bảo mật. |
@@ -244,7 +242,6 @@ Việc đặt tên topic rõ ràng giúp hệ thống dễ mở rộng khi có h
 - **Phân tách tài khoản chuyên biệt:**
   - `esp32_gateway`: Tài khoản nạp vào firmware ESP32, chỉ có quyền gửi tin vào topic thiết bị của mình.
   - `backend_service`: Tài khoản backend, có quyền bao quát toàn bộ topic `legacy-link/#`.
-  - `simulator_client`: Tài khoản phục vụ cho các script test giả lập thiết bị.
 - **Mã hóa và cô lập mật khẩu:**
   - Mật khẩu được mã hóa băm (SHA512-PBKDF2) trong file `mosquitto/config/passwd`.
   - File mật khẩu thật và file môi trường `.env` tuyệt đối **không được đẩy lên Git** (đã được cấu hình chặn trong file [infrastructure/.gitignore](file:///home/james/Projects/Hackathon%20DENSON/Legacy-link-/infrastructure/.gitignore)).
