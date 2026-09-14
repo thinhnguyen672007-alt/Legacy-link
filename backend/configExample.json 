@@ -1,0 +1,52 @@
+[
+  {
+    "deviceId": "meter-em6400",
+    "deviceName": "Schneider EM6400 Electric Meter",
+    "protocol": "MODBUS_RTU",
+    "baudRate": 9600,
+    "slaveId": 1,
+    "registerMap": [
+      {
+        "key": "voltage",
+        "address": 30001,
+        "functionCode": 4,
+        "dataType": "UINT16",
+        "scale": 0.1,
+        "unit": "V"
+      },
+      {
+        "key": "current",
+        "address": 30002,
+        "functionCode": 4,
+        "dataType": "UINT16",
+        "scale": 0.01,
+        "unit": "A"
+      }
+    ]
+  },
+  {
+    "deviceId": "sensor-dht22-industrial",
+    "deviceName": "Industrial Temp & Humidity Sensor",
+    "protocol": "MODBUS_RTU",
+    "baudRate": 19200,
+    "slaveId": 2,
+    "registerMap": [
+      {
+        "key": "temperature",
+        "address": 40001,
+        "functionCode": 3,
+        "dataType": "INT16",
+        "scale": 0.1,
+        "unit": "C"
+      },
+      {
+        "key": "humidity",
+        "address": 40002,
+        "functionCode": 3,
+        "dataType": "UINT16",
+        "scale": 0.1,
+        "unit": "%"
+      }
+    ]
+  }
+]

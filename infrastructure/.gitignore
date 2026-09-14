@@ -1,0 +1,23 @@
+# ==============================================================================
+# [NOTE] Infrastructure Git Ignore Rules (.gitignore)
+#
+# Role: Prevents secrets, environment overrides, and runtime state/logs
+# from being committed into the version control repository.
+# ==============================================================================
+
+# 1. Local environment variables and overrides
+.env
+.env.local
+.env.*.local
+
+# 2. Real MQTT credentials (contains user accounts and hashed passwords)
+mosquitto/config/passwd
+
+# 3. Mosquitto persistence database (runtime state, do not commit)
+mosquitto/data/*
+!mosquitto/data/.gitkeep
+
+# 4. Mosquitto log files
+mosquitto/log/*
+!mosquitto/log/.gitkeep
+*.log

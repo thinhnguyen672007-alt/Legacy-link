@@ -1,0 +1,80 @@
+# ==============================================================================
+# [NOTE] Docker Compose Orchestration (docker-compose.yml)
+#
+# Role: Central definition file for starting, stopping, and networking all
+# infrastructure services.
+#
+# Common commands:
+#   - Start services:      docker compose up -d
+#   - Stop services:       docker compose down
+#   - Check running status: docker compose ps
+#   - View service logs:   docker compose logs -f mosquitto
+# ==============================================================================
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: ${MQTT_CONTAINER_NAME:-legacy-link-mosquitto}
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro #syntax: HOST_PATH:CONTAINER_PATH:MODE
+      # Container path used by the Mosquitto image for its config file
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/config/passwd:/mosquitto/config/passwd:ro
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - legacy-link-net
+
+networks:
+  legacy-link-net:
+    name: ${DOCKER_NETWORK_NAME:-legacy-link-net}
+    driver: bridge
+
+
+
+
+
+
+
+# version: '3.8'
+
+# services:
+#   # ----------------------------------------------------------------------------
+#   # Mosquitto MQTT Broker
+#   # Central message bus connecting ESP32 hardware, backend, and simulators.
+#   # ----------------------------------------------------------------------------
+#   mosquitto:
+#     image: eclipse-mosquitto:2
+#     container_name: ${MQTT_CONTAINER_NAME:-legacy-link-mosquitto}
+#     restart: unless-stopped
+#     ports:
+#       # Exposes port 1883 to host machine (configurable via .env)
+#       - "${MQTT_PORT:-1883}:1883"
+#     volumes:
+#       # Mount static configuration (Read-Only) chỗ này là chỗ nó mount vào file để lấy mosquitto.conf chứ ko phải đọc trong local
+#       - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+#       # Mount password file (Read-Only)
+#       - ./mosquitto/config/passwd:/mosquitto/config/passwd:ro
+#       # Mount runtime database folder for persistent messages
+#       - ./mosquitto/data:/mosquitto/data
+#       # Mount logs directory
+#       - ./mosquitto/log:/mosquitto/log
+#     networks:
+#       - legacy-link-net
+
+# # ------------------------------------------------------------------------------
+# # Isolated Bridge Network
+# # Allows future services (Backend, Database) to communicate with Mosquitto
+# # by service hostname (e.g. `mosquitto:1883`) without exposing unnecessary ports.
+# # ------------------------------------------------------------------------------
+# networks:
+#   legacy-link-net:
+#     name: ${DOCKER_NETWORK_NAME:-legacy-link-net}
+#     driver: bridge
+
+# # ==============================================================================
+# # [NOTE] Future Service Expansion:
+# # When backend or database containers are added:
+# # 1. Add new service entries under `services:` (e.g. backend, postgres).
+# # 2. Attach them to `legacy-link-net` network.
+# # ==============================================================================
