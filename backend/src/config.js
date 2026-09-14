@@ -11,7 +11,7 @@ try {
   // Khong co .env thi bo qua, dung bien moi truong da set san.
 }
 
-const REQUIRED = ['MQTT_URL', 'MQTT_USERNAME', 'MQTT_PASSWORD'];
+const REQUIRED = ['MQTT_URL', 'MQTT_USERNAME', 'MQTT_PASSWORD', 'MQTT_QOS'];
 
 for (const key of REQUIRED) {
   if (!process.env[key]) {
@@ -20,13 +20,27 @@ for (const key of REQUIRED) {
   }
 }
 
+// QoS chi nhan 0, 1, 2. Sai thi dung ngay, khong am tham doan mot gia tri khac.
+const qos = Number.parseInt(process.env.MQTT_QOS, 10);
+
+if (![0, 1, 2].includes(qos)) {
+  console.error(
+    `[CONFIG] MQTT_QOS khong hop le: "${process.env.MQTT_QOS}" (chi nhan 0, 1, 2)`,
+  );
+  process.exit(1);
+}
+
+// Moi tien trinh mot clientId rieng: them PID de hai instance khong gianh nhau
+// tren broker. Xem .env.example de biet danh doi khi dung clean: false.
+const clientIdBase = process.env.MQTT_CLIENT_ID ?? 'legacy-link-backend';
+
 export const config = Object.freeze({
   mqtt: {
     url: process.env.MQTT_URL,
     username: process.env.MQTT_USERNAME,
     password: process.env.MQTT_PASSWORD,
-    clientId: process.env.MQTT_CLIENT_ID ?? 'legacy-link-backend',
-    qos: parseInt(process.env.MQTT_QOS) || 0,
+    clientId: `${clientIdBase}-${process.pid}`,
+    qos,
   },
   topics: {
     telemetry: 'legacy-link/devices/+/telemetry',

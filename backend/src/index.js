@@ -12,41 +12,48 @@ console.log(`[BACKEND] Broker: ${config.mqtt.url}`);
 let countSigint = 0
 
 
-console.log("CountSigint: ", countSigint);
+function logTiming(payload){
+  const receivedAt = Date.now();
+
+    if (payload.timestamp) {
+      console.log('ReceivedAt at : ' + new Date(receivedAt).toISOString())
+      console.log('Timestamp at : ' + new Date(payload.timestamp).toISOString())
+      console.log('Time Consuming:', (receivedAt - payload.timestamp) / 1000, 's');
+    }
+}
 
 const client = startMqttClient({
   onTelemetry: (deviceId, payload) => {
     console.log(`[TELEMETRY] ${deviceId}:`, JSON.stringify(payload));
-    console.log('recievedAt at : ' + new Date().toISOString())
-    console.log('timestamp at : ' + new Date(payload.timestamp).toISOString())
-    console.log('Time Counsuming:', (Date.now() - payload.timestamp) / 1000, 's');
+
+    logTiming(payload);
   },
   onStatus: (deviceId, payload) => {
     console.log(`[STATUS] ${deviceId}:`, JSON.stringify(payload));
+
+    
+    logTiming(payload);
   },
   onAlarm: (deviceId, payload) => {
     console.log(`[ALARM] ${deviceId}:`, JSON.stringify(payload));
 
-    process.on(signal, () => {
-      if (signal === 'SIGINT') {
-        countSigint++
-      }
-    })
-    console.log('CountSigint: ', countSigint)
+    logTiming(payload);
   }
 });
-
-const qos = Number.parseInt(process.env.MQTT_QOS ?? '1', 10);
-if (![0, 1, 2].includes(qos)) {
-  console.error(`[BACKEND] QOS khong hop le: ${process.env.MQTT_QOS} -> chỉ nhận 0, 1, 2`);
-  process.exit(1);
-}
 
 
 // Dong ket noi gon gang khi Ctrl+C (SIGINT) hoac khi container bi stop (SIGTERM).
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     console.log(`[BACKEND] Nhan ${signal}, dang dung...`);
+
+    if (signal === 'SIGINT') {
+      countSigint++
+    }
+
+    console.log('Total CountSigint: ', countSigint)
+    console.log('Errors count: ', getStats().errorsCount)
+
     client.end(false, {}, () => {
       console.log('[BACKEND] Da dong ket noi MQTT.');
       process.exit(0);
