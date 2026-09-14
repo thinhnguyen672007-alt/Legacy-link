@@ -5,9 +5,18 @@
 import mqtt from 'mqtt';
 import { config } from '../config.js';
 
+// đếm số lần parseJson và in tổng số backend nhận SIGINT
+let errorsCount = 0
+export function getStats() {
+  return { errorsCount }
+}
+
+
 export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
+
+
   // mqtt.connect(url, options): tham so thu nhat la URL broker,
-  // tham so thu hai la tuy chon. Khong gop URL vao trong options.
+  // tham so thu hai la tuychon. Khong gop URL vao trong options.
   const client = mqtt.connect(config.mqtt.url, {
     clientId: config.mqtt.clientId,
     username: config.mqtt.username,
@@ -45,11 +54,12 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
       payload = JSON.parse(rawPayload.toString());
     } catch {
       console.error(`[MQTT] Payload khong phai JSON hop le, topic=${topic}`);
+      errorsCount++
       return;
     }
 
     console.log(
-      `[MQTT] Nhan topic=${topic} qos=${packet.qos} retain=${packet.retain} byte=${rawPayload}`,
+      `[MQTT] Nhan topic=${topic} qos=${packet.qos} retain=${packet.retain} byte=${rawPayload.length}`,
     );
 
     if (kind === 'telemetry') {
@@ -69,6 +79,7 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
   client.on('offline', () => console.warn('[MQTT] Mat ket noi toi broker'));
   client.on('close', () => console.warn('[MQTT] Ket noi da dong'));
   client.on('error', (err) => console.error('[MQTT] Loi:', err.message));
+
 
   return client;
 }
