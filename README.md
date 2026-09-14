@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# Legacy-link-
-Configuration-Driven Low-Cost Gateway for Legacy Equipment
-=======
 # Legacy-link
 
 Configuration-driven, low-cost gateway for connecting legacy equipment to modern software.
@@ -11,7 +7,7 @@ Configuration-driven, low-cost gateway for connecting legacy equipment to modern
 ## Overview
 
 Legacy-link is intended to bridge older industrial or laboratory equipment with modern applications through a configurable gateway. The repository is organized so the firmware, future backend, frontend, simulators, and documentation can evolve independently.
-
+    
 ## Repository Layout
 
 | Directory | Purpose |
@@ -71,4 +67,4 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Ke
 ## License
 
 No license has been selected yet. Until one is added, the default copyright rules apply and reuse is not automatically permitted.
->>>>>>> 88d89047f3cfbe17b0f9bed18c3ec50966a4e2e1
+

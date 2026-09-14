@@ -1,0 +1,2 @@
+# [NOTE] Preserves data directory structure in Git.
+# Runtime mosquitto.db files are ignored via infrastructure/.gitignore.

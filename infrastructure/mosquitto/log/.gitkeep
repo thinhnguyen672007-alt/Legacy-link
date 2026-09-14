@@ -1,0 +1,2 @@
+# [NOTE] Preserves log directory structure in Git.
+# Runtime mosquitto.log files are ignored via infrastructure/.gitignore.
