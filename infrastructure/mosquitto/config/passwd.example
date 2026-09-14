@@ -1,0 +1,27 @@
+
+# ==============================================================================
+# [NOTE] Mosquitto Password File Template (passwd.example)
+#
+# Role: Provides an example format of the credential file required by Mosquitto.
+#
+# IMPORTANT:
+# - Do NOT put real passwords in this file! This file IS tracked by Git.
+# - The real file MUST be named `passwd` in this directory (which is git-ignored).
+#
+# How credentials are generated:
+# Mosquitto requires passwords to be hashed (SHA512-PBKDF2).
+#
+# Method 1 (Recommended): Use the provided Dockerized helper script:
+#   ./scripts/setup-mosquitto-auth.sh <username> <password>
+#
+# Method 2: Use Docker one-off command:
+#   docker run --rm -v $(pwd)/mosquitto/config:/config eclipse-mosquitto \
+#     mosquitto_passwd -c -b /config/passwd <username> <password>
+#
+# Method 3: If `mosquitto_passwd` is installed locally:
+#   mosquitto_passwd -c passwd <username>
+# ==============================================================================
+
+# Example placeholder entry (do not use for production):
+# Format: username:password_hash
+legacy_admin:$7$101$placeholder_hash_only_do_not_use$randomstring==
