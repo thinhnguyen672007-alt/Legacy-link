@@ -16,7 +16,7 @@ The repository is organised as a monorepo so firmware, infrastructure, backend, 
 | --- | --- | --- |
 | `firmware/` | PlatformIO firmware for the ESP32 gateway | ✅ Active |
 | `infrastructure/` | Docker Compose services (Mosquitto MQTT broker), scripts, and environment config | ✅ Active |
-| `backend/` | Service and API layer (includes a sample `configExample.json`) | 🔜 Planned |
+| `backend/` | Service and API layer | 🔜 Planned |
 | `frontend/` | Operator dashboard / interface | 🔜 Planned |
 | `simulators/` | Hardware and protocol simulators | 🔜 Planned |
 | `tests/` | Cross-component and integration tests | 🔜 Planned |
