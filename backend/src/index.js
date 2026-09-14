@@ -15,6 +15,9 @@ const client = startMqttClient({
   onStatus: (deviceId, payload) => {
     console.log(`[STATUS] ${deviceId}:`, JSON.stringify(payload));
   },
+  onAlarm: (deviceId, payload) => {
+    console.log(`[ALARM] ${deviceId}:`, JSON.stringify(payload));
+  }
 });
 
 // Dong ket noi gon gang khi Ctrl+C (SIGINT) hoac khi container bi stop (SIGTERM).

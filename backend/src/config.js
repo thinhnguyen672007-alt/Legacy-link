@@ -26,10 +26,11 @@ export const config = Object.freeze({
     username: process.env.MQTT_USERNAME,
     password: process.env.MQTT_PASSWORD,
     clientId: process.env.MQTT_CLIENT_ID ?? 'legacy-link-backend',
-    qos: 1,
+    qos: parseInt(process.env.MQTT_QOS) || 1,
   },
-  topics: {git pull origin main
+  topics: {
     telemetry: 'legacy-link/devices/+/telemetry',
     status: 'legacy-link/devices/+/status',
+    alarm: `legacy-link/device/+/alarm`,
   },
 });

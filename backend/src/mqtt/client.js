@@ -5,7 +5,7 @@
 import mqtt from 'mqtt';
 import { config } from '../config.js';
 
-export function startMqttClient({ onTelemetry, onStatus }) {
+export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
   // mqtt.connect(url, options): tham so thu nhat la URL broker,
   // tham so thu hai la tuy chon. Khong gop URL vao trong options.
   const client = mqtt.connect(config.mqtt.url, {
@@ -22,7 +22,7 @@ export function startMqttClient({ onTelemetry, onStatus }) {
     console.log(`[MQTT] Da ket noi: ${config.mqtt.url}`);
 
     // Subscribe TRONG su kien 'connect': luc nay ket noi moi that su san sang.
-    const topics = [config.topics.telemetry, config.topics.status];
+    const topics = [config.topics.telemetry, config.topics.status, config.topics.alarm];
 
     client.subscribe(topics, { qos: config.mqtt.qos }, (err, granted) => {
       if (err) {
@@ -49,16 +49,20 @@ export function startMqttClient({ onTelemetry, onStatus }) {
     }
 
     console.log(
-      `[MQTT] Nhan topic=${topic} qos=${packet.qos} retain=${packet.retain}`,
+      `[MQTT] Nhan topic=${topic} qos=${packet.qos} retain=${packet.retain} byte=${rawPayload}`,
     );
 
     if (kind === 'telemetry') {
       onTelemetry(deviceId, payload);
     } else if (kind === 'status') {
       onStatus(deviceId, payload);
+    } else if (kind === 'alarm') {
+      onAlarm(deviceId, payload);
     } else {
       console.warn(`[MQTT] Bo qua topic khong xu ly: ${topic}`);
     }
+
+
   });
 
   client.on('reconnect', () => console.log('[MQTT] Dang thu ket noi lai...'));
