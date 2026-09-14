@@ -1,0 +1,29 @@
+{
+  "name": "legacy-link",
+  "version": "1.0.0",
+  "description": "<<<<<<< HEAD\r # Legacy-link-\r Configuration-Driven Low-Cost Gateway for Legacy Equipment\r =======\r # Legacy-link",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thinhnguyen672007-alt/Legacy-link.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/thinhnguyen672007-alt/Legacy-link/issues"
+  },
+  "homepage": "https://github.com/thinhnguyen672007-alt/Legacy-link#readme",
+  "dependencies": {
+    "mqtt": "^5.15.2",
+    "mysql2": "^3.24.3"
+  }
+}
