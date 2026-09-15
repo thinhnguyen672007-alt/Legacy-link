@@ -87,7 +87,7 @@ void publish_status(const device_config_t *cfg, const char *status_str) {
 
   char payload[256];
   serializeJson(doc, payload, sizeof(payload));
-  mqttClient.publish(topic, payload);
+  mqttClient.publish(topic, payload, true);
   Serial.printf("[MQTT] Status: %s\r\n", status_str);
 }
 
