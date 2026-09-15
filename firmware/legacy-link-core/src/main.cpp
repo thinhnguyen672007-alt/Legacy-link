@@ -40,7 +40,7 @@ unsigned long current_epoch_seconds() {
 void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uint8_t count) {
   if (!mqttClient.connected() || count == 0) return;
 
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<1024> doc;
   doc["deviceId"] = cfg->device_id;
 
   unsigned long timestamp = current_epoch_seconds();
