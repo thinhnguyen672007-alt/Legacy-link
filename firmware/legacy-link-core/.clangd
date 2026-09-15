@@ -1,0 +1,17 @@
+﻿CompileFlags:
+  Remove:
+    - -mlongcalls
+    - -fstrict-volatile-bitfields
+    - -fno-tree-switch-conversion
+    - -fno-jump-tables
+    - -fno-lto
+    - -fno-rtti
+    - -mtext-section-literals
+    - -mfix-esp32-psram-cache-issue
+    - -mfix-esp32-psram-cache-strategy=memw
+    - -fstack-protector*
+
+Diagnostics:
+  Suppress: '*'
+  UnusedIncludes: None
+  MissingIncludes: None
