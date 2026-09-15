@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <time.h>
 
 // ============================================================
 // CẤU HÌNH MẠNG - Đổi theo môi trường của team
@@ -14,9 +15,17 @@ const char *mqtt_server = "192.168.1.100"; // IP máy chạy Docker Mosquitto c�
 const int mqtt_port = 1883;
 const char *mqtt_user = "esp32";           // Khớp với passwd của Mosquitto
 const char *mqtt_pass = "esp32";           // Khớp với passwd của Mosquitto
+const char *ntp_server_1 = "pool.ntp.org";
+const char *ntp_server_2 = "time.nist.gov";
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
+
+unsigned long current_epoch_seconds() {
+  time_t now = time(nullptr);
+  if (now < 1700000000) return 0;
+  return static_cast<unsigned long>(now);
+}
 
 // ============================================================
 // MQTT TOPIC FORMAT (khớp với backend/src/config.js)
@@ -31,12 +40,15 @@ PubSubClient mqttClient(espClient);
 void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uint8_t count) {
   if (!mqttClient.connected() || count == 0) return;
 
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<1024> doc;
   doc["deviceId"] = cfg->device_id;
 
-  // ESP32 không có RTC, dùng millis() tạm. Khi có NTP sẽ dùng epoch thật.
-  // Backend sẽ validate timestamp nằm trong khoảng hợp lý.
-  doc["timestamp"] = (unsigned long)(millis()); // TODO: Thay bằng NTP epoch ms
+  unsigned long timestamp = current_epoch_seconds();
+  if (timestamp == 0) {
+    Serial.println("[MQTT] Skip telemetry: NTP time not synchronized yet");
+    return;
+  }
+  doc["timestamp"] = timestamp;
 
   JsonObject metrics = doc.createNestedObject("metrics");
   for (uint8_t i = 0; i < count; i++) {
@@ -75,7 +87,7 @@ void publish_status(const device_config_t *cfg, const char *status_str) {
 
   char payload[256];
   serializeJson(doc, payload, sizeof(payload));
-  mqttClient.publish(topic, payload);
+  mqttClient.publish(topic, payload, true);
   Serial.printf("[MQTT] Status: %s\r\n", status_str);
 }
 
@@ -100,6 +112,7 @@ void setup_wifi() {
     Serial.println("WiFi connected!");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    configTime(0, 0, ntp_server_1, ntp_server_2);
   } else {
     Serial.println("\n[WIFI] Connection FAILED - running in offline mode");
   }
