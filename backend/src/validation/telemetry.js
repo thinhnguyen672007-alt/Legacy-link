@@ -18,7 +18,6 @@ const MAX_METRIC_COUNT = 32
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 } // kiểm tra có để tránh bị null và giá trị phải là một object và không phải là một mảng 
-
 export function validateTelemetry(topicDeviceId, payload) {
   const errors = []; // khai báo biến errors để hứng tất cả các lỗi thay vì throw 1 lỗi và phải sửa đi sửa lại nhiều lần 
 
