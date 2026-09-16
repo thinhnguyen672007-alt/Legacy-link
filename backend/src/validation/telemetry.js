@@ -12,14 +12,15 @@
 // Ngưỡng hợp lý. Dat thanh hang so co ten de doc hieu y nghia, thay vi
 // rai so 1577836800000 khap noi.
 const MIN_VALID_TIMESTAMP_MS = Date.UTC(2020, 0, 1);
-const MAX_FUTURE_SKEW_MS = 60 * 60 * 1000;
+const MAX_FUTURE_SKEW_MS = 60 * 60 * 1000; // 1 tiếng 
+const MAX_METRIC_COUNT = 32
 
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+} // kiểm tra có để tránh bị null và giá trị phải là một object và không phải là một mảng 
 
 export function validateTelemetry(topicDeviceId, payload) {
-  const errors = [];
+  const errors = []; // khai báo biến errors để hứng tất cả các lỗi thay vì throw 1 lỗi và phải sửa đi sửa lại nhiều lần 
 
   if (!isPlainObject(payload)) {
     return { ok: false, errors: ['payload phai la mot object'] };
@@ -46,14 +47,24 @@ export function validateTelemetry(topicDeviceId, payload) {
     errors.push(`timestamp nam trong tuong lai: ${payload.timestamp}`);
   }
 
-  // 3. metrics: object khong rong, moi gia tri phai la so huu han.
+  // 3. schemaVersion: là số nguyên và phải là bằng 1 
+  if (!Number.isInteger(payload.schemaVersion)) {
+    errors.push('schemaVersion phai la mot so nguyen');  // kiểm tra schemaVersion có phải là số nguyên không 
+  } else if (payload.schemaVersion !== 1) {
+    errors.push(`schemaVersion khong hop le, nhan duoc: ${payload.schemaVersion}`)
+  }
+
+  // 4. metrics: object khong rong, moi gia tri phai la so huu han.
+
   if (!isPlainObject(payload.metrics)) {
-    errors.push('metrics phai la mot object');
+    errors.push('metrics phai la mot object')
   } else {
     const metricNames = Object.keys(payload.metrics);
 
     if (metricNames.length === 0) {
-      errors.push('metrics phai co it nhat mot chi so');
+      errors.push('metrics phai co it nhat mot chi so')
+    } else if (metricNames.length > MAX_METRIC_COUNT) {
+      errors.push(`metrics khong duoc vuot qua ${MAX_METRIC_COUNT}`);
     }
 
     for (const name of metricNames) {
@@ -76,6 +87,7 @@ export function validateTelemetry(topicDeviceId, payload) {
       deviceId: payload.deviceId,
       timestamp: payload.timestamp,
       metrics: { ...payload.metrics },
+      schemaVersion: payload.schemaVersion,
     },
   };
 }
