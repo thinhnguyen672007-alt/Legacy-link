@@ -11,13 +11,12 @@
 
 // Ngưỡng hợp lý. Dat thanh hang so co ten de doc hieu y nghia, thay vi
 // rai so 1577836800000 khap noi.
-const MIN_VALID_TIMESTAMP_MS = Date.UTC(2020, 0, 1);
-const MAX_FUTURE_SKEW_MS = 60 * 60 * 1000; // 1 tiếng 
+
+import { isPlainObject } from "./shared.js"
+import { MIN_VALID_TIMESTAMP_MS, MAX_FUTURE_SKEW_MS } from "./shared.js"
+
 const MAX_METRIC_COUNT = 32
 
-function isPlainObject(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-} // kiểm tra có để tránh bị null và giá trị phải là một object và không phải là một mảng 
 export function validateTelemetry(topicDeviceId, payload) {
   const errors = []; // khai báo biến errors để hứng tất cả các lỗi thay vì throw 1 lỗi và phải sửa đi sửa lại nhiều lần 
 
