@@ -1,8 +1,8 @@
 // validation/status.js
 // nhiệm vụ: kiểm tra một payload status có hợp lệ không.
 
-import { isPlainObject } from "./shared.js"
-import { MIN_VALID_TIMESTAMP_MS, MAX_FUTURE_SKEW_MS } from "./shared.js"
+import { isPlainObject, MIN_VALID_TIMESTAMP_MS, MAX_FUTURE_SKEW_MS } from "./shared.js"
+
 
 export function validateStatus(topicDeviceId, payload) {
   const errors = [];
@@ -10,7 +10,7 @@ export function validateStatus(topicDeviceId, payload) {
   if (!isPlainObject(payload)) {
     return {
       ok: false,
-      errors: ["payload must be a valid status string"]
+      errors: ["payload must be a object"]
     }
   }
 
@@ -19,7 +19,7 @@ export function validateStatus(topicDeviceId, payload) {
   if (typeof payload.deviceId !== 'string' || payload.deviceId.trim() === '') {
     errors.push("deviceId must be a non-empty string")
   } else if (payload.deviceId !== topicDeviceId) {
-    errors.push(`deviceId in payload ("${payload.deviceId}") does not match topic ("${topicDeviceID}")`);
+    errors.push(`deviceId in payload ("${payload.deviceId}") does not match topic ("${topicDeviceId}")`);
   }
 
   // 2. timestamp phải là một số nguyên 
@@ -33,9 +33,9 @@ export function validateStatus(topicDeviceId, payload) {
 
   // 3. schemaVersion: là số nguyên và phải là bằng 1 
   if (!Number.isInteger(payload.schemaVersion)) {
-    errors.push('schemaVersion phai la mot so nguyen');  // kiểm tra schemaVersion có phải là số nguyên không 
+    errors.push('schemaVersion must be a interger');  // kiểm tra schemaVersion có phải là số nguyên không 
   } else if (payload.schemaVersion !== 1) {
-    errors.push(`schemaVersion khong hop le, nhan duoc: ${payload.schemaVersion}`)
+    errors.push(`schemaVersion is invalid, received: ${payload.schemaVersion}`)
   }
 
   // 4. bật/ tắt phải là bool kể cả object : "true" thì cũng loại 
@@ -56,6 +56,7 @@ export function validateStatus(topicDeviceId, payload) {
       deviceId: payload.deviceId,
       timestamp: payload.timestamp,
       status: payload.status,
+      schemaVersion : payload.schemaVersion,
     },
   };
 }

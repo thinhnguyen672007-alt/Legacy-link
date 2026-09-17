@@ -27,10 +27,10 @@ export function validateTelemetry(topicDeviceId, payload) {
   // 1. deviceId: chuoi khong rong, va phai KHOP voi deviceId tren topic.
   //    Lech nhau nghia la firmware gui sai hoac co nguoi gia mao.
   if (typeof payload.deviceId !== 'string' || payload.deviceId.trim() === '') {
-    errors.push('deviceId phai la chuoi khong rong');
+    errors.push('deviceId must be a non-empty string');
   } else if (payload.deviceId !== topicDeviceId) {
     errors.push(
-      `deviceId trong payload ("${payload.deviceId}") khac voi topic ("${topicDeviceId}")`,
+      `deviceId in payload ("${payload.deviceId}") does not match topic ("${topicDeviceId}")`,
     );
   }
 
@@ -47,27 +47,27 @@ export function validateTelemetry(topicDeviceId, payload) {
 
   // 3. schemaVersion: là số nguyên và phải là bằng 1 
   if (!Number.isInteger(payload.schemaVersion)) {
-    errors.push('schemaVersion phai la mot so nguyen');  // kiểm tra schemaVersion có phải là số nguyên không 
+    errors.push('schemaVersion must be a interger');  // kiểm tra schemaVersion có phải là số nguyên không 
   } else if (payload.schemaVersion !== 1) {
-    errors.push(`schemaVersion khong hop le, nhan duoc: ${payload.schemaVersion}`)
+    errors.push(`schemaVersion is invalid, received: ${payload.schemaVersion}`)
   }
 
   // 4. metrics: object khong rong, moi gia tri phai la so huu han.
 
   if (!isPlainObject(payload.metrics)) {
-    errors.push('metrics phai la mot object')
+    errors.push('metrics must be a object')
   } else {
     const metricNames = Object.keys(payload.metrics);
 
     if (metricNames.length === 0) {
-      errors.push('metrics phai co it nhat mot chi so')
+      errors.push('metrics must have at least one metric')
     } else if (metricNames.length > MAX_METRIC_COUNT) {
-      errors.push(`metrics khong duoc vuot qua ${MAX_METRIC_COUNT}`);
+      errors.push(`metrics must not exceed ${MAX_METRIC_COUNT}`);
     }
 
     for (const name of metricNames) {
       if (!Number.isFinite(payload.metrics[name])) {
-        errors.push(`metrics.${name} phai la so huu han, nhan duoc: ${payload.metrics[name]}`);
+        errors.push(`metrics.${name} must be a finite number, received: ${payload.metrics[name]}`);
       }
     }
   }
