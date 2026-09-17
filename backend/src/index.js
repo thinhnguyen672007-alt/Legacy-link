@@ -4,6 +4,9 @@
 
 import { config } from './config.js';
 import { startMqttClient, getStats } from './mqtt/client.js';
+import { validateTelemetry } from './validation/telemetry.js';
+import { validateStatus } from './validation/status.js';
+
 
 
 console.log('[BACKEND] Khoi dong MQTT consumer...');
@@ -24,15 +27,32 @@ function logTiming(payload){
 
 const client = startMqttClient({
   onTelemetry: (deviceId, payload) => {
-    console.log(`[TELEMETRY] ${deviceId}:`, JSON.stringify(payload));
+    const result = validateTelemetry(deviceId, payload);
 
-    logTiming(payload);
+    if (!result.ok) {
+      console.error(`[TELEMETRY] Bo qua ${deviceId}:`, result.errors.join('; '));
+      return;
+    }
+
+    const telemetry = result.value;
+
+    console.log(`[TELEMETRY] ${telemetry.deviceId}:`, JSON.stringify(telemetry.metrics));
+
+    logTiming(telemetry);
   },
   onStatus: (deviceId, payload) => {
-    console.log(`[STATUS] ${deviceId}:`, JSON.stringify(payload));
+    const result = validateStatus(deviceId, payload);
 
+    if (!result.ok) {
+      console.error(`[STATUS] Bo qua ${deviceId}:`, result.errors.join('; '));
+      return;
+    }
+
+    const status = result.value;
+
+    console.log(`[STATUS] ${status.deviceId}:`, JSON.stringify(status.status));
     
-    logTiming(payload);
+    logTiming(status);
   },
   onAlarm: (deviceId, payload) => {
     console.log(`[ALARM] ${deviceId}:`, JSON.stringify(payload));
