@@ -55,9 +55,18 @@ const client = startMqttClient({
     logTiming(status);
   },
   onAlarm: (deviceId, payload) => {
-    console.log(`[ALARM] ${deviceId}:`, JSON.stringify(payload));
+    const result = validateAlarm(deviceId, payload);
 
-    logTiming(payload);
+    if (!result.ok) {
+      console.error(`[ALARM] Bo qua ${deviceId}:`, result.errors.join('; '));
+      return;
+    }
+
+    const alarm = result.value;
+
+    console.log(`[ALARM] ${alarm.deviceId}:`, JSON.stringify(alarm.code), JSON.stringify(alarm.severity));
+
+    logTiming(alarm);
   }
 });
 

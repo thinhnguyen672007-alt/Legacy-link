@@ -1,7 +1,7 @@
 // validation/status.js
 // nhiệm vụ: kiểm tra một payload status có hợp lệ không.
 
-import { isPlainObject, MIN_VALID_TIMESTAMP_MS, MAX_FUTURE_SKEW_MS } from "./shared.js"
+import { isPlainObject, checkDeviceId, checkTimestamp, checkSchemaVersion } from "./shared.js"
 
 
 export function validateStatus(topicDeviceId, payload) {
@@ -16,13 +16,14 @@ export function validateStatus(topicDeviceId, payload) {
 
 // 1. Phỉa có deviceID trong payload và phải trùng với topicDeviceID
 
-  if (typeof payload.deviceId !== 'string' || payload.deviceId.trim() === '') {
-    errors.push("deviceId must be a non-empty string")
-  } else if (payload.deviceId !== topicDeviceId) {
-    errors.push(`deviceId in payload ("${payload.deviceId}") does not match topic ("${topicDeviceId}")`);
-  }
+  checkDeviceId(topicDeviceId, payload.deviceId, errors);
 
   // 2. timestamp phải là một số nguyên 
+  checkTimestamp(payload.timestamp, errors);
+
+  // 3. schemaVersion: là số nguyên và phải là bằng 1 
+  checkSchemaVersion(payload.schemaVersion, errors);
+
   if (!Number.isInteger(payload.timestamp)) {
     errors.push("timestamp must be an integer")
   } else if (payload.timestamp < MIN_VALID_TIMESTAMP_MS) {

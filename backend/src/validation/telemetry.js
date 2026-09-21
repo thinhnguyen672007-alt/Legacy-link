@@ -12,7 +12,7 @@
 // Ngưỡng hợp lý. Dat thanh hang so co ten de doc hieu y nghia, thay vi
 // rai so 1577836800000 khap noi.
 
-import { isPlainObject, MIN_VALID_TIMESTAMP_MS, MAX_FUTURE_SKEW_MS } from "./shared.js"
+import { isPlainObject, checkDeviceId, checkTimestamp, checkSchemaVersion, MIN_VALID_TIMESTAMP_MS, MAX_FUTURE_SKEW_MS } from "./shared.js"
 
 const MAX_METRIC_COUNT = 32
 
@@ -31,31 +31,15 @@ export function validateTelemetry(topicDeviceId, payload) {
 
   // 1. deviceId: chuoi khong rong, va phai KHOP voi deviceId tren topic.
   //    Lech nhau nghia la firmware gui sai hoac co nguoi gia mao.
-  if (typeof payload.deviceId !== 'string' || payload.deviceId.trim() === '') {
-    errors.push('deviceId must be a non-empty string');
-  } else if (payload.deviceId !== topicDeviceId) {
-    errors.push(
-      `deviceId in payload ("${payload.deviceId}") does not match topic ("${topicDeviceId}")`,
-    );
-  }
+  checkDeviceId(topicDeviceId, payload.deviceId, errors);
 
   // 2. timestamp: so nguyen, epoch milliseconds, nam trong khoang hop ly.
   //    Day chinh la "dong ho thiet bi" — ta khong the xac minh tuyet doi,
   //    nhung phat hien duoc cai bat kha thi (qua cu / o tuong lai).
-  if (!Number.isInteger(payload.timestamp)) {
-    errors.push('timestamp phai la so nguyen (epoch milliseconds)');
-  } else if (payload.timestamp < MIN_VALID_TIMESTAMP_MS) {
-    errors.push(`timestamp qua cu, truoc nam 2020: ${payload.timestamp}`);
-  } else if (payload.timestamp > Date.now() + MAX_FUTURE_SKEW_MS) {
-    errors.push(`timestamp nam trong tuong lai: ${payload.timestamp}`);
-  }
+  checkTimestamp(payload.timestamp, errors);
 
   // 3. schemaVersion: là số nguyên và phải là bằng 1 
-  if (!Number.isInteger(payload.schemaVersion)) {
-    errors.push('schemaVersion must be a interger');  // kiểm tra schemaVersion có phải là số nguyên không 
-  } else if (payload.schemaVersion !== 1) {
-    errors.push(`schemaVersion is invalid, received: ${payload.schemaVersion}`)
-  }
+  checkSchemaVersion(payload.schemaVersion, errors);
 
   // 4. metrics: object khong rong, moi gia tri phai la so huu han.
 
