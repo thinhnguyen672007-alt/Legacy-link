@@ -21,10 +21,12 @@ const char *ntp_server_2 = "time.nist.gov";
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
-unsigned long current_epoch_seconds() {
+// Trả về epoch MILLISECONDS (13 chữ số) khớp với backend validation
+// Backend kiểm tra: timestamp >= Date.UTC(2020,0,1) = 1577836800000
+unsigned long long current_epoch_ms() {
   time_t now = time(nullptr);
-  if (now < 1700000000) return 0;
-  return static_cast<unsigned long>(now);
+  if (now < 1700000000) return 0;  // NTP chưa đồng bộ
+  return (unsigned long long)(now) * 1000ULL;
 }
 
 // ============================================================
@@ -36,19 +38,20 @@ unsigned long current_epoch_seconds() {
 
 // --- HÀM PUBLISH TELEMETRY LÊN MQTT ---
 // Payload format khớp với backend/src/validation/telemetry.js:
-// { "deviceId": "CNC-001", "timestamp": 1690000000, "metrics": {"temp": 65.4, "rpm": 8500} }
+// { "deviceId": "CNC-001", "timestamp": 1690000000000, "schemaVersion": 1, "metrics": {"temp": 65.4} }
 void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uint8_t count) {
   if (!mqttClient.connected() || count == 0) return;
 
   StaticJsonDocument<1024> doc;
   doc["deviceId"] = cfg->device_id;
 
-  unsigned long timestamp = current_epoch_seconds();
-  if (timestamp == 0) {
+  unsigned long long ts = current_epoch_ms();
+  if (ts == 0) {
     Serial.println("[MQTT] Skip telemetry: NTP time not synchronized yet");
     return;
   }
-  doc["timestamp"] = timestamp;
+  doc["timestamp"] = ts;
+  doc["schemaVersion"] = 1;  // Backend bắt buộc field này
 
   JsonObject metrics = doc.createNestedObject("metrics");
   for (uint8_t i = 0; i < count; i++) {
@@ -72,15 +75,18 @@ void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uin
 }
 
 // --- HÀM PUBLISH DEVICE STATUS ---
-void publish_status(const device_config_t *cfg, const char *status_str) {
+// Backend validateStatus() yêu cầu: status là boolean, timestamp epoch ms, schemaVersion = 1
+void publish_status(const device_config_t *cfg, bool is_online) {
   if (!mqttClient.connected()) return;
+
+  unsigned long long ts = current_epoch_ms();
+  if (ts == 0) return;  // NTP chưa đồng bộ, bỏ qua
 
   StaticJsonDocument<256> doc;
   doc["deviceId"] = cfg->device_id;
-  doc["timestamp"] = (unsigned long)(millis());
-  doc["status"] = status_str;
-  doc["freeHeap"] = ESP.getFreeHeap();
-  doc["uptime"] = millis() / 1000;
+  doc["timestamp"] = ts;
+  doc["schemaVersion"] = 1;
+  doc["status"] = is_online;  // boolean: true/false (không phải string)
 
   char topic[80];
   snprintf(topic, sizeof(topic), "legacy-link/devices/%s/status", cfg->device_id);
@@ -88,7 +94,7 @@ void publish_status(const device_config_t *cfg, const char *status_str) {
   char payload[256];
   serializeJson(doc, payload, sizeof(payload));
   mqttClient.publish(topic, payload, true);
-  Serial.printf("[MQTT] Status: %s\r\n", status_str);
+  Serial.printf("[MQTT] Status: %s\r\n", is_online ? "online" : "offline");
 }
 
 // --- HÀM SETUP WIFI ---
@@ -211,7 +217,7 @@ void loop() {
 
         // Publish status khi nhận cấu hình mới thành công
         if (is_config_valid) {
-          publish_status(&global_device_config, "configured");
+          publish_status(&global_device_config, true);
         }
       }
 
@@ -248,7 +254,7 @@ void loop() {
     static unsigned long last_status_time = 0;
     if (millis() - last_status_time >= 30000) {
       last_status_time = millis();
-      publish_status(&global_device_config, "online");
+      publish_status(&global_device_config, true);
     }
   }
 }
