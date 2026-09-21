@@ -12,10 +12,15 @@
 // Ngưỡng hợp lý. Dat thanh hang so co ten de doc hieu y nghia, thay vi
 // rai so 1577836800000 khap noi.
 
-import { isPlainObject } from "./shared.js"
-import { MIN_VALID_TIMESTAMP_MS, MAX_FUTURE_SKEW_MS } from "./shared.js"
+import { isPlainObject, MIN_VALID_TIMESTAMP_MS, MAX_FUTURE_SKEW_MS } from "./shared.js"
 
 const MAX_METRIC_COUNT = 32
+
+// Danh sach chi so duoc phep cho may cua nhom.
+// Whitelist cung: an toan, nhung them cam bien moi thi phai sua code va deploy lai.
+// Dung Set thay vi Array: tra cuu O(1) thay vi O(n). Voi 3 phan tu thi khong
+// khac biet, nhung chon dung cau truc la thoi quen dang luyen.
+const ALLOWED_METRICS = new Set(['temperature', 'current', 'rpm']);
 
 export function validateTelemetry(topicDeviceId, payload) {
   const errors = []; // khai báo biến errors để hứng tất cả các lỗi thay vì throw 1 lỗi và phải sửa đi sửa lại nhiều lần 
@@ -66,6 +71,11 @@ export function validateTelemetry(topicDeviceId, payload) {
     }
 
     for (const name of metricNames) {
+      if (!ALLOWED_METRICS.has(name)) {
+        errors.push(`metrics.${name} is not in the allowed metric list`);
+        continue;
+      }
+
       if (!Number.isFinite(payload.metrics[name])) {
         errors.push(`metrics.${name} must be a finite number, received: ${payload.metrics[name]}`);
       }
