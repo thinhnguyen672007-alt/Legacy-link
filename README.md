@@ -172,6 +172,7 @@ GitHub Actions automatically builds the ESP32 firmware on every push and pull re
 | [#13](https://github.com/thinhnguyen672007-alt/Legacy-link/pull/13) | `feature/infra-base` | Resolve conflicts and remove bloatware | @phamTuan207 | 2026-09-21 |
 | [#14](https://github.com/thinhnguyen672007-alt/Legacy-link/pull/14) | `feature/backend-base` | Add status validation, shared.js, schemaVersion enforcement | @thinhnguyen672007-alt | 2026-09-21 |
 | [#15](https://github.com/thinhnguyen672007-alt/Legacy-link/pull/15) | `feature/backend-base` | Add test files for telemetry and status validation | @thinhnguyen672007-alt | 2026-09-21 |
+| [#16](https://github.com/thinhnguyen672007-alt/Legacy-link/pull/16) | `feature/firmware-base` | Align firmware payload format with backend validation (epoch ms, schemaVersion, boolean status) | @Nezine | 2026-09-21 |
 
 ## Roadmap
 
