@@ -2,6 +2,8 @@
 
 > **Role:** Technical reference document detailing network topology, MQTT communication flows, topic conventions, and future service extensibility for the **Legacy-link** project.  
 > **Audience:** Firmware engineers, backend developers, infrastructure engineers, and system integrators.
+>
+> **Deprecation notice (payload contract):** MQTT payload examples in this document are deprecated and kept for historical architecture context only. The active payload contract is defined in `README.md`, `backend/src/validation/telemetry.js`, and `backend/src/validation/status.js`.
 
 ---
 
