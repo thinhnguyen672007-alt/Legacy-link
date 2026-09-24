@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { startMqttClient, getStats } from './mqtt/client.js';
 import { validateTelemetry } from './validation/telemetry.js';
 import { validateStatus } from './validation/status.js';
+import { validateAlarm, ALARM_HINTS, SEVERITY_HINTS } from './validation/alarm.js';
 
 
 
@@ -55,9 +56,20 @@ const client = startMqttClient({
     logTiming(status);
   },
   onAlarm: (deviceId, payload) => {
-    console.log(`[ALARM] ${deviceId}:`, JSON.stringify(payload));
+    const result = validateAlarm(deviceId, payload);
 
-    logTiming(payload);
+    if (!result.ok) {
+      console.error(`[ALARM] Bo qua ${deviceId}:`, result.errors.join('; '));
+      return;
+    }
+
+    const alarm = result.value;
+
+    console.log(
+      `[ALARM] ${alarm.deviceId}: ${alarm.code} [${alarm.severity}] -> ${ALARM_HINTS[alarm.code]}; ${SEVERITY_HINTS[alarm.severity]}`,
+    );
+
+    logTiming(alarm);
   }
 });
 
