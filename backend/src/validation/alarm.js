@@ -1,78 +1,81 @@
-import { isPlainObject, checkDeviceId, checkTimestamp, checkSchemaVersion } from "./shared.js"
+// validation/alarm.js
+// Nhiem vu: kiem tra mot payload alarm co hop le khong.
+//
+// Alarm la loai message quan trong nhat trong ba loai. Telemetry sai thi bieu
+// do sai. Status sai thi dashboard hien sai trang thai. Nhung alarm sai thi
+// co nguoi bi danh thuc luc 3 gio sang — hoac te hon, mot alarm that bi bo qua
+// vi chim trong mot loat alarm gia.
+//
+// validateAlarm la ham THUAN: khong log, khong goi database, khong biet gi ve
+// MQTT. Vao: du lieu. Ra: phan quyet. Nho vay test duoc ma khong can ha tang.
+
+import { isPlainObject, checkDeviceId, checkTimestamp, checkSchemaVersion } from "./shared.js";
+
+// Ma alarm duoc phep. Firmware khong the tu nghi ra ma moi, vi backend phai
+// biet cach hien thi va xu ly tung ma.
+const ALLOWED_CODES = new Set(['OVERHEAT', 'OVERCURRENT', 'OVERSPEED', 'VIBRATION']);
+
+// Muc do nghiem trong. Quyet dinh AI duoc goi va GAP den muc nao.
+const ALLOWED_SEVERITIES = new Set(['low', 'medium', 'high', 'critical']);
+
+// Thong diep cho nguoi doc. Day KHONG phai loi validation — no la du lieu de
+// hien thi. Vi vay no nam ngoai validator, va tang xu ly (index.js) moi dung.
+export const ALARM_HINTS = {
+  OVERHEAT: 'The temperature of machine needs to cool down',
+  OVERCURRENT: 'The current of machine needs to be limited',
+  OVERSPEED: 'The speed of machine needs to slow down',
+  VIBRATION: 'The vibration of machine needs to be handled',
+};
+
+export const SEVERITY_HINTS = {
+  low: 'Track it',
+  medium: 'Check it today',
+  high: 'Call the engineer on duty',
+  critical: 'Stop the machine',
+};
 
 export function validateAlarm(topicDeviceId, payload) {
-    const errors = [];
+  if (!isPlainObject(payload)) {
+    return { ok: false, errors: ['payload must be an object'] };
+  }
 
-    if (!isPlainObject(payload)) {
-        return {
-            ok: false,
-            errors: ["payload must be a object"]
-        }
-    }
+  const errors = [];
 
-    // 1. deviceId phải là string và phải trùng với topicDeviceId
-    checkDeviceId(topicDeviceId, payload.deviceId, errors);
+  checkDeviceId(topicDeviceId, payload.deviceId, errors);
+  checkTimestamp(payload.timestamp, errors);
+  checkSchemaVersion(payload.schemaVersion, errors);
 
-    // 2. timestamp phải là một số nguyên 
-    checkTimestamp(payload.timestamp, errors);
+  if (typeof payload.code !== 'string') {
+    errors.push('code must be a string');
+  } else if (!ALLOWED_CODES.has(payload.code)) {
+    errors.push(`code must be one of: ${[...ALLOWED_CODES].join(', ')}`);
+  }
 
-    // 3. schemaVersion phải là một số nguyên 
-    checkSchemaVersion(payload.schemaVersion, errors);
-    
-    // 4. code và severity 
-    // Code : Overheat, Overcurrent, Overspeed, Vibration
-    // Severity : low, medium, high, critical
+  if (typeof payload.severity !== 'string') {
+    errors.push('severity must be a string');
+  } else if (!ALLOWED_SEVERITIES.has(payload.severity)) {
+    errors.push(`severity must be one of: ${[...ALLOWED_SEVERITIES].join(', ')}`);
+  }
 
-    const allowedCode = ['OVERHEAT', 'OVERCURRENT', 'OVERSPEED', 'VIBRATION'];
-    const allowedSeverity = ['low', 'medium', 'high', 'critical'];
+  // value la TUY CHON: gia tri do da kich hoat alarm (nhiet do, dong dien...).
+  // Co thi phai la so huu han, khong co thi bo qua.
+  if (payload.value !== undefined && !Number.isFinite(payload.value)) {
+    errors.push(`value must be a finite number when present, received: ${payload.value}`);
+  }
 
-    if(typeof payload.code !== 'string' || payload.code.trim() === '') {
-        errors.push('code must be a string');
-    } else if (!allowedCode.includes(payload.code)) {
-        errors.push(`code must be one of ${allowedCode.join(', ')}`);
-    }
-    if(typeof payload.severity !== 'string' || payload.severity.trim() === '') {
-        errors.push('severity must be a string');
-    } else if (!allowedSeverity.includes(payload.severity)) {
-        errors.push(`severity must be one of ${allowedSeverity.join(', ')}`);
-    }  
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
 
-
-    if(payload.code === 'OVERHEAT') {
-        console.log('The temperature of machine need to cool down')
-    } else if (payload.code === 'OVERCURRENT') {
-        console.log('The current of machine need to limit')
-    } else if (payload.code === 'OVERSPEED') {
-        console.log('The speed of machine need to slow down')
-    } else if (payload.code === 'VIBRATION') {
-        console.log('The vibration of machine need to handle')
-    }
-    
-    if (payload.severity === 'low') {
-        console.log('The machine need to track')
-    } else if (payload.severity === 'medium') {
-        console.log('The machine need to check')
-    } else if (payload.severity === 'high') {
-        console.log('The machine need to call the engineering')
-    } else if (payload.severity === 'critical') {
-        console.log('The machine need to stop')
-    }   
-
-    if (errors.length > 0) {
-        return {
-            ok: false,
-            errors,
-        };
-    }
-
-    return {
-        ok: true,
-        value: {
-            deviceId: payload.deviceId,
-            timestamp: payload.timestamp,
-            code: payload.code,
-            severity: payload.severity,
-            schemaVersion: payload.schemaVersion,
-        },
-    };
+  return {
+    ok: true,
+    value: {
+      deviceId: payload.deviceId,
+      timestamp: payload.timestamp,
+      schemaVersion: payload.schemaVersion,
+      code: payload.code,
+      severity: payload.severity,
+      value: payload.value,
+    },
+  };
 }
