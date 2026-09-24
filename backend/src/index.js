@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { startMqttClient, getStats } from './mqtt/client.js';
 import { validateTelemetry } from './validation/telemetry.js';
 import { validateStatus } from './validation/status.js';
+import { validateAlarm, ALARM_HINTS, SEVERITY_HINTS } from './validation/alarm.js';
 
 
 
@@ -64,7 +65,9 @@ const client = startMqttClient({
 
     const alarm = result.value;
 
-    console.log(`[ALARM] ${alarm.deviceId}:`, JSON.stringify(alarm.code), JSON.stringify(alarm.severity));
+    console.log(
+      `[ALARM] ${alarm.deviceId}: ${alarm.code} [${alarm.severity}] -> ${ALARM_HINTS[alarm.code]}; ${SEVERITY_HINTS[alarm.severity]}`,
+    );
 
     logTiming(alarm);
   }

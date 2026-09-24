@@ -12,7 +12,7 @@
 // Ngưỡng hợp lý. Dat thanh hang so co ten de doc hieu y nghia, thay vi
 // rai so 1577836800000 khap noi.
 
-import { isPlainObject, checkDeviceId, checkTimestamp, checkSchemaVersion, MIN_VALID_TIMESTAMP_MS, MAX_FUTURE_SKEW_MS } from "./shared.js"
+import { isPlainObject, checkDeviceId, checkTimestamp, checkSchemaVersion } from "./shared.js"
 
 const MAX_METRIC_COUNT = 32
 
@@ -26,7 +26,7 @@ export function validateTelemetry(topicDeviceId, payload) {
   const errors = []; // khai báo biến errors để hứng tất cả các lỗi thay vì throw 1 lỗi và phải sửa đi sửa lại nhiều lần 
 
   if (!isPlainObject(payload)) {
-    return { ok: false, errors: ['payload phai la mot object'] };
+    return { ok: false, errors: ['payload must be an object'] };
   }
 
   // 1. deviceId: chuoi khong rong, va phai KHOP voi deviceId tren topic.
@@ -44,7 +44,7 @@ export function validateTelemetry(topicDeviceId, payload) {
   // 4. metrics: object khong rong, moi gia tri phai la so huu han.
 
   if (!isPlainObject(payload.metrics)) {
-    errors.push('metrics must be a object')
+    errors.push('metrics must be an object')
   } else {
     const metricNames = Object.keys(payload.metrics);
 
