@@ -31,7 +31,8 @@ void modbus_poll_data(const device_config_t *cfg) {
 
     if (result == node.ku8MBSuccess) {
       data = node.getResponseBuffer(0);
-      float final_val = data * reg->scale;
+      float final_val = (strcmp(reg->data_type, "INT16") == 0
+                             ? static_cast<int16_t>(data) : static_cast<float>(data)) * reg->scale;
       Serial.printf("[%s] Raw: %u | Scaled: %.2f %s\r\n", reg->key, data,
                     final_val, reg->unit);
     } else {
@@ -65,7 +66,8 @@ uint8_t modbus_poll_and_collect(const device_config_t *cfg, modbus_result_t *res
 
     if (result == node.ku8MBSuccess) {
       data = node.getResponseBuffer(0);
-      results[collected].scaled_value = data * reg->scale;
+      results[collected].scaled_value = (strcmp(reg->data_type, "INT16") == 0
+                                           ? static_cast<int16_t>(data) : static_cast<float>(data)) * reg->scale;
       results[collected].success = true;
       Serial.printf("[%s] Raw: %u | Scaled: %.2f %s\r\n", reg->key, data,
                     results[collected].scaled_value, reg->unit);

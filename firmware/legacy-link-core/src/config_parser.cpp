@@ -14,11 +14,10 @@
 #include "driver/uart.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <math.h>
 
 device_config_t global_device_config = {};
 bool is_config_valid = false;
-
-static bool uart2_driver_installed = false;
 
 #define UART_CNC_PORT UART_NUM_2
 #define UART_CNC_TX_PIN 17
@@ -54,52 +53,76 @@ static uint32_t get_serial_config(uint8_t parity, uint8_t stop_bits) {
   return SERIAL_8N1;
 }
 
-bool parse_device_config(const char *json_payload, device_config_t *out) {
-  StaticJsonDocument<4096> doc;
+// Reject invalid input before narrowing integers or copying into fixed buffers.
+static bool read_string(JsonVariantConst value, char *out, size_t capacity,
+                        const char *fallback, bool required = false) {
+  const char *text = value.isNull() ? fallback : value.as<const char *>();
+  if (!value.isNull() && value.as<JsonString>().size() != (text ? strlen(text) : 0)) return false;
+  if (!text || strlen(text) >= capacity || (required && !text[0])) return false;
+  strlcpy(out, text, capacity);
+  return true;
+}
 
+static bool read_uint(JsonVariantConst value, uint32_t fallback,
+                      uint32_t minimum, uint32_t maximum, uint32_t &out) {
+  if (!value.isNull() && !value.is<uint32_t>()) return false;
+  out = value.isNull() ? fallback : value.as<uint32_t>();
+  return out >= minimum && out <= maximum;
+}
+
+bool parse_device_config(const char *json_payload, device_config_t *out) {
+  if (!json_payload || !out) return false;
+  StaticJsonDocument<4096> doc;
   DeserializationError err = deserializeJson(doc, json_payload);
-  if (err) {
-    Serial.printf("[CONFIG] JSON parse FAILED: %s\r\n", err.c_str());
+  if (err || !doc.is<JsonObject>()) {
+    Serial.println("[CONFIG] Invalid JSON object");
     return false;
   }
 
-  strlcpy(out->device_id, doc["deviceId"] | "UNKNOWN", sizeof(out->device_id));
-  strlcpy(out->device_name, doc["deviceName"] | "", sizeof(out->device_name));
-  strlcpy(out->protocol, doc["protocol"] | "MODBUS_RTU", sizeof(out->protocol));
-  out->baud_rate = doc["baudRate"] | (uint32_t)9600;
-  out->parity = parse_parity(doc["parity"] | "NONE");
-  out->stop_bits = doc["stopBits"] | (uint8_t)1;
-  out->slave_id = doc["slaveId"] | (uint8_t)1;
-  out->sampling_interval_ms = doc["samplingIntervalMs"] | (uint32_t)1000;
-
-  JsonArray reg_array = doc["registerMap"];
-  if (reg_array.isNull()) {
-    out->register_count = 0;
-    Serial.println("[CONFIG] No registerMap found in payload");
-    return true;
+  device_config_t candidate = {};
+  if (!read_string(doc["deviceId"], candidate.device_id, sizeof(candidate.device_id), "", true) ||
+      !read_string(doc["deviceName"], candidate.device_name, sizeof(candidate.device_name), "") ||
+      !read_string(doc["protocol"], candidate.protocol, sizeof(candidate.protocol), "MODBUS_RTU") ||
+      strcmp(candidate.protocol, "MODBUS_RTU") != 0) return false;
+  for (const char *c = candidate.device_id; *c; ++c) {
+    if (static_cast<unsigned char>(*c) <= 32 || *c == 127 || *c == '/' || *c == '+' || *c == '#') return false;
   }
 
-  uint8_t i = 0;
-  for (JsonObject reg : reg_array) {
-    if (i >= MAX_REGISTERS) {
-      Serial.printf("[CONFIG] WARNING: Too many registers, max=%u\r\n",
-                    MAX_REGISTERS);
-      break;
+  if (!read_uint(doc["baudRate"], 9600, 300, 2000000, candidate.baud_rate) ||
+      !read_uint(doc["samplingIntervalMs"], 1000, 100, 86400000, candidate.sampling_interval_ms)) return false;
+  uint32_t number;
+  if (!read_uint(doc["stopBits"], 1, 1, 2, number)) return false;
+  candidate.stop_bits = number;
+  if (!read_uint(doc["slaveId"], 1, 1, 247, number)) return false;
+  candidate.slave_id = number;
+  const char *parity = doc["parity"].isNull() ? "NONE" : doc["parity"].as<const char *>();
+  if (!parity || (strcmp(parity, "NONE") && strcmp(parity, "EVEN") && strcmp(parity, "ODD"))) return false;
+  candidate.parity = parse_parity(parity);
+
+  JsonArray registers = doc["registerMap"].as<JsonArray>();
+  if (registers.isNull() || registers.size() == 0 || registers.size() > MAX_REGISTERS) return false;
+  for (JsonVariant entry : registers) {
+    if (!entry.is<JsonObject>()) return false;
+    register_config_t &reg = candidate.registers[candidate.register_count];
+    if (!read_string(entry["key"], reg.key, sizeof(reg.key), "", true) ||
+        !read_string(entry["dataType"], reg.data_type, sizeof(reg.data_type), "INT16") ||
+        !read_string(entry["unit"], reg.unit, sizeof(reg.unit), "")) return false;
+    // The reader currently handles one 16-bit register per metric.
+    if (strcmp(reg.data_type, "INT16") && strcmp(reg.data_type, "UINT16")) return false;
+    for (uint8_t i = 0; i < candidate.register_count; ++i) {
+      if (!strcmp(candidate.registers[i].key, reg.key)) return false;
     }
-    strlcpy(out->registers[i].key, reg["key"] | "unnamed",
-            sizeof(out->registers[i].key));
-    out->registers[i].address = reg["address"] | (uint16_t)0;
-    out->registers[i].function_code = reg["functionCode"] | (uint8_t)3;
-    strlcpy(out->registers[i].data_type, reg["dataType"] | "INT16",
-            sizeof(out->registers[i].data_type));
-    out->registers[i].scale = reg["scale"] | 1.0f;
-    strlcpy(out->registers[i].unit, reg["unit"] | "",
-            sizeof(out->registers[i].unit));
-    i++;
+    if (entry["address"].isNull() || !read_uint(entry["address"], 0, 0, 65535, number)) return false;
+    reg.address = number;
+    if (!read_uint(entry["functionCode"], 3, 3, 4, number)) return false;
+    reg.function_code = number;
+    if (!entry["scale"].isNull() && !entry["scale"].is<float>()) return false;
+    reg.scale = entry["scale"].isNull() ? 1.0f : entry["scale"].as<float>();
+    if (!isfinite(reg.scale)) return false;
+    ++candidate.register_count;
   }
-  out->register_count = i;
 
-  Serial.println("[CONFIG] JSON parsed OK");
+  *out = candidate;
   return true;
 }
 
@@ -125,7 +148,7 @@ void print_device_config(const device_config_t *cfg) {
   Serial.println(line);
   snprintf(line, sizeof(line), "  Protocol      : %s", cfg->protocol);
   Serial.println(line);
-  snprintf(line, sizeof(line), "  Baud Rate     : %lu", cfg->baud_rate);
+  snprintf(line, sizeof(line), "  Baud Rate     : %lu", static_cast<unsigned long>(cfg->baud_rate));
   Serial.println(line);
 
   const char *parity_name = "NONE";
@@ -141,7 +164,7 @@ void print_device_config(const device_config_t *cfg) {
   snprintf(line, sizeof(line), "  Slave ID      : %u", cfg->slave_id);
   Serial.println(line);
   snprintf(line, sizeof(line), "  Sampling (ms) : %lu",
-           cfg->sampling_interval_ms);
+           static_cast<unsigned long>(cfg->sampling_interval_ms));
   Serial.println(line);
 
   snprintf(line, sizeof(line), "  Registers     : %u", cfg->register_count);
@@ -149,42 +172,28 @@ void print_device_config(const device_config_t *cfg) {
 
   Serial.println("  --------------------------------------");
   for (uint8_t i = 0; i < cfg->register_count; i++) {
-    snprintf(line, sizeof(line),
-             "  [%u] addr=%u  FC=%u  key=%-12s  type=%-7s  scale=%.2f  unit=%s",
+    Serial.printf(
+             "  [%u] addr=%u  FC=%u  key=%-12s  type=%-7s  scale=%.2f  unit=%s\r\n",
              i, cfg->registers[i].address, cfg->registers[i].function_code,
              cfg->registers[i].key, cfg->registers[i].data_type,
              (double)cfg->registers[i].scale, cfg->registers[i].unit);
-    Serial.println(line);
   }
   Serial.println("========================================");
 }
 
-void apply_new_configuration(const char *json_payload) {
-  is_config_valid = false;
-
-  if (!parse_device_config(json_payload, &global_device_config)) {
-    Serial.println("[CONFIG] Aborted: invalid JSON");
-    return;
+bool apply_new_configuration(const char *json_payload) {
+  device_config_t candidate = {};
+  if (!parse_device_config(json_payload, &candidate)) {
+    Serial.println("[CONFIG] Rejected: invalid configuration; keeping current config");
+    return false;
   }
-
-  if (global_device_config.slave_id < 1 || global_device_config.slave_id > 247) {
-    Serial.printf("[CONFIG] Aborted: slaveId=%u out of range (1-247)\r\n",
-                  global_device_config.slave_id);
-    return;
-  }
-
-  if (!apply_uart_config(&global_device_config)) {
+  if (!apply_uart_config(&candidate)) {
     Serial.println("[CONFIG] Aborted: UART2 reconfiguration failed");
-    return;
+    return false;
   }
-
-  print_device_config(&global_device_config);
-
-  char summary[80];
-  snprintf(summary, sizeof(summary),
-           "[CONFIG] SUCCESS in <1s | Device=%s | Baud=%lu | Regs=%u",
-           global_device_config.device_id, global_device_config.baud_rate, global_device_config.register_count);
-  Serial.println(summary);
-
+  global_device_config = candidate;
   is_config_valid = true;
+  print_device_config(&global_device_config);
+  Serial.println("[CONFIG] Configuration applied successfully");
+  return true;
 }
