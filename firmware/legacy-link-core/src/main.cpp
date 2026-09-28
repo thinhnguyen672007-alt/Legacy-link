@@ -21,6 +21,14 @@ const char *ntp_server_2 = "time.nist.gov";
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
+// Stable gateway identity allows provisioning before any device config exists.
+static char gateway_id[13];
+static char mqtt_client_id[32];
+static char config_topic[80];
+static constexpr size_t CONFIG_BUFFER_SIZE = 4096;
+static char pending_config[CONFIG_BUFFER_SIZE];
+static bool config_pending = false;
+
 // Trả về epoch MILLISECONDS (13 chữ số) khớp với backend validation
 // Backend kiểm tra: timestamp >= Date.UTC(2020,0,1) = 1577836800000
 unsigned long long current_epoch_ms() {
@@ -132,28 +140,32 @@ void reconnect_mqtt() {
   Serial.print("Attempting MQTT connection...");
 
   // Kết nối với username/password khớp với Mosquitto auth
-  if (mqttClient.connect("LegacyLink_ESP32_01", mqtt_user, mqtt_pass)) {
+  if (mqttClient.connect(mqtt_client_id, mqtt_user, mqtt_pass)) {
     Serial.println("connected!");
 
-    // Subscribe topic cấu hình từ Backend (tương lai)
-    // mqttClient.subscribe("legacy-link/devices/+/config");
+    if (!mqttClient.subscribe(config_topic, 1)) {
+      Serial.println("[MQTT] Config subscription failed; reconnecting on next retry");
+      mqttClient.disconnect();
+      return;
+    }
+    Serial.printf("[MQTT] Config topic: %s\r\n", config_topic);
+    if (is_config_valid) publish_status(&global_device_config, true);
   } else {
     Serial.print("failed, rc=");
     Serial.println(mqttClient.state());
   }
 }
 
-// --- MQTT CALLBACK (nhận cấu hình từ Backend - tương lai) ---
+// Copy the MQTT-owned bytes before returning; apply outside the callback.
 void mqtt_callback(char *topic, byte *payload, unsigned int length) {
-  Serial.printf("[MQTT] Received %u bytes on topic: %s\r\n", length, topic);
-
-  // Tạm thời chỉ log, sau này sẽ parse JSON và gọi apply_new_configuration()
-  char buffer[1024];
-  if (length < sizeof(buffer)) {
-    memcpy(buffer, payload, length);
-    buffer[length] = '\0';
-    Serial.printf("[MQTT] Payload: %s\r\n", buffer);
+  if (strcmp(topic, config_topic) != 0) return;
+  if (length == 0 || length >= sizeof(pending_config) || memchr(payload, '\0', length)) {
+    Serial.println("[CONFIG] Rejected: empty, oversized or NUL-containing MQTT payload");
+    return;
   }
+  memcpy(pending_config, payload, length);
+  pending_config[length] = '\0';
+  config_pending = true;
 }
 
 // ============================================================
@@ -172,10 +184,20 @@ void setup() {
   // Kết nối Wi-Fi (nếu thất bại vẫn chạy offline mode)
   setup_wifi();
 
+  const uint64_t chip_id = ESP.getEfuseMac();
+  snprintf(gateway_id, sizeof(gateway_id), "%04X%08X",
+           static_cast<unsigned int>(chip_id >> 32), static_cast<unsigned int>(chip_id));
+  snprintf(mqtt_client_id, sizeof(mqtt_client_id), "legacy-link-%s", gateway_id);
+  snprintf(config_topic, sizeof(config_topic), "legacy-link/gateways/%s/config", gateway_id);
+  Serial.printf("[MQTT] Gateway ID: %s; config topic: %s\r\n", gateway_id, config_topic);
+
   // Cấu hình MQTT Broker
   mqttClient.setServer(mqtt_server, mqtt_port);
   mqttClient.setCallback(mqtt_callback);
-  mqttClient.setBufferSize(1024); // Tăng buffer cho payload lớn
+  // Include MQTT header and topic overhead in addition to the config payload.
+  if (!mqttClient.setBufferSize(CONFIG_BUFFER_SIZE + 128)) {
+    Serial.println("[MQTT] Failed to allocate configuration receive buffer");
+  }
 
   Serial.println("  Status   : Waiting for JSON config...");
   Serial.println("========================================");
@@ -196,9 +218,17 @@ void loop() {
     mqttClient.loop();
   }
 
+  if (config_pending) {
+    config_pending = false;
+    if (apply_new_configuration(pending_config)) {
+      publish_status(&global_device_config, true);
+    }
+  }
+
   // 2. Nhận JSON qua Serial Monitor để cấu hình (backup khi chưa có MQTT config)
-  static char inputBuffer[1024];
+  static char inputBuffer[CONFIG_BUFFER_SIZE];
   static size_t inputLength = 0;
+  static bool inputOverflow = false;
 
   while (Serial.available() > 0) {
     const char receivedByte = static_cast<char>(Serial.read());
@@ -208,25 +238,33 @@ void loop() {
     }
 
     if (receivedByte == '\n') {
+      if (inputOverflow) {
+        inputOverflow = false;
+        inputLength = 0;
+        continue;
+      }
       inputBuffer[inputLength] = '\0';
 
       if (inputLength > 0) {
         Serial.printf("\n[RECV] %u bytes received\r\n", inputLength);
-        apply_new_configuration(inputBuffer);
-        Serial.printf("[SYS] Free RAM after config: %u bytes\r\n\n", ESP.getFreeHeap());
-
-        // Publish status khi nhận cấu hình mới thành công
-        if (is_config_valid) {
+        if (apply_new_configuration(inputBuffer)) {
           publish_status(&global_device_config, true);
         }
       }
 
       inputLength = 0;
+    } else if (inputOverflow) {
+      continue; // Discard the entire oversized line, including any valid-looking suffix.
+    } else if (receivedByte == '\0') {
+      inputOverflow = true;
+      inputLength = 0;
+      Serial.println("[CONFIG] Rejected: NUL-containing Serial input");
     } else if (inputLength < sizeof(inputBuffer) - 1) {
       inputBuffer[inputLength++] = receivedByte;
     } else {
       inputLength = 0;
-      Serial.println("[ERROR] Input too long (max 1023 bytes)");
+      inputOverflow = true;
+      Serial.println("[ERROR] Input too long (max 4095 bytes); discarding line");
     }
   }
 

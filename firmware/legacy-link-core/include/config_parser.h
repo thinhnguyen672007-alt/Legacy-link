@@ -9,7 +9,7 @@ extern bool is_config_valid;
 
 bool parse_device_config(const char* json_payload, device_config_t* out);
 bool apply_uart_config(const device_config_t* cfg);
-void apply_new_configuration(const char* json_payload);
+bool apply_new_configuration(const char* json_payload);
 void print_device_config(const device_config_t* cfg);
 
 #endif
