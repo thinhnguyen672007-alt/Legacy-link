@@ -92,6 +92,19 @@ unsigned register decoding. In a ptrace-based sandbox, run the tests with
 `ASAN_OPTIONS=detect_leaks=0` if LeakSanitizer cannot start; address and undefined
 behavior checks remain enabled.
 
+The second test executable runs the actual `setup()`, MQTT callback and `loop()`
+with simulated Wi-Fi, MQTT and Serial interfaces. It covers gateway topic
+isolation, deferred configuration application, reconnect subscriptions,
+subscription write failures, invalid MQTT payloads, Serial overflow recovery,
+and configuration delivery when no active configuration exists. These simulations
+do not exercise a real MQTT broker or prove retained-message delivery.
+
+Telemetry tests check a full 16-register payload larger than 512 bytes and confirm
+that it is complete JSON. Failed readings and non-finite values are omitted; an
+empty metric set is not published. Numeric values use ArduinoJson serialization
+without the previous forced two-decimal formatting. Payloads that exceed the
+document or output buffer are skipped instead of publishing truncated JSON.
+
 Hardware smoke test:
 
 1. Flash the firmware with your Wi-Fi and MQTT settings and note its config topic.

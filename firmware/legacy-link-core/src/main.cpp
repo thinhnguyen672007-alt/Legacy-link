@@ -5,6 +5,7 @@
 #include <PubSubClient.h>
 #include <WiFi.h>
 #include <time.h>
+#include <math.h>
 
 // ============================================================
 // CẤU HÌNH MẠNG - Đổi theo môi trường của team
@@ -63,8 +64,8 @@ void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uin
 
   JsonObject metrics = doc.createNestedObject("metrics");
   for (uint8_t i = 0; i < count; i++) {
-    if (results[i].success) {
-      metrics[results[i].key] = serialized(String(results[i].scaled_value, 2));
+    if (results[i].success && isfinite(results[i].scaled_value)) {
+      metrics[results[i].key] = results[i].scaled_value;
     }
   }
 
@@ -72,7 +73,9 @@ void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uin
   char topic[80];
   snprintf(topic, sizeof(topic), "legacy-link/devices/%s/telemetry", cfg->device_id);
 
-  char payload[512];
+  if (metrics.size() == 0 || doc.overflowed()) return;
+  char payload[1024];
+  if (measureJson(doc) >= sizeof(payload)) return;
   size_t len = serializeJson(doc, payload, sizeof(payload));
 
   if (mqttClient.publish(topic, payload)) {

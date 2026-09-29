@@ -3,6 +3,18 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <string>
+#include <ctime>
+using byte = unsigned char;
+extern unsigned long test_millis;
+inline unsigned long millis() { return test_millis; }
+inline void delay(unsigned long value) { test_millis += value; }
+inline void configTime(long, int, const char *, const char *) {}
+struct TestEsp {
+  uint64_t getEfuseMac() { return 0x123456789ABCULL; }
+  unsigned getFreeHeap() { return 200000; }
+};
+extern TestEsp ESP;
 #define SERIAL_8E2 1
 #define SERIAL_8E1 2
 #define SERIAL_8O2 3
@@ -17,7 +29,16 @@ inline size_t strlcpy(char *dest, const char *src, size_t size) {
 }
 struct TestSerial {
   unsigned begin_count = 0;
+  std::string input;
+  size_t cursor = 0;
+  void feed(const std::string &text) { input = text; cursor = 0; }
+  int available() { return cursor < input.size(); }
+  int read() { return input[cursor++]; }
+  void begin(uint32_t) { ++begin_count; }
   void begin(uint32_t, uint32_t, int, int) { ++begin_count; }
+  void println() {}
+  void println(int) {}
+  void print(const char *) {}
   void println(const char *) {}
   template <typename... Args> void printf(const char *, Args...) {}
 };
