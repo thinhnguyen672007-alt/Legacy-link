@@ -8,7 +8,7 @@ Configuration-driven, low-cost gateway for connecting legacy equipment to modern
 
 Legacy-link bridges older industrial or laboratory equipment with modern applications through a configurable ESP32 gateway. A JSON payload describes the target device (baud rate, parity, slave ID, register map, etc.). The firmware parses the payload, reconfigures UART2 on the fly, and starts polling Modbus registers at the specified interval -- **no firmware reflash required** when connecting to a new machine.
 
-Polled data is published over MQTT using a structured topic hierarchy (`legacy-link/devices/{deviceId}/telemetry|status|alarm`). A Node.js backend subscribes to these topics, validates each payload against a strict schema, and logs the results.
+Polled data and device status are published over MQTT using `legacy-link/devices/{deviceId}/telemetry` and `/status`. A Node.js backend subscribes to these topics, validates each payload against a strict schema, and logs the results. The backend also validates `/alarm` messages; firmware threshold-based alarm publishing is still planned.
 
 The repository is organised as a monorepo so firmware, infrastructure, backend, frontend, and tests can evolve independently.
 
@@ -17,6 +17,7 @@ The repository is organised as a monorepo so firmware, infrastructure, backend, 
 | Directory | Purpose | Status |
 | --- | --- | --- |
 | `firmware/` | PlatformIO firmware for the ESP32 gateway | Active |
+| `firmware/legacy-link-core/test/host/` | Firmware configuration and register-decoding tests without an ESP32 | Active |
 | `infrastructure/` | Docker Compose services (Mosquitto MQTT broker), scripts, and environment config | Active |
 | `backend/` | MQTT consumer with payload validation | Active |
 | `frontend/` | Operator dashboard / interface | Planned |
@@ -48,25 +49,61 @@ The firmware is split into three modules:
 
 ### MQTT Publishing
 
-The gateway publishes data to three topic families (matching `backend/src/config.js`):
+The MQTT contract defines three topic families (matching `backend/src/config.js`):
 
 | Topic | Payload | Trigger |
 | --- | --- | --- |
 | `legacy-link/devices/{deviceId}/telemetry` | `{deviceId, timestamp, schemaVersion:1, metrics:{...}}` | Every sampling interval |
-| `legacy-link/devices/{deviceId}/status` | `{deviceId, timestamp, schemaVersion:1, status:true/false}` | On config change + heartbeat every 30s |
+| `legacy-link/devices/{deviceId}/status` | `{deviceId, timestamp, schemaVersion:1, status:true/false}` | On accepted config, MQTT reconnect, and heartbeat every 30s |
 | `legacy-link/devices/{deviceId}/alarm` | *(reserved for future use)* | -- |
 
 - **Timestamps** are NTP-synchronised Unix epoch **milliseconds** (13 digits), matching backend validation.
 - **`schemaVersion: 1`** is included in every message as required by the backend.
 - Status messages use **retained** publish so new subscribers receive the last known state.
+- Current firmware publishes online status when time is synchronized; an automatic offline Last Will is not implemented yet.
+
+### Remote Configuration
+
+At startup, Serial Monitor prints the stable gateway ID derived from the ESP32
+chip ID and the topic `legacy-link/gateways/{gatewayId}/config`. Publish a JSON
+configuration to that exact topic. The gateway subscribes at QoS 1 on every MQTT
+connection, including before its first device configuration. Each gateway also
+uses a unique MQTT client ID.
+
+Save the JSON example below as `device-config.json`, then publish with your broker
+credentials and the gateway ID shown on Serial:
+
+```bash
+mosquitto_pub -h "$MQTT_HOST" -p 1883 \
+  -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
+  -t "legacy-link/gateways/$GATEWAY_ID/config" -q 1 -r \
+  -f device-config.json
+```
+
+The `-r` option retains the configuration at the broker so it can be delivered
+after reboot or reconnect. Configuration is not saved to ESP32 flash. A retained
+configuration can replace a later Serial configuration on reconnect. Broker
+permissions must allow the gateway to subscribe and the provisioning client to
+publish to this topic.
+
+The firmware validates the complete configuration before changing UART or active
+settings. Invalid updates keep the previous configuration running. Both MQTT and
+Serial accept up to 4095 bytes; oversized Serial lines are discarded completely.
+Supported register types are signed `INT16` and unsigned `UINT16`, with function
+codes 3 and 4 and at most 16 registers. See the
+[firmware guide](firmware/legacy-link-core/README.md) for all limits and defaults.
 
 ### JSON Configuration Example
 
-Send a single-line JSON via Serial Monitor (or MQTT in the future) to configure the gateway:
+Send this JSON via MQTT, or paste it as one line into Serial Monitor:
 
 ```json
-{"deviceId":"CNC-01","deviceName":"Fanuc 0i","protocol":"MODBUS_RTU","baudRate":9600,"parity":"EVEN","stopBits":1,"slaveId":1,"samplingIntervalMs":2000,"registerMap":[{"key":"spindle_speed","address":100,"functionCode":3,"dataType":"INT16","scale":1.0,"unit":"RPM"},{"key":"feed_rate","address":101,"functionCode":3,"dataType":"INT16","scale":0.1,"unit":"mm/min"}]}
+{"deviceId":"CNC-01","deviceName":"Workshop CNC","protocol":"MODBUS_RTU","baudRate":9600,"parity":"EVEN","stopBits":1,"slaveId":1,"samplingIntervalMs":2000,"registerMap":[{"key":"temperature","address":100,"functionCode":3,"dataType":"INT16","scale":0.1,"unit":"C"},{"key":"rpm","address":101,"functionCode":3,"dataType":"UINT16","scale":1.0,"unit":"RPM"}]}
 ```
+
+Addresses and scaling are examples; use the register map from your equipment's
+manual. The backend currently accepts only `temperature`, `current`, and `rpm`
+metric keys, so the example uses that vocabulary.
 
 ### Dependencies
 
@@ -103,6 +140,32 @@ pio device monitor -d firmware/legacy-link-core -b 115200
 ```
 
 Paste a JSON configuration line and press Enter. The gateway will parse, validate, reconfigure UART2, and begin polling Modbus registers.
+
+### Firmware Verification
+
+After the PlatformIO build downloads ArduinoJson, run the host tests:
+
+```bash
+bash firmware/legacy-link-core/test/host/run.sh
+```
+
+These tests compile the actual parser and Modbus reader with hardware stubs and
+address/undefined-behavior sanitizers. They cover invalid configuration rejection,
+preservation of active settings and UART calls, register-map limits, and signed
+versus unsigned decoding. In environments where LeakSanitizer cannot run under
+ptrace, use `ASAN_OPTIONS=detect_leaks=0` with the same command.
+
+Additional gateway lifecycle tests and a fix for truncated telemetry payloads are
+available on `feature/firmware-base` in
+[commit dc4662e](https://github.com/thinhnguyen672007-alt/Legacy-link/commit/dc4662e),
+and have not yet been merged into `main`. Those tests exercise the actual firmware
+callback and loop with simulated MQTT/Serial interfaces, including reconnects,
+wrong-topic messages, malformed payloads, Serial overflow recovery, and complete
+16-register telemetry. The ESP32 build and both host test executables passed.
+
+Physical ESP32, live MQTT broker, retained delivery, and real Modbus communication
+still require the [hardware smoke test](firmware/legacy-link-core/README.md#verification).
+Host simulations do not verify those physical and network behaviors.
 
 ### Network Configuration
 
@@ -185,7 +248,11 @@ GitHub Actions automatically builds the ESP32 firmware on every push and pull re
 - [x] NTP time synchronisation for accurate timestamps
 - [x] Backend MQTT consumer with payload validation
 - [x] CI/CD: GitHub Actions firmware build
-- [ ] MQTT callback to receive config from broker (OTA config)
+- [x] MQTT callback to receive config from broker (OTA config; merged in PR #19)
+- [x] Reject invalid configuration without replacing active settings
+- [x] Host tests for configuration validation and signed register decoding
+- [ ] Merge gateway lifecycle simulations and telemetry payload fix from `feature/firmware-base`
+- [ ] Verify remote configuration on physical ESP32 with a live broker and Modbus device
 - [ ] Publish alarm messages on threshold violation
 - [ ] Add a frontend for device status and configuration
 - [ ] Add simulator-driven tests for malformed and partial messages
