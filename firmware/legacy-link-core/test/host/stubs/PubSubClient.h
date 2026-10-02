@@ -5,7 +5,7 @@
 struct PubSubClient {
   struct Message { std::string topic, payload; bool retained; };
   explicit PubSubClient(WiFiClient &) {}
-  bool online = false, subscribe_ok = true;
+  bool online = false, subscribe_ok = true, publish_ok = true;
   unsigned subscriptions = 0;
   std::string client_id, subscribed_topic;
   std::vector<Message> published;
@@ -26,7 +26,7 @@ struct PubSubClient {
   int state() { return 0; }
   void loop() {}
   bool publish(const char *topic, const char *payload, bool retained = false) {
-    if (!online) return false;
+    if (!online || !publish_ok) return false;
     published.push_back({topic, payload, retained}); return true;
   }
   void receive(std::string topic, std::string payload) {

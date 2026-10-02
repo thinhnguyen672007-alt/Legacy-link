@@ -1,6 +1,7 @@
 #ifndef DEVICE_CONFIG_H
 #define DEVICE_CONFIG_H
 #include <stdint.h>
+#include <stdbool.h>
 
 #define MAX_DEVICE_ID_LEN   32
 #define MAX_DEVICE_NAME_LEN 48
@@ -11,12 +12,21 @@
 #define MAX_REGISTERS       16
 
 typedef struct {
+    bool enabled;
+    float threshold;
+    float hysteresis;
+    char code[12];
+    char severity[9];
+} alarm_config_t;
+
+typedef struct {
     char     key[MAX_REG_KEY_LEN];
     uint16_t address;
     uint8_t  function_code;
     char     data_type[MAX_REG_TYPE_LEN];
     float    scale;
     char     unit[MAX_REG_UNIT_LEN];
+    alarm_config_t alarm;
 } register_config_t;
 
 typedef struct {

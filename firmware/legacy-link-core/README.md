@@ -76,6 +76,70 @@ MQTT acknowledgment topic yet.
 - The backend currently accepts only `temperature`, `current`, and `rpm` metric
   names. Choose those keys for end-to-end telemetry until backend support expands.
 
+## Threshold alarms
+
+Each register can optionally include one upper-threshold `alarm` object:
+
+```json
+{
+  "deviceId": "CNC-01",
+  "samplingIntervalMs": 2000,
+  "registerMap": [
+    {
+      "key": "temperature",
+      "address": 100,
+      "dataType": "INT16",
+      "scale": 0.1,
+      "unit": "C",
+      "alarm": {
+        "threshold": 80,
+        "hysteresis": 5,
+        "code": "OVERHEAT",
+        "severity": "high"
+      }
+    }
+  ]
+}
+```
+
+Values above `threshold` trigger an alarm using the scaled measurement. The
+example first triggers above 80 C, then rearms only when a valid reading is at or
+below 75 C (`threshold - hysteresis`). This gap prevents repeated alerts when
+readings fluctuate near the threshold. `hysteresis` defaults to zero and must be
+finite and nonnegative. `threshold` must be finite; negative thresholds are
+supported. Replace these example values with limits for your equipment.
+
+`code` and `severity` are required and match the backend contract:
+
+| Field | Accepted values |
+| --- | --- |
+| `code` | `OVERHEAT`, `OVERCURRENT`, `OVERSPEED`, `VIBRATION` |
+| `severity` | `low`, `medium`, `high`, `critical` |
+
+An omitted `alarm` disables alerts for that register. A present but invalid alarm
+object (including `null`) rejects the entire configuration and preserves the
+previous settings. Lower-bound alarms and automatic machine control are not
+implemented.
+
+The firmware publishes to `legacy-link/devices/{deviceId}/alarm`:
+
+```json
+{"deviceId":"CNC-01","timestamp":1790899200000,"schemaVersion":1,"code":"OVERHEAT","severity":"high","value":81.5}
+```
+
+The timestamp is generated from synchronized time at publication. Failed Modbus
+reads and non-finite measurements neither trigger nor rearm alarms. If the clock
+is not ready, MQTT is disconnected, or publishing fails, a later valid reading
+still above the threshold can retry. Events that end before delivery are not
+queued. A successful publish suppresses repeats until the reset boundary is
+reached. No separate recovery message is emitted.
+
+Alarm messages use non-retained QoS 0 publishing, as supported by the current
+PubSubClient API. A successful publish means the client accepted the send, not
+that the backend acknowledged receipt. MQTT reconnect alone keeps alarm state;
+a successful configuration update (including retained redelivery) or reboot
+resets it and may produce another alert. Invalid updates keep alarm state.
+
 ## Verification
 
 ```bash
@@ -105,6 +169,12 @@ empty metric set is not published. Numeric values use ArduinoJson serialization
 without the previous forced two-decimal formatting. Payloads that exceed the
 document or output buffer are skipped instead of publishing truncated JSON.
 
+Alarm tests cover invalid settings, all supported codes/severities, a full
+16-register alarm configuration, threshold boundaries, hysteresis, independent
+register state, failed reads, unsynchronized time and failed-send retries. Gateway
+tests also verify the emitted alarm JSON, suppression across reconnects, and
+rearming after a successful Serial update.
+
 Hardware smoke test:
 
 1. Flash the firmware with your Wi-Fi and MQTT settings and note its config topic.
@@ -114,5 +184,9 @@ Hardware smoke test:
    continued polling with the previous settings.
 4. Restart the gateway with a retained valid config. Confirm it restores polling.
 5. Run two gateways and verify each accepts only its own configuration topic.
+6. Configure an alarm, then use a Modbus simulator or test device to move the
+   scaled value above the threshold. Check for one alarm, keep the value high to
+   confirm suppression, lower it to the reset boundary, and exceed the threshold
+   again to confirm a second alarm.
 
 The host tests and build do not verify physical UART, Wi-Fi, or broker delivery.

@@ -72,7 +72,8 @@ static bool read_uint(JsonVariantConst value, uint32_t fallback,
 
 bool parse_device_config(const char *json_payload, device_config_t *out) {
   if (!json_payload || !out) return false;
-  StaticJsonDocument<4096> doc;
+  // Keep JSON storage off the ESP32 loop stack as register configs grow.
+  DynamicJsonDocument doc(8192);
   DeserializationError err = deserializeJson(doc, json_payload);
   if (err || !doc.is<JsonObject>()) {
     Serial.println("[CONFIG] Invalid JSON object");
@@ -119,6 +120,23 @@ bool parse_device_config(const char *json_payload, device_config_t *out) {
     if (!entry["scale"].isNull() && !entry["scale"].is<float>()) return false;
     reg.scale = entry["scale"].isNull() ? 1.0f : entry["scale"].as<float>();
     if (!isfinite(reg.scale)) return false;
+    if (entry.containsKey("alarm")) {
+      JsonVariant alarm = entry["alarm"];
+      if (!alarm.is<JsonObject>() || !alarm["threshold"].is<float>()) return false;
+      reg.alarm.threshold = alarm["threshold"].as<float>();
+      if (!isfinite(reg.alarm.threshold)) return false;
+      if (alarm.containsKey("hysteresis") && !alarm["hysteresis"].is<float>()) return false;
+      reg.alarm.hysteresis = alarm["hysteresis"] | 0.0f;
+      if (!isfinite(reg.alarm.hysteresis) || reg.alarm.hysteresis < 0 ||
+          !isfinite(reg.alarm.threshold - reg.alarm.hysteresis)) return false;
+      if (!read_string(alarm["code"], reg.alarm.code, sizeof(reg.alarm.code), "", true) ||
+          !read_string(alarm["severity"], reg.alarm.severity, sizeof(reg.alarm.severity), "", true)) return false;
+      if (strcmp(reg.alarm.code, "OVERHEAT") && strcmp(reg.alarm.code, "OVERCURRENT") &&
+          strcmp(reg.alarm.code, "OVERSPEED") && strcmp(reg.alarm.code, "VIBRATION")) return false;
+      if (strcmp(reg.alarm.severity, "low") && strcmp(reg.alarm.severity, "medium") &&
+          strcmp(reg.alarm.severity, "high") && strcmp(reg.alarm.severity, "critical")) return false;
+      reg.alarm.enabled = true;
+    }
     ++candidate.register_count;
   }
 

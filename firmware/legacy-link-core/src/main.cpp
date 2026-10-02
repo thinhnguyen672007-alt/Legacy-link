@@ -1,5 +1,6 @@
 #include "config_parser.h"
 #include "modbus_reader.h"
+#include "alarm_monitor.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
@@ -29,6 +30,7 @@ static char config_topic[80];
 static constexpr size_t CONFIG_BUFFER_SIZE = 4096;
 static char pending_config[CONFIG_BUFFER_SIZE];
 static bool config_pending = false;
+static AlarmMonitor alarm_monitor;
 
 // Trả về epoch MILLISECONDS (13 chữ số) khớp với backend validation
 // Backend kiểm tra: timestamp >= Date.UTC(2020,0,1) = 1577836800000
@@ -83,6 +85,23 @@ void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uin
   } else {
     Serial.println("[MQTT] Publish FAILED");
   }
+}
+
+bool publish_alarm(const device_config_t *cfg, const alarm_config_t *alarm,
+                   float value, uint64_t timestamp) {
+  if (!mqttClient.connected() || timestamp == 0 || !isfinite(value)) return false;
+  StaticJsonDocument<384> doc;
+  doc["deviceId"] = cfg->device_id;
+  doc["timestamp"] = timestamp;
+  doc["schemaVersion"] = 1;
+  doc["code"] = alarm->code;
+  doc["severity"] = alarm->severity;
+  doc["value"] = value;
+  char topic[80], payload[384];
+  snprintf(topic, sizeof(topic), "legacy-link/devices/%s/alarm", cfg->device_id);
+  if (doc.overflowed() || measureJson(doc) >= sizeof(payload)) return false;
+  serializeJson(doc, payload, sizeof(payload));
+  return mqttClient.publish(topic, payload, false);
 }
 
 // --- HÀM PUBLISH DEVICE STATUS ---
@@ -224,6 +243,7 @@ void loop() {
   if (config_pending) {
     config_pending = false;
     if (apply_new_configuration(pending_config)) {
+      alarm_monitor.reset();
       publish_status(&global_device_config, true);
     }
   }
@@ -251,6 +271,7 @@ void loop() {
       if (inputLength > 0) {
         Serial.printf("\n[RECV] %u bytes received\r\n", inputLength);
         if (apply_new_configuration(inputBuffer)) {
+          alarm_monitor.reset();
           publish_status(&global_device_config, true);
         }
       }
@@ -282,6 +303,8 @@ void loop() {
       // Đọc Modbus và thu thập kết quả
       modbus_result_t results[MAX_REGISTERS];
       uint8_t count = modbus_poll_and_collect(&global_device_config, results, MAX_REGISTERS);
+
+      alarm_monitor.evaluate(&global_device_config, results, count, current_epoch_ms(), publish_alarm);
 
       // Publish lên MQTT (nếu đang kết nối)
       if (mqttClient.connected() && count > 0) {

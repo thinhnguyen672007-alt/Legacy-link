@@ -85,5 +85,36 @@ int main() {
   readings[0].scaled_value = std::numeric_limits<float>::infinity();
   publish_telemetry(&global_device_config, readings, MAX_REGISTERS);
   assert(mqttClient.published.size() == 1);
+  const char *alarm_config = R"({"deviceId":"CNC-01","registerMap":[{"key":"temperature","address":100,"dataType":"UINT16","alarm":{"threshold":65000,"hysteresis":100,"code":"OVERHEAT","severity":"high"}}]})";
+  mqttClient.published.clear();
+  mqttClient.receive(config_topic, alarm_config);
+  test_millis += 1000; loop();
+  auto alarm_count = [&]() {
+    unsigned count = 0;
+    for (const auto &sent : mqttClient.published) {
+      if (sent.topic != "legacy-link/devices/CNC-01/alarm") continue;
+      ++count;
+      assert(!sent.retained);
+      assert(!deserializeJson(doc, sent.payload));
+      assert(doc.size() == 6);
+      assert(doc["deviceId"] == "CNC-01" && doc["schemaVersion"] == 1);
+      assert(doc["timestamp"].as<uint64_t>() > 1577836800000ULL);
+      assert(doc["code"] == "OVERHEAT" && doc["severity"] == "high");
+      assert(doc["value"].as<float>() == 65535.0f);
+    }
+    return count;
+  };
+  assert(alarm_count() == 1);
+  test_millis += 1000; loop(); assert(alarm_count() == 1);
+  mqttClient.receive(config_topic, "{}");
+  test_millis += 1000; loop(); assert(alarm_count() == 1);
+  mqttClient.disconnect(); reconnect_mqtt();
+  test_millis += 1000; loop(); assert(alarm_count() == 1);
+  // Successful Serial configuration rearms; a failed publish retries next poll.
+  Serial.feed(std::string(alarm_config) + "\n");
+  mqttClient.publish_ok = false;
+  test_millis += 1000; loop(); assert(alarm_count() == 1);
+  mqttClient.publish_ok = true;
+  test_millis += 1000; loop(); assert(alarm_count() == 2);
   std::cout << "Gateway lifecycle and telemetry tests passed.\n";
 }
