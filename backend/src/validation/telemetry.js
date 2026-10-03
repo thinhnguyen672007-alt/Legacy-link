@@ -20,7 +20,7 @@ const MAX_METRIC_COUNT = 32
 // Whitelist cung: an toan, nhung them cam bien moi thi phai sua code va deploy lai.
 // Dung Set thay vi Array: tra cuu O(1) thay vi O(n). Voi 3 phan tu thi khong
 // khac biet, nhung chon dung cau truc la thoi quen dang luyen.
-const ALLOWED_METRICS = new Set(['temperature', 'current', 'rpm', 'speed']);
+const ALLOWED_METRICS = new Set(['temperature', 'current', 'rpm', 'speed', 'pressure']);
 
 export function validateTelemetry(topicDeviceId, payload) {
   const errors = []; // khai báo biến errors để hứng tất cả các lỗi thay vì throw 1 lỗi và phải sửa đi sửa lại nhiều lần 
