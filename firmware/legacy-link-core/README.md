@@ -76,6 +76,24 @@ MQTT acknowledgment topic yet.
 - The backend currently accepts only `temperature`, `current`, and `rpm` metric
   names. Choose those keys for end-to-end telemetry until backend support expands.
 
+## Wi-Fi recovery
+
+Wi-Fi association starts in the background. After the existing one-second Serial
+startup delay, configuration input and local Modbus polling are available even
+when the access point is unavailable. While disconnected, the main loop requests
+a Wi-Fi reconnect every 10 seconds; it does not wait in a connection loop.
+
+Each observed transition to connected starts NTP time synchronization, including
+when the first connection happens long after boot. Telemetry, status and alarms
+still require a valid clock. On an observed Wi-Fi loss, the old MQTT transport is
+closed; after recovery, the existing MQTT retry loop restores the configuration
+subscription. Active device settings and alarm state are preserved, though a
+retained configuration delivered by the broker can subsequently replace them.
+
+This removes the previous 20-second startup wait. Modbus transactions and MQTT
+connection attempts can still wait for their library timeouts; the entire main
+loop is not fully non-blocking. No offline telemetry queue is implemented.
+
 ## Threshold alarms
 
 Each register can optionally include one upper-threshold `alarm` object:
@@ -108,6 +126,12 @@ below 75 C (`threshold - hysteresis`). This gap prevents repeated alerts when
 readings fluctuate near the threshold. `hysteresis` defaults to zero and must be
 finite and nonnegative. `threshold` must be finite; negative thresholds are
 supported. Replace these example values with limits for your equipment.
+
+There is no global overheat threshold. Each gateway receives its own device
+configuration, and each register can specify a different limit, even when several
+machines use the same metric key such as `temperature`. Thresholds must match the
+equipment specification and the unit produced by that register's `scale`. When
+the correct limit is unknown, omit `alarm` until it is established.
 
 `code` and `severity` are required and match the backend contract:
 
@@ -188,5 +212,14 @@ Hardware smoke test:
    scaled value above the threshold. Check for one alarm, keep the value high to
    confirm suppression, lower it to the reset boundary, and exceed the threshold
    again to confirm a second alarm.
+7. Boot with the access point unavailable. Apply a configuration through Serial
+   and confirm polling continues. Enable the access point and verify the time
+   synchronization log, MQTT subscription and telemetry once the clock is valid.
+   Disable and enable Wi-Fi again to verify recovery without rebooting.
+
+Network host tests simulate a missing access point at boot, late connection,
+connection loss, offline Serial configuration/polling, NTP setup on each observed
+connection, MQTT resubscription, retry spacing and the 32-bit timer wrapping.
+They verify firmware decisions, not physical Wi-Fi association or NTP delivery.
 
 The host tests and build do not verify physical UART, Wi-Fi, or broker delivery.

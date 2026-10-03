@@ -9,7 +9,8 @@ using byte = unsigned char;
 extern unsigned long test_millis;
 inline unsigned long millis() { return test_millis; }
 inline void delay(unsigned long value) { test_millis += value; }
-inline void configTime(long, int, const char *, const char *) {}
+inline unsigned &time_sync_calls() { static unsigned calls = 0; return calls; }
+inline void configTime(long, int, const char *, const char *) { ++time_sync_calls(); }
 struct TestEsp {
   uint64_t getEfuseMac() { return 0x123456789ABCULL; }
   unsigned getFreeHeap() { return 200000; }

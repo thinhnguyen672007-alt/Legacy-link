@@ -31,6 +31,9 @@ static constexpr size_t CONFIG_BUFFER_SIZE = 4096;
 static char pending_config[CONFIG_BUFFER_SIZE];
 static bool config_pending = false;
 static AlarmMonitor alarm_monitor;
+static bool wifi_was_connected = false;
+static uint32_t last_wifi_retry = 0;
+static constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 10000;
 
 // Trả về epoch MILLISECONDS (13 chữ số) khớp với backend validation
 // Backend kiểm tra: timestamp >= Date.UTC(2020,0,1) = 1577836800000
@@ -127,30 +130,38 @@ void publish_status(const device_config_t *cfg, bool is_online) {
   Serial.printf("[MQTT] Status: %s\r\n", is_online ? "online" : "offline");
 }
 
-// --- HÀM SETUP WIFI ---
+// Start association without waiting for the access point to become available.
 void setup_wifi() {
-  delay(10);
-  Serial.println();
-  Serial.print("Connecting to WiFi: ");
-  Serial.println(ssid);
-
+  WiFi.mode(WIFI_STA);
+  wifi_was_connected = false;
+  last_wifi_retry = millis();
   WiFi.begin(ssid, password);
+  Serial.println("[WIFI] Connecting in background; Serial configuration is available");
+}
 
-  int retries = 0;
-  while (WiFi.status() != WL_CONNECTED && retries < 40) {
-    delay(500);
-    Serial.print(".");
-    retries++;
+void maintain_wifi() {
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!wifi_was_connected) {
+      wifi_was_connected = true;
+      Serial.println("[WIFI] Connected; starting time synchronization");
+      configTime(0, 0, ntp_server_1, ntp_server_2);
+    }
+    return;
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("");
-    Serial.println("WiFi connected!");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    configTime(0, 0, ntp_server_1, ntp_server_2);
-  } else {
-    Serial.println("\n[WIFI] Connection FAILED - running in offline mode");
+  const uint32_t now = millis();
+  if (wifi_was_connected) {
+    wifi_was_connected = false;
+    last_wifi_retry = now;
+    // Close the old transport so MQTT reconnects and restores subscriptions.
+    mqttClient.disconnect();
+    espClient.stop();
+    Serial.println("[WIFI] Disconnected; continuing local polling");
+  }
+  if (static_cast<uint32_t>(now - last_wifi_retry) >= WIFI_RETRY_INTERVAL_MS) {
+    last_wifi_retry = now;
+    WiFi.reconnect();
+    Serial.println("[WIFI] Retrying connection");
   }
 }
 
@@ -230,6 +241,7 @@ void setup() {
 // HÀM LOOP CHÍNH
 // ============================================================
 void loop() {
+  maintain_wifi();
   // 1. Giữ kết nối MQTT sống (thử reconnect mỗi 5 giây nếu mất)
   static unsigned long last_mqtt_retry = 0;
   if (!mqttClient.connected() && millis() - last_mqtt_retry >= 5000) {
