@@ -1,10 +1,12 @@
 #include "config_parser.h"
 #include "modbus_reader.h"
+#include "alarm_monitor.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
 #include <time.h>
+#include <math.h>
 
 // ============================================================
 // CẤU HÌNH MẠNG - Đổi theo môi trường của team
@@ -28,6 +30,10 @@ static char config_topic[80];
 static constexpr size_t CONFIG_BUFFER_SIZE = 4096;
 static char pending_config[CONFIG_BUFFER_SIZE];
 static bool config_pending = false;
+static AlarmMonitor alarm_monitor;
+static bool wifi_was_connected = false;
+static uint32_t last_wifi_retry = 0;
+static constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 10000;
 
 // Trả về epoch MILLISECONDS (13 chữ số) khớp với backend validation
 // Backend kiểm tra: timestamp >= Date.UTC(2020,0,1) = 1577836800000
@@ -63,8 +69,8 @@ void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uin
 
   JsonObject metrics = doc.createNestedObject("metrics");
   for (uint8_t i = 0; i < count; i++) {
-    if (results[i].success) {
-      metrics[results[i].key] = serialized(String(results[i].scaled_value, 2));
+    if (results[i].success && isfinite(results[i].scaled_value)) {
+      metrics[results[i].key] = results[i].scaled_value;
     }
   }
 
@@ -72,7 +78,9 @@ void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uin
   char topic[80];
   snprintf(topic, sizeof(topic), "legacy-link/devices/%s/telemetry", cfg->device_id);
 
-  char payload[512];
+  if (metrics.size() == 0 || doc.overflowed()) return;
+  char payload[1024];
+  if (measureJson(doc) >= sizeof(payload)) return;
   size_t len = serializeJson(doc, payload, sizeof(payload));
 
   if (mqttClient.publish(topic, payload)) {
@@ -80,6 +88,23 @@ void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uin
   } else {
     Serial.println("[MQTT] Publish FAILED");
   }
+}
+
+bool publish_alarm(const device_config_t *cfg, const alarm_config_t *alarm,
+                   float value, uint64_t timestamp) {
+  if (!mqttClient.connected() || timestamp == 0 || !isfinite(value)) return false;
+  StaticJsonDocument<384> doc;
+  doc["deviceId"] = cfg->device_id;
+  doc["timestamp"] = timestamp;
+  doc["schemaVersion"] = 1;
+  doc["code"] = alarm->code;
+  doc["severity"] = alarm->severity;
+  doc["value"] = value;
+  char topic[80], payload[384];
+  snprintf(topic, sizeof(topic), "legacy-link/devices/%s/alarm", cfg->device_id);
+  if (doc.overflowed() || measureJson(doc) >= sizeof(payload)) return false;
+  serializeJson(doc, payload, sizeof(payload));
+  return mqttClient.publish(topic, payload, false);
 }
 
 // --- HÀM PUBLISH DEVICE STATUS ---
@@ -105,30 +130,38 @@ void publish_status(const device_config_t *cfg, bool is_online) {
   Serial.printf("[MQTT] Status: %s\r\n", is_online ? "online" : "offline");
 }
 
-// --- HÀM SETUP WIFI ---
+// Start association without waiting for the access point to become available.
 void setup_wifi() {
-  delay(10);
-  Serial.println();
-  Serial.print("Connecting to WiFi: ");
-  Serial.println(ssid);
-
+  WiFi.mode(WIFI_STA);
+  wifi_was_connected = false;
+  last_wifi_retry = millis();
   WiFi.begin(ssid, password);
+  Serial.println("[WIFI] Connecting in background; Serial configuration is available");
+}
 
-  int retries = 0;
-  while (WiFi.status() != WL_CONNECTED && retries < 40) {
-    delay(500);
-    Serial.print(".");
-    retries++;
+void maintain_wifi() {
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!wifi_was_connected) {
+      wifi_was_connected = true;
+      Serial.println("[WIFI] Connected; starting time synchronization");
+      configTime(0, 0, ntp_server_1, ntp_server_2);
+    }
+    return;
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("");
-    Serial.println("WiFi connected!");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    configTime(0, 0, ntp_server_1, ntp_server_2);
-  } else {
-    Serial.println("\n[WIFI] Connection FAILED - running in offline mode");
+  const uint32_t now = millis();
+  if (wifi_was_connected) {
+    wifi_was_connected = false;
+    last_wifi_retry = now;
+    // Close the old transport so MQTT reconnects and restores subscriptions.
+    mqttClient.disconnect();
+    espClient.stop();
+    Serial.println("[WIFI] Disconnected; continuing local polling");
+  }
+  if (static_cast<uint32_t>(now - last_wifi_retry) >= WIFI_RETRY_INTERVAL_MS) {
+    last_wifi_retry = now;
+    WiFi.reconnect();
+    Serial.println("[WIFI] Retrying connection");
   }
 }
 
@@ -208,6 +241,7 @@ void setup() {
 // HÀM LOOP CHÍNH
 // ============================================================
 void loop() {
+  maintain_wifi();
   // 1. Giữ kết nối MQTT sống (thử reconnect mỗi 5 giây nếu mất)
   static unsigned long last_mqtt_retry = 0;
   if (!mqttClient.connected() && millis() - last_mqtt_retry >= 5000) {
@@ -221,6 +255,7 @@ void loop() {
   if (config_pending) {
     config_pending = false;
     if (apply_new_configuration(pending_config)) {
+      alarm_monitor.reset();
       publish_status(&global_device_config, true);
     }
   }
@@ -248,6 +283,7 @@ void loop() {
       if (inputLength > 0) {
         Serial.printf("\n[RECV] %u bytes received\r\n", inputLength);
         if (apply_new_configuration(inputBuffer)) {
+          alarm_monitor.reset();
           publish_status(&global_device_config, true);
         }
       }
@@ -279,6 +315,8 @@ void loop() {
       // Đọc Modbus và thu thập kết quả
       modbus_result_t results[MAX_REGISTERS];
       uint8_t count = modbus_poll_and_collect(&global_device_config, results, MAX_REGISTERS);
+
+      alarm_monitor.evaluate(&global_device_config, results, count, current_epoch_ms(), publish_alarm);
 
       // Publish lên MQTT (nếu đang kết nối)
       if (mqttClient.connected() && count > 0) {

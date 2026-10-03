@@ -76,6 +76,94 @@ MQTT acknowledgment topic yet.
 - The backend currently accepts only `temperature`, `current`, and `rpm` metric
   names. Choose those keys for end-to-end telemetry until backend support expands.
 
+## Wi-Fi recovery
+
+Wi-Fi association starts in the background. After the existing one-second Serial
+startup delay, configuration input and local Modbus polling are available even
+when the access point is unavailable. While disconnected, the main loop requests
+a Wi-Fi reconnect every 10 seconds; it does not wait in a connection loop.
+
+Each observed transition to connected starts NTP time synchronization, including
+when the first connection happens long after boot. Telemetry, status and alarms
+still require a valid clock. On an observed Wi-Fi loss, the old MQTT transport is
+closed; after recovery, the existing MQTT retry loop restores the configuration
+subscription. Active device settings and alarm state are preserved, though a
+retained configuration delivered by the broker can subsequently replace them.
+
+This removes the previous 20-second startup wait. Modbus transactions and MQTT
+connection attempts can still wait for their library timeouts; the entire main
+loop is not fully non-blocking. No offline telemetry queue is implemented.
+
+## Threshold alarms
+
+Each register can optionally include one upper-threshold `alarm` object:
+
+```json
+{
+  "deviceId": "CNC-01",
+  "samplingIntervalMs": 2000,
+  "registerMap": [
+    {
+      "key": "temperature",
+      "address": 100,
+      "dataType": "INT16",
+      "scale": 0.1,
+      "unit": "C",
+      "alarm": {
+        "threshold": 80,
+        "hysteresis": 5,
+        "code": "OVERHEAT",
+        "severity": "high"
+      }
+    }
+  ]
+}
+```
+
+Values above `threshold` trigger an alarm using the scaled measurement. The
+example first triggers above 80 C, then rearms only when a valid reading is at or
+below 75 C (`threshold - hysteresis`). This gap prevents repeated alerts when
+readings fluctuate near the threshold. `hysteresis` defaults to zero and must be
+finite and nonnegative. `threshold` must be finite; negative thresholds are
+supported. Replace these example values with limits for your equipment.
+
+There is no global overheat threshold. Each gateway receives its own device
+configuration, and each register can specify a different limit, even when several
+machines use the same metric key such as `temperature`. Thresholds must match the
+equipment specification and the unit produced by that register's `scale`. When
+the correct limit is unknown, omit `alarm` until it is established.
+
+`code` and `severity` are required and match the backend contract:
+
+| Field | Accepted values |
+| --- | --- |
+| `code` | `OVERHEAT`, `OVERCURRENT`, `OVERSPEED`, `VIBRATION` |
+| `severity` | `low`, `medium`, `high`, `critical` |
+
+An omitted `alarm` disables alerts for that register. A present but invalid alarm
+object (including `null`) rejects the entire configuration and preserves the
+previous settings. Lower-bound alarms and automatic machine control are not
+implemented.
+
+The firmware publishes to `legacy-link/devices/{deviceId}/alarm`:
+
+```json
+{"deviceId":"CNC-01","timestamp":1790899200000,"schemaVersion":1,"code":"OVERHEAT","severity":"high","value":81.5}
+```
+
+The timestamp is generated from synchronized time at publication. Failed Modbus
+reads and non-finite measurements neither trigger nor rearm alarms. If the clock
+is not ready, MQTT is disconnected, or publishing fails, a later valid reading
+still above the threshold can retry. Events that end before delivery are not
+queued. A successful publish suppresses repeats until the reset boundary is
+reached. No separate recovery message is emitted.
+
+Alarm messages use non-retained QoS 0 publishing, as supported by the current
+PubSubClient API. A successful publish means the client accepted the send, not
+that the backend acknowledged receipt. MQTT reconnect alone keeps alarm state;
+a successful configuration update (including retained redelivery) or reboot
+resets it and may produce another alert. Invalid updates keep alarm state.
+
 ## Verification
 
 ```bash
@@ -92,6 +180,25 @@ unsigned register decoding. In a ptrace-based sandbox, run the tests with
 `ASAN_OPTIONS=detect_leaks=0` if LeakSanitizer cannot start; address and undefined
 behavior checks remain enabled.
 
+The second test executable runs the actual `setup()`, MQTT callback and `loop()`
+with simulated Wi-Fi, MQTT and Serial interfaces. It covers gateway topic
+isolation, deferred configuration application, reconnect subscriptions,
+subscription write failures, invalid MQTT payloads, Serial overflow recovery,
+and configuration delivery when no active configuration exists. These simulations
+do not exercise a real MQTT broker or prove retained-message delivery.
+
+Telemetry tests check a full 16-register payload larger than 512 bytes and confirm
+that it is complete JSON. Failed readings and non-finite values are omitted; an
+empty metric set is not published. Numeric values use ArduinoJson serialization
+without the previous forced two-decimal formatting. Payloads that exceed the
+document or output buffer are skipped instead of publishing truncated JSON.
+
+Alarm tests cover invalid settings, all supported codes/severities, a full
+16-register alarm configuration, threshold boundaries, hysteresis, independent
+register state, failed reads, unsynchronized time and failed-send retries. Gateway
+tests also verify the emitted alarm JSON, suppression across reconnects, and
+rearming after a successful Serial update.
+
 Hardware smoke test:
 
 1. Flash the firmware with your Wi-Fi and MQTT settings and note its config topic.
@@ -101,5 +208,18 @@ Hardware smoke test:
    continued polling with the previous settings.
 4. Restart the gateway with a retained valid config. Confirm it restores polling.
 5. Run two gateways and verify each accepts only its own configuration topic.
+6. Configure an alarm, then use a Modbus simulator or test device to move the
+   scaled value above the threshold. Check for one alarm, keep the value high to
+   confirm suppression, lower it to the reset boundary, and exceed the threshold
+   again to confirm a second alarm.
+7. Boot with the access point unavailable. Apply a configuration through Serial
+   and confirm polling continues. Enable the access point and verify the time
+   synchronization log, MQTT subscription and telemetry once the clock is valid.
+   Disable and enable Wi-Fi again to verify recovery without rebooting.
+
+Network host tests simulate a missing access point at boot, late connection,
+connection loss, offline Serial configuration/polling, NTP setup on each observed
+connection, MQTT resubscription, retry spacing and the 32-bit timer wrapping.
+They verify firmware decisions, not physical Wi-Fi association or NTP delivery.
 
 The host tests and build do not verify physical UART, Wi-Fi, or broker delivery.
