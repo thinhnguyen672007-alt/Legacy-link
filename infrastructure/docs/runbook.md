@@ -5,6 +5,36 @@
 
 ---
 
+## 0. Bảng tra nhanh: Gặp triệu chứng này thì xem mục nào
+
+Cách dùng nhanh nhất của cẩm nang này: **đọc cột "Bạn thấy gì", rồi đi thẳng tới mục được chỉ định.**
+
+| Bạn thấy gì trên màn hình | Nghĩa là | Xem |
+| :--- | :--- | :--- |
+| `no configuration file provided: not found` | Đang đứng sai thư mục | Mục 9, Lỗi 1 |
+| `Exited (1)` + log có `Unable to open pwfile` | Chưa tạo file mật khẩu | Mục 9, Lỗi 2 |
+| `refers to undefined network` | Thiếu khai báo network trong compose | Mục 9, Lỗi 3 |
+| `bind: address already in use` | Cổng 1883 đã bị chiếm | Mục 9, Lỗi 4 |
+| Publish OK nhưng subscriber không nhận | Gõ sai chữ trong tên topic | Mục 9, Lỗi 5 |
+| `Invalid container name` | Tên container trong `.env` có dấu tiếng Việt | Mục 9, Lỗi 6 |
+| Postgres `unhealthy`, hoặc `ECONNREFUSED 127.0.0.1:5432` | Database chưa sẵn sàng / sai cổng / sai tài khoản | Mục 9, Lỗi 7 |
+| `relation "telemetry" does not exist` | Chưa nạp schema | Mục 9, Lỗi 8 |
+| Sửa `POSTGRES_*` trong `.env` mà không có gì thay đổi | Biến chỉ đọc lúc volume còn trống | Mục 9, Lỗi 9 |
+
+### ⚠️ Lỗi nguy hiểm nhất: mất database mà không có gì báo đỏ
+
+Nếu bạn thấy trong log của backend dòng lặp lại mãi:
+```text
+[TELEMETRY] Loi ghi database: connect ECONNREFUSED 127.0.0.1:5432
+```
+thì hệ thống **đang chạy bình thường nhưng không lưu gì cả**.
+
+Lý do phải cảnh báo trước: trong `backend/src/index.js`, mỗi handler đọc database đều bọc trong `try/catch`, và comment của team backend ghi rõ — *"Database loi thi ghi log roi di tiep. Khong de mot loi ha tang lam sap ca tien trinh"*. Tức là backend **cố tình nuốt lỗi** để một máy hỏng không làm chết cả tiến trình. Hệ quả là: broker vẫn xanh, `test-mqtt.sh` vẫn báo `[SUCCESS]`, tiến trình vẫn sống — nhưng không một bản ghi nào tới nơi.
+
+Chạy `docker compose ps`. Nếu Postgres không hiện `healthy`, bạn đã tìm ra vấn đề. Chi tiết ở Mục 9, Lỗi 7.
+
+---
+
 ## 1. Yêu cầu tiên quyết (Prerequisites)
 
 Trước khi bắt đầu, máy tính của bạn cần cài đặt:
