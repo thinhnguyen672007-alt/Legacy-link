@@ -235,3 +235,7 @@ The contract test additionally checks actual firmware JSON against backend
 validators extracted from the specified fetched Git revision. See the
 [guide](docs/first-connection.md#check-message-compatibility-without-hardware) for
 requirements and the distinction between this check and a live connection test.
+Pass `--mqtt-host <BROKER_LAN_IP>` to additionally transport the captured payloads
+through a real broker in isolated test topics, then validate the received JSON.
+See the [broker test guide](docs/first-connection.md#test-payload-transport-through-a-live-broker-without-an-esp32)
+for credentials, client tools and the remaining remote-backend/hardware checks.

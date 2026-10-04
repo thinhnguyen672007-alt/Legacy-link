@@ -127,3 +127,42 @@ signed and unsigned decoding rather than the physical simulator values above.
 It does not contact a broker, run the backend process, access PostgreSQL or prove
 delivery from an ESP32. Both online and offline status serializers are tested;
 automatic offline status/Last Will is not yet implemented in the running firmware.
+
+## Test payload transport through a live broker without an ESP32
+
+Once a test broker is running, set `MQTT_USERNAME` and `MQTT_PASSWORD` in your
+terminal to its test credentials. Run:
+
+```bash
+python3 firmware/legacy-link-core/test/host/run_contract.py \
+  --backend-ref origin/main --mqtt-host <BROKER_LAN_IP> --mqtt-port 1883
+```
+
+This mode additionally requires `mosquitto_pub`, `mosquitto_sub` and GNU
+`stdbuf`. Use `--mosquitto-bin-dir <DIRECTORY>` if the MQTT client executables are
+not on PATH. Portable installations may also need their library directory in
+`LD_LIBRARY_PATH`. The sanitizer workaround above applies in this mode too.
+
+The tool first validates the captured firmware messages. It then waits for an
+MQTT subscription acknowledgment before publishing the 19 payloads through a
+unique topic prefix `legacy-link/test/contract-{runId}/`. It receives them,
+compares their payload bytes and sequence, and runs the backend validators again
+using their original device-topic names. Status messages are sent retained, as in
+the firmware. Temporary retained test topics are cleared after the run.
+
+Only this test prefix is used on the broker. Production device subscriptions
+under `legacy-link/devices/+/...` do not receive these synthetic telemetry or
+alarm messages. The test account needs publish/subscribe permission on the test
+prefix; a device-only ACL may intentionally deny it.
+
+This proves payload transport through the selected broker and compatibility with
+the selected backend validators. It does not run the remote backend's MQTT
+listener, check its production topic ACLs, register a Last Will, contact PostgreSQL
+or prove Wi-Fi/Modbus communication on physical hardware. The capture retains the
+firmware's publish intent; it does not inspect MQTT packet retain flags.
+
+When the broker is running on your computer and the backend is on a teammate's
+computer, have that teammate point their `MQTT_URL` to your broker's reachable LAN
+IP and use credentials provisioned on your broker. They still need their own
+working `DATABASE_URL`. Test from their computer as well: a successful local LAN
+IP test does not prove that their network route or your firewall allows access.

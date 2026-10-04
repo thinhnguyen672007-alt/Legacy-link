@@ -41,4 +41,3 @@ assert.deepEqual(counts, { telemetry: 1, status: 2, alarm: 16 });
 assert.equal(alarms.size, 16);
 assert.deepEqual(statuses, [true, false]);
 console.log('PASS: 19 firmware messages accepted by backend validators; mismatched IDs and schema versions rejected.');
-console.log('Scope: serialization and validation only; no physical ESP32, broker or database was used.');
