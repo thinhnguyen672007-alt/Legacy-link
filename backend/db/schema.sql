@@ -1,6 +1,9 @@
 -- db/schema.sql
--- Chay:
+-- Chay tren database trong:
 --   docker exec -i legacy-link-postgres psql -U legacy_admin -d legacy_link < backend/db/schema.sql
+--
+-- File nay TAO MOI cac bang. No khong sua bang da co.
+-- Khi doi cau truc mot bang dang co du lieu that, phai viet migration rieng.
 
 -- Lich su telemetry. Day la bang lon nhat, se phinh theo thoi gian.
 CREATE TABLE IF NOT EXISTS telemetry (
@@ -40,19 +43,55 @@ CREATE TABLE IF NOT EXISTS alarms (
   UNIQUE (device_id, ts, code)
 );
 
--- Ban do thanh ghi cua tung thiet bi. Day la NGUON SU THAT cho ba thu:
---   - chi so nao hop le voi may nao
---   - don vi cua tung chi so
---   - he so nhan da ap dung
--- Backend doc bang nay de gui config xuong ESP32, va de biet cach hien thi.
+-- Danh sach thiet bi. Cho biet moi thiet bi gan voi LOAI MAY nao.
+CREATE TABLE IF NOT EXISTS device (
+  device_id    text        PRIMARY KEY,
+  machine_type text        NOT NULL,
+  name         text,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+-- Ban do thanh ghi NEN CHUNG theo loai may.
+--
+-- Hai cot dia chi, co y:
+--   modicon_address  = so hieu nguoi doc thay trong tai lieu may (vi du 40050)
+--   protocol_address = so thuc te firmware dung khi doc          (vi du 49)
+--
+-- Cong thuc: protocol_address = modicon_address - 40001  (voi holding register)
+--
+-- Luu ca hai de nguoi nhap catalog chi phai chep so tu tai lieu, khong phai
+-- tu tru. Nham lan o day KHONG bao loi, chi doc sai thanh ghi trong im lang.
 CREATE TABLE IF NOT EXISTS register_map (
-  device_id     text     NOT NULL,
-  metric_key    text     NOT NULL,
-  address       integer  NOT NULL,
-  function_code smallint NOT NULL,
-  data_type     text     NOT NULL,
-  scale         real     NOT NULL DEFAULT 1.0,
-  unit          text,
+  machine_type     text     NOT NULL,
+  metric_key       text     NOT NULL,
+  protocol_address integer  NOT NULL,
+  modicon_address  integer,
+  function_code    smallint NOT NULL DEFAULT 3,
+  data_type        text     NOT NULL DEFAULT 'UINT16',
+  scale            real     NOT NULL DEFAULT 1.0,
+  unit             text,
+  alarm_high       double precision,
+  alarm_low        double precision,
+
+  PRIMARY KEY (machine_type, metric_key)
+);
+
+-- Phan KHAC BIET cua tung may so voi ban chung.
+--
+-- Moi cot deu cho phep NULL, va NULL co nghia la "khong doi, lay tu ban chung".
+-- Vi vay bang nay chi chua nhung gi that su khac. May nao giong het ban chung
+-- thi khong co dong nao o day — va do la truong hop binh thuong, khong phai loi.
+CREATE TABLE IF NOT EXISTS register_override (
+  device_id        text     NOT NULL,
+  metric_key       text     NOT NULL,
+  protocol_address integer,
+  modicon_address  integer,
+  function_code    smallint,
+  data_type        text,
+  scale            real,
+  unit             text,
+  alarm_high       double precision,
+  alarm_low        double precision,
 
   PRIMARY KEY (device_id, metric_key)
 );

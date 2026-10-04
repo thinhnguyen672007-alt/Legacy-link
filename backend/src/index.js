@@ -8,6 +8,8 @@ import { validateTelemetry } from './validation/telemetry.js';
 import { validateStatus } from './validation/status.js';
 import { validateAlarm, ALARM_HINTS, SEVERITY_HINTS } from './validation/alarm.js';
 import { saveTelemetry } from './db/telemetry.js';
+import { saveStatus } from './db/status.js';
+import { saveAlarm } from './db/alarm.js';
 import { closePool } from './db/pool.js';
 
 
@@ -55,7 +57,7 @@ const client = startMqttClient({
 
     logTiming(telemetry);
   },
-  onStatus: (deviceId, payload) => {
+  onStatus: async (deviceId, payload) => {
     const result = validateStatus(deviceId, payload);
 
     if (!result.ok) {
@@ -65,11 +67,17 @@ const client = startMqttClient({
 
     const status = result.value;
 
-    console.log(`[STATUS] ${status.deviceId}:`, JSON.stringify(status.status));
-    
+    try {
+      await saveStatus(status);
+
+      console.log(`[STATUS] ${status.deviceId}: ${status.status ? 'online' : 'offline'}`);
+    } catch (err) {
+      console.error(`[STATUS] Loi ghi database:`, err.message);
+    }
+
     logTiming(status);
   },
-  onAlarm: (deviceId, payload) => {
+  onAlarm: async (deviceId, payload) => {
     const result = validateAlarm(deviceId, payload);
 
     if (!result.ok) {
@@ -79,10 +87,19 @@ const client = startMqttClient({
 
     const alarm = result.value;
 
-    console.log(
-      `[ALARM] ${alarm.deviceId}: ${alarm.code} [${alarm.severity}] -> ${ALARM_HINTS[alarm.code]}; ${SEVERITY_HINTS[alarm.severity]}`,
-    );
+    try {
+      const { inserted } = await saveAlarm(alarm);
 
+      if (inserted) {
+        console.log(
+          `[ALARM] ${alarm.deviceId}: ${alarm.code} [${alarm.severity}] -> ${ALARM_HINTS[alarm.code]}; ${SEVERITY_HINTS[alarm.severity]}`,
+        );
+      } else {
+        console.log(`[ALARM] ${alarm.deviceId}: ban ghi trung lap, da bo qua`);
+      }
+    } catch (err) {
+      console.error(`[ALARM] Loi ghi database:`, err.message);
+    }
     logTiming(alarm);
   }
 });
