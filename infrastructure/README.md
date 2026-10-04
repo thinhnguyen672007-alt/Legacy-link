@@ -39,6 +39,9 @@ infrastructure/
   - **Authentication**: Password file authentication enabled (`allow_anonymous false`).
   - **Persistence**: Retains messages across container restarts (`/mosquitto/data/`).
   - **Logging**: Outputs to both stdout and `/mosquitto/log/mosquitto.log`.
+- **PostgreSQL 16**: Stores telemetry history, machine state, and alarms for the backend. Runs in a named volume so data survives `docker compose down`.
+  - **Port 5432**: Bound to `127.0.0.1` only, so the database is not reachable from other machines on the LAN.
+  - **Initialization**: The schema is created from `backend/db/schema.sql` (see Step 5), matching the database name and credentials in `backend/.env`.
 - **Docker Compose**: Orchestrates infrastructure services with isolated networking (`legacy-link-net`).
 - **Scripts**: Helper utilities to manage MQTT authentication and test connectivity without requiring external host tools.
 
@@ -71,19 +74,37 @@ docker compose ps
 docker compose logs -f mosquitto
 ```
 
-#### Step 5: Stop the Infrastructure
+#### Step 5: Load the Database Schema
+The Postgres container creates an empty database on first start. Apply the schema once per fresh volume:
+```bash
+docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
+```
+Optional demo data (two FANUC-30i machines, shared register map):
+```bash
+docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/seed-demo.sql
+```
+The credentials above must match `DATABASE_URL` in `backend/.env`. If you changed `POSTGRES_USER`, `POSTGRES_PASS`, or `POSTGRES_DB` in `.env`, update `DATABASE_URL` to match.
+
+Verify the tables exist:
+```bash
+docker compose exec postgres psql -U legacy_admin -d legacy_link -c '\dt'
+```
+
+#### Step 6: Stop the Infrastructure
 ```bash
 docker compose down
 ```
+Data in the Postgres named volume and the Mosquitto store survives `down`. Remove them only when you intend to start from scratch — see the runbook.
 
 ### 5. Security & Credentials
 - **Never commit credentials**: The file `mosquitto/config/passwd` and `.env` contain sensitive secrets and are excluded via `.gitignore`.
 - Only commit `.example` files with dummy placeholder values.
+- **Database is loopback-only**: Postgres binds to `127.0.0.1:5432`. Other machines on the LAN cannot reach it, and the default password is a placeholder — change `POSTGRES_PASS` before any deployment beyond a local machine.
 
 ### 6. Future Extensibility
 This infrastructure is designed to easily accommodate future services:
-- **Database Layer**: Time-series (TimescaleDB / InfluxDB) or Relational (PostgreSQL) services can be plugged into `docker-compose.yml`.
-- **Backend & Frontend**: Custom services can join the shared Docker network to communicate with Mosquitto by hostname (`mosquitto:1883`).
+- **Time-series upgrade**: PostgreSQL can be extended with TimescaleDB (add the extension to the image) without changing how the backend connects.
+- **Backend & Frontend**: Custom services can join the shared Docker network to communicate with Mosquitto by hostname (`mosquitto:1883`) and with Postgres by hostname (`postgres:5432`).
 
 ---
 
@@ -121,6 +142,9 @@ infrastructure/
   - **Xác thực (Authentication)**: Bắt buộc user/password (`allow_anonymous false`).
   - **Lưu trữ bền vững (Persistence)**: Lưu trữ tin nhắn ngay cả khi restart container (`/mosquitto/data/`).
   - **Ghi nhật ký (Logging)**: Xuất log đồng thời ra stdout và file `/mosquitto/log/mosquitto.log`.
+- **PostgreSQL 16**: Lưu lịch sử telemetry, trạng thái máy và alarm cho backend. Dữ liệu nằm trong named volume nên không mất khi `docker compose down`.
+  - **Port 5432**: Chỉ bind vào `127.0.0.1`, các máy khác trong LAN không kết nối được vào database.
+  - **Khởi tạo schema**: Nạp từ `backend/db/schema.sql` (xem Bước 5), khớp với tên database và tài khoản trong `backend/.env`.
 - **Docker Compose**: Điều phối các dịch vụ hạ tầng trong một bridge network riêng (`legacy-link-net`).
 - **Scripts**: Các công cụ tiện ích giúp tạo mật khẩu và test kết nối nhanh chóng mà không yêu cầu cài công cụ phụ trợ trên máy thật.
 
@@ -152,16 +176,34 @@ docker compose ps
 docker compose logs -f mosquitto
 ```
 
-#### Bước 5: Dừng hạ tầng
+#### Bước 5: Nạp schema cho database
+Container Postgres chỉ tạo database rỗng ở lần khởi động đầu tiên. Nạp schema một lần cho mỗi volume mới:
+```bash
+docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
+```
+Dữ liệu mẫu (hai máy CNC cùng loại FANUC-30i, dùng chung bản đồ thanh ghi):
+```bash
+docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/seed-demo.sql
+```
+Tài khoản trong lệnh phải khớp với `DATABASE_URL` trong `backend/.env`. Nếu bạn đã đổi `POSTGRES_USER`, `POSTGRES_PASS` hoặc `POSTGRES_DB` trong `.env` thì sửa `DATABASE_URL` cho khớp.
+
+Kiểm tra các bảng đã tạo:
+```bash
+docker compose exec postgres psql -U legacy_admin -d legacy_link -c '\dt'
+```
+
+#### Bước 6: Dừng hạ tầng
 ```bash
 docker compose down
 ```
+Dữ liệu trong named volume của Postgres và kho lưu Mosquitto vẫn còn sau `down`. Chỉ xóa chúng khi bạn có ý định bắt đầu lại từ đầu — xem runbook.
 
 ### 5. Quy tắc bảo mật
 - **Không commit mật khẩu thật**: File `mosquitto/config/passwd` và `.env` chứa thông tin nhạy cảm và đã được cấu hình trong `.gitignore`.
 - Chỉ commit các file `.example` với thông tin mẫu/giả định.
+- **Database chỉ mở trên loopback**: Postgres bind vào `127.0.0.1:5432`, các máy khác trong LAN không truy cập được. Mật khẩu mặc định là giá trị mẫu — đổi `POSTGRES_PASS` trước khi triển khai ngoài máy cá nhân.
 
 ### 6. Khả năng mở rộng trong tương lai
 Cấu trúc này sẵn sàng để tích hợp thêm các dịch vụ khi dự án phát triển:
-- **Cơ sở dữ liệu**: Dễ dàng bổ sung PostgreSQL, TimescaleDB hoặc InfluxDB vào `docker-compose.yml`.
-- **Backend & Frontend**: Các container dịch vụ khác có thể kết nối trực tiếp đến Mosquitto qua hostname nội bộ `mosquitto:1883`.
+- **Nâng cấp time-series**: Có thể bổ sung extension TimescaleDB vào PostgreSQL mà không phải đổi cách backend kết nối.
+- **Backend & Frontend**: Các container dịch vụ khác có thể kết nối trực tiếp đến Mosquitto qua hostname nội bộ `mosquitto:1883` và đến Postgres qua `postgres:5432`.

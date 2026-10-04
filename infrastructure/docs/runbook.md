@@ -16,10 +16,10 @@ Trước khi bắt đầu, máy tính của bạn cần cài đặt:
 
 ## 2. Quy trình chuẩn khi vừa Clone Repository về (Onboarding Workflow)
 
-Khi bạn vừa clone repository về máy tính lần đầu tiên, hãy thực hiện đúng **4 bước tối ưu sau** (chỉ mất chưa đầy 1 phút):
+Khi bạn vừa clone repository về máy tính lần đầu tiên, hãy thực hiện đúng các bước tối ưu sau (chỉ mất chưa đầy 2 phút):
 
 ```text
-[Clone Repo] ──> [cd infrastructure] ──> [cp .env.example .env] ──> [Tạo passwd] ──> [docker compose up -d] ──> [Test ping]
+[Clone Repo] ──> [cd infrastructure] ──> [cp .env.example .env] ──> [Tạo passwd] ──> [docker compose up -d] ──> [Test ping] ──> [Nạp schema DB]
 ```
 
 ### Bước 2.1: Di chuyển vào thư mục hạ tầng
@@ -60,6 +60,22 @@ Nếu màn hình hiện:
 ```
 👉 **Chúc mừng! Hệ thống MQTT Broker của bạn đã hoạt động hoàn hảo 100%!**
 
+### Bước 2.5: Nạp schema cho database Postgres
+
+Broker đã chạy, nhưng database thì chưa có bảng nào. Nạp schema một lần cho mỗi volume mới:
+```bash
+docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
+```
+*Dữ liệu mẫu (không bắt buộc):*
+```bash
+docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/seed-demo.sql
+```
+Kiểm tra 6 bảng đã tạo:
+```bash
+docker compose exec postgres psql -U legacy_admin -d legacy_link -c '\dt'
+```
+*Đợi cột `STATUS` của Postgres hiện `healthy` trước khi nạp — nghĩa là database đã sẵn sàng nhận lệnh.*
+
 ---
 
 ## 3. Khởi động Broker (Start)
@@ -95,7 +111,9 @@ Dùng khi kết thúc buổi làm việc, hoặc khi **vừa sửa file `docker-
 docker compose down
 ```
 * **Đặc điểm:** Tắt container, **xóa bỏ container và xóa mạng ảo**. 
-* **Dữ liệu có bị mất không?** **KHÔNG!** Dữ liệu tin nhắn (`mosquitto/data/mosquitto.db`), cấu hình (`mosquitto.conf`) và mật khẩu (`passwd`) đều nằm an toàn trên máy thật của bạn.
+* **Dữ liệu có bị mất không?** **KHÔNG!** Dữ liệu tin nhắn (`mosquitto/data/mosquitto.db`), cấu hình (`mosquitto.conf`) và mật khẩu (`passwd`) đều nằm an toàn trên máy thật của bạn. Database Postgres cũng nằm trong named volume `postgres-data` nên **không** bị `down` xóa.
+
+> ⚠️ **Ngoại lệ duy nhất:** `docker compose down -v` (có thêm cờ `-v`) sẽ **xoá cả named volume**, tức là mất toàn bộ dữ liệu database. Không thêm `-v` trừ khi bạn thật sự muốn bắt đầu lại từ đầu — xem Mục 9, Lỗi 7.
 
 ---
 
@@ -123,6 +141,11 @@ docker compose ps -a
   * `Exited (1)` hoặc mã khác: Broker bị sập do lỗi (cần xem log ngay!).
 * **Cột `PORTS`:**
   * `0.0.0.0:1883->1883/tcp`: Cổng 1883 đang mở đón kết nối từ mọi thiết bị trong mạng LAN (ESP32, PC khác).
+  * `127.0.0.1:5432->5432/tcp` của Postgres: Cổng database **chỉ** mở trên chính máy này. Đây là chủ ý — database không được phép chạm từ LAN.
+* **Cột `STATUS` của Postgres:**
+  * `Up ... (healthy)`: Database đã sẵn sàng nhận truy vấn. Backend có thể kết nối ngay.
+  * `Up ... (health: starting)`: Đang khởi tộng, chờ thêm vài giây.
+  * `Up ... (unhealthy)`: Đã bật quá thời gian chờ mà `pg_isready` vẫn chưa thành công — xem Mục 9, Lỗi 7.
 
 ---
 
@@ -266,6 +289,50 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
 * **Hiện tượng:** `docker compose up` báo lỗi cú pháp tên container.
 * **Nguyên nhân:** Đặt biến `MQTT_CONTAINER_NAME` trong `.env` có dấu tiếng Việt (ví dụ `Bố_Huy_Sigma`) hoặc ký tự lạ ngoài `[a-zA-Z0-9_.-]`.
 * **Cách sửa:** Mở file `.env` sửa lại tên tiếng Anh không dấu (ví dụ: `legacy-link-mosquitto` hoặc `huy-sigma-container`).
+
+---
+
+### 🔴 Lỗi 7: Postgres bị `unhealthy` hoặc không kết nối được
+* **Hiện tượng:** `docker compose ps` hiện `Up ... (unhealthy)`, hoặc backend báo lỗi `ECONNREFUSED 127.0.0.1:5432`.
+* **Nguyên nhân thường gặp:**
+  1. Bạn vừa `up -d` và backend khởi động ngay lập tức, chưa đợi Postgres sẵn sàng.
+  2. Cổng 5432 trên máy đã bị một PostgreSQL cài trực tiếp trên OS chiếm.
+  3. `POSTGRES_USER` / `POSTGRES_DB` trong `.env` lệch với `DATABASE_URL` trong `backend/.env`.
+* **Cách sửa:**
+  ```bash
+  # 1. Xem Postgres có báo gì không
+  docker compose logs --tail=50 postgres
+
+  # 2. Chờ cho tới khi cột STATUS hiện healthy
+  docker compose ps
+
+  # 3. Nếu cổng bị chiếm, đổi cổng trong .env
+  POSTGRES_PORT=5433
+  ```
+  *Sau khi đổi `POSTGRES_PORT`, sửa `DATABASE_URL` trong `backend/.env` cho khớp cổng mới.*
+
+---
+
+### 🔴 Lỗi 8: Bảng trong database không có (`relation "telemetry" does not exist`)
+* **Hiện tượng:** Backend báo lỗi SQL như `relation "telemetry" does not exist`, hoặc `psql -c '\dt'` không thấy bảng nào.
+* **Nguyên nhân:** Container Postgres tạo database rỗng, chưa nạp schema.
+* **Cách sửa:** Nạp schema rồi khởi động lại backend:
+  ```bash
+  docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
+  ```
+
+---
+
+### 🔴 Lỗi 9: Đổi `POSTGRES_USER`/`POSTGRES_PASS`/`POSTGRES_DB` trong `.env` nhưng không có gì thay đổi
+* **Hiện tượng:** Sửa user hoặc mật khẩu trong `.env`, `docker compose up -d` lại, nhưng đăng nhập bằng giá trị mới vẫn thất bại / giá trị cũ vẫn dùng được.
+* **Nguyên nhân:** Ba biến `POSTGRES_*` **chỉ được đọc một lần duy nhất**, lúc volume còn trống. Volume đã có dữ liệu thì Postgres bỏ qua chúng hoàn toàn. Đây là hành vi cố ý để không lỡ tay đổi mật khẩu làm hỏng dữ liệu đang có.
+* **Cách sửa:** Chỉ khi bạn thật sự muốn xóa sạch và làm lại từ đầu:
+  ```bash
+  docker compose down -v      # -v = xóa cả named volume postgres-data
+  docker compose up -d
+  docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
+  ```
+  > ⚠️ **Cảnh báo:** `down -v` **xoá toàn bộ dữ liệu telemetry, trạng thái máy và alarm**. Chỉ dùng ở máy cá nhân khi thử nghiệm.
 
 ---
 
