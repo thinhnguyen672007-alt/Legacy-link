@@ -1,5 +1,10 @@
 # ESP32 gateway firmware
 
+For a backend running on another computer, follow the
+[first-connection guide](docs/first-connection.md). It includes the information to
+get from the backend operator, a Modbus simulator configuration, and checks for
+broker reception and database storage.
+
 ## Remote configuration
 
 At boot, the Serial Monitor prints a stable gateway ID derived from the ESP32
@@ -73,8 +78,10 @@ MQTT acknowledgment topic yet.
   string and can contain up to 7 bytes. Device names can contain up to 47 bytes.
 - Optional fields set to `null` use their defaults. Numeric strings, out-of-range
   integers, duplicate keys, unsupported types, and overlong strings are rejected.
-- The backend currently accepts only `temperature`, `current`, and `rpm` metric
-  names. Choose those keys for end-to-end telemetry until backend support expands.
+- Backend `main` at commit `c33b72e` accepts `temperature`, `current`, `rpm`,
+  `speed`, and `pressure`. Older backend versions may accept only the first three.
+  The bench example uses those three for compatibility; verify against the actual
+  backend revision with the contract test below.
 
 ## Wi-Fi recovery
 
@@ -169,6 +176,7 @@ resets it and may produce another alert. Invalid updates keep alarm state.
 ```bash
 pio run -d firmware/legacy-link-core
 bash firmware/legacy-link-core/test/host/run.sh
+python3 firmware/legacy-link-core/test/host/run_contract.py --backend-ref origin/main
 ```
 
 The host tests compile the actual configuration parser against ArduinoJson with
@@ -223,3 +231,7 @@ connection, MQTT resubscription, retry spacing and the 32-bit timer wrapping.
 They verify firmware decisions, not physical Wi-Fi association or NTP delivery.
 
 The host tests and build do not verify physical UART, Wi-Fi, or broker delivery.
+The contract test additionally checks actual firmware JSON against backend
+validators extracted from the specified fetched Git revision. See the
+[guide](docs/first-connection.md#check-message-compatibility-without-hardware) for
+requirements and the distinction between this check and a live connection test.
