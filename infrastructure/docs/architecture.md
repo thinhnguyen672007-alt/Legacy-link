@@ -82,9 +82,6 @@ graph TD
 
 ### 6. Security & Credential Isolation
 - **Anonymous Access Disabled:** Set `allow_anonymous false` in `mosquitto.conf`.
-- **Role-Based Accounts:**
-  - `esp32_gateway`: Restricted to publishing telemetry and subscribing to its own command topic.
-  - `backend_service`: Full subscribe access (`legacy-link/#`) to ingest data and dispatch commands.
 - **Credential Storage:**
   - Passwords are encrypted/hashed via SHA512-PBKDF2 in `mosquitto/config/passwd`.
   - The actual `passwd` file and `.env` are strictly excluded from version control via `.gitignore`.
@@ -239,9 +236,6 @@ Việc đặt tên topic rõ ràng giúp hệ thống dễ mở rộng khi có h
 
 ### 6. Kiến trúc bảo mật & Quản lý thông tin nhạy cảm
 - **Vô hiệu hóa truy cập tự do:** Bật `allow_anonymous false` trong `mosquitto.conf`. Bất kỳ kết nối nào không cung cấp tài khoản đều bị Broker từ chối lập tức.
-- **Phân tách tài khoản chuyên biệt:**
-  - `esp32_gateway`: Tài khoản nạp vào firmware ESP32, chỉ có quyền gửi tin vào topic thiết bị của mình.
-  - `backend_service`: Tài khoản backend, có quyền bao quát toàn bộ topic `legacy-link/#`.
 - **Mã hóa và cô lập mật khẩu:**
   - Mật khẩu được mã hóa băm (SHA512-PBKDF2) trong file `mosquitto/config/passwd`.
   - File mật khẩu thật và file môi trường `.env` tuyệt đối **không được đẩy lên Git** (đã được cấu hình chặn trong file [infrastructure/.gitignore](file:///home/james/Projects/Hackathon%20DENSON/Legacy-link-/infrastructure/.gitignore)).
