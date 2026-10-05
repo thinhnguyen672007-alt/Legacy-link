@@ -42,13 +42,13 @@ int main() {
   // Each reconnect restores the exact subscription; failed writes retry later.
   mqttClient.disconnect();
   reconnect_mqtt();
-  assert(mqttClient.subscriptions == 2);
+  assert(mqttClient.subscriptions == 5);
   mqttClient.disconnect(); mqttClient.subscribe_ok = false;
   reconnect_mqtt();
   assert(!mqttClient.connected());
   mqttClient.subscribe_ok = true;
   test_millis += 5000; loop();
-  assert(mqttClient.connected() && mqttClient.subscriptions == 4);
+  assert(mqttClient.connected() && mqttClient.subscriptions == 8);
 
   // A valid-looking suffix of an overflowing Serial line must not be applied.
   Serial.feed(std::string(CONFIG_BUFFER_SIZE, 'x') + valid_config + "\n");
@@ -56,12 +56,12 @@ int main() {
   Serial.feed(std::string("\0", 1) + valid_config + "\n");
   loop(); assert(Serial2.begin_count == 1);
   Serial.feed(std::string(valid_config) + "\r\n");
-  loop(); assert(Serial2.begin_count == 2);
+  loop(); assert(Serial2.begin_count == 1); // identical retained/Serial config is idempotent
 
   // MQTT delivery after a reboot can provision a gateway with no active config.
   is_config_valid = false; global_device_config = {};
   mqttClient.receive(config_topic, valid_config); loop();
-  assert(is_config_valid && Serial2.begin_count == 3);
+  assert(is_config_valid && Serial2.begin_count == 2);
 
   modbus_result_t readings[MAX_REGISTERS] = {};
   for (int i = 0; i < MAX_REGISTERS; ++i) {
@@ -110,11 +110,11 @@ int main() {
   test_millis += 1000; loop(); assert(alarm_count() == 1);
   mqttClient.disconnect(); reconnect_mqtt();
   test_millis += 1000; loop(); assert(alarm_count() == 1);
-  // Successful Serial configuration rearms; a failed publish retries next poll.
+  // Identical config does not rearm an already-notified alarm.
   Serial.feed(std::string(alarm_config) + "\n");
   mqttClient.publish_ok = false;
   test_millis += 1000; loop(); assert(alarm_count() == 1);
   mqttClient.publish_ok = true;
-  test_millis += 1000; loop(); assert(alarm_count() == 2);
+  test_millis += 1000; loop(); assert(alarm_count() == 1);
   std::cout << "Gateway lifecycle and telemetry tests passed.\n";
 }

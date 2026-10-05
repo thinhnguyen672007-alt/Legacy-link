@@ -13,6 +13,7 @@
 
 typedef struct {
     bool enabled;
+    bool below;
     float threshold;
     float hysteresis;
     char code[12];
@@ -24,9 +25,12 @@ typedef struct {
     uint16_t address;
     uint8_t  function_code;
     char     data_type[MAX_REG_TYPE_LEN];
+    bool     low_word_first;
     float    scale;
     char     unit[MAX_REG_UNIT_LEN];
     alarm_config_t alarm;
+    alarm_config_t critical_alarm;
+    alarm_config_t low_alarm;
 } register_config_t;
 
 typedef struct {

@@ -15,6 +15,8 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <math.h>
+#include <memory>
+#include <new>
 
 device_config_t global_device_config = {};
 bool is_config_valid = false;
@@ -70,6 +72,37 @@ static bool read_uint(JsonVariantConst value, uint32_t fallback,
   return out >= minimum && out <= maximum;
 }
 
+static bool valid_alarm_code(const char *code) {
+  return !strcmp(code, "OVERHEAT") || !strcmp(code, "OVERCURRENT") ||
+         !strcmp(code, "OVERSPEED") || !strcmp(code, "VIBRATION");
+}
+
+static bool valid_severity(const char *severity) {
+  return !strcmp(severity, "low") || !strcmp(severity, "medium") ||
+         !strcmp(severity, "high") || !strcmp(severity, "critical");
+}
+
+static bool read_endpoint_alarm(JsonVariant entry, const char *threshold_field,
+                                const char *code_field, const char *severity_field,
+                                bool below, alarm_config_t &alarm) {
+  if (entry[threshold_field].isNull()) return true;
+  if (!entry[threshold_field].is<float>() ||
+      !read_string(entry[code_field], alarm.code, sizeof(alarm.code), "", true) ||
+      !valid_alarm_code(alarm.code) ||
+      !read_string(entry[severity_field], alarm.severity, sizeof(alarm.severity), "high") ||
+      !valid_severity(alarm.severity)) {
+    Serial.println("[CONFIG] Alarm requires a numeric threshold and an explicit supported code");
+    return false;
+  }
+  alarm.threshold = entry[threshold_field].as<float>();
+  if (!entry["alarm_hysteresis"].isNull() && !entry["alarm_hysteresis"].is<float>()) return false;
+  alarm.hysteresis = entry["alarm_hysteresis"] | 0.0f;
+  alarm.below = below;
+  alarm.enabled = true;
+  return isfinite(alarm.threshold) && isfinite(alarm.hysteresis) && alarm.hysteresis >= 0 &&
+      isfinite(below ? alarm.threshold + alarm.hysteresis : alarm.threshold - alarm.hysteresis);
+}
+
 bool parse_device_config(const char *json_payload, device_config_t *out) {
   if (!json_payload || !out) return false;
   // Keep JSON storage off the ESP32 loop stack as register configs grow.
@@ -80,7 +113,11 @@ bool parse_device_config(const char *json_payload, device_config_t *out) {
     return false;
   }
 
-  device_config_t candidate = {};
+  // Multiple alarm levels enlarge this struct; keep nested parsing off the
+  // ESP32 loop task's limited stack while retaining all-or-nothing updates.
+  std::unique_ptr<device_config_t> storage(new (std::nothrow) device_config_t{});
+  if (!storage) return false;
+  device_config_t &candidate = *storage;
   if (!read_string(doc["deviceId"], candidate.device_id, sizeof(candidate.device_id), "", true) ||
       !read_string(doc["deviceName"], candidate.device_name, sizeof(candidate.device_name), "") ||
       !read_string(doc["protocol"], candidate.protocol, sizeof(candidate.protocol), "MODBUS_RTU") ||
@@ -100,26 +137,69 @@ bool parse_device_config(const char *json_payload, device_config_t *out) {
   if (!parity || (strcmp(parity, "NONE") && strcmp(parity, "EVEN") && strcmp(parity, "ODD"))) return false;
   candidate.parity = parse_parity(parity);
 
-  JsonArray registers = doc["registerMap"].as<JsonArray>();
-  if (registers.isNull() || registers.size() == 0 || registers.size() > MAX_REGISTERS) return false;
+  // Endpoint rows use database column names. Keep the original serial/MQTT
+  // format working, but never guess which map should win in a mixed payload.
+  const bool endpoint_format = doc.containsKey("registers");
+  if (endpoint_format && doc.containsKey("registerMap")) {
+    Serial.println("[CONFIG] Use registers or registerMap, not both");
+    return false;
+  }
+  JsonArray registers = doc[endpoint_format ? "registers" : "registerMap"].as<JsonArray>();
+  if (registers.isNull() || registers.size() == 0 || registers.size() > MAX_REGISTERS) {
+    Serial.println("[CONFIG] Expected a non-empty register array (maximum 16 entries)");
+    return false;
+  }
   for (JsonVariant entry : registers) {
     if (!entry.is<JsonObject>()) return false;
+    const char *foreign_fields[] = {
+      endpoint_format ? "key" : "metric_key",
+      endpoint_format ? "address" : "protocol_address",
+      endpoint_format ? "dataType" : "data_type",
+      endpoint_format ? "functionCode" : "function_code",
+      endpoint_format ? "wordOrder" : "word_order"
+    };
+    for (const char *field : foreign_fields) {
+      if (entry.containsKey(field)) {
+        Serial.println("[CONFIG] Mixed register field naming is not supported");
+        return false;
+      }
+    }
     register_config_t &reg = candidate.registers[candidate.register_count];
-    if (!read_string(entry["key"], reg.key, sizeof(reg.key), "", true) ||
-        !read_string(entry["dataType"], reg.data_type, sizeof(reg.data_type), "INT16") ||
+    if (!read_string(entry[endpoint_format ? "metric_key" : "key"], reg.key, sizeof(reg.key), "", true) ||
+        !read_string(entry[endpoint_format ? "data_type" : "dataType"], reg.data_type, sizeof(reg.data_type), endpoint_format ? "UINT16" : "INT16") ||
         !read_string(entry["unit"], reg.unit, sizeof(reg.unit), "")) return false;
-    // The reader currently handles one 16-bit register per metric.
-    if (strcmp(reg.data_type, "INT16") && strcmp(reg.data_type, "UINT16")) return false;
+    const bool wide = !strcmp(reg.data_type, "UINT32");
+    if (strcmp(reg.data_type, "INT16") && strcmp(reg.data_type, "UINT16") && !wide) return false;
+    const char *word_field = endpoint_format ? "word_order" : "wordOrder";
+    char word_order[11];
+    if (!read_string(entry[word_field], word_order, sizeof(word_order), "HIGH_FIRST")) return false;
+    if (strcmp(word_order, "HIGH_FIRST") && strcmp(word_order, "LOW_FIRST")) return false;
+    reg.low_word_first = !strcmp(word_order, "LOW_FIRST");
     for (uint8_t i = 0; i < candidate.register_count; ++i) {
       if (!strcmp(candidate.registers[i].key, reg.key)) return false;
     }
-    if (entry["address"].isNull() || !read_uint(entry["address"], 0, 0, 65535, number)) return false;
+    JsonVariant address = entry[endpoint_format ? "protocol_address" : "address"];
+    // protocol_address is already zero-based; modicon_address is display metadata.
+    if (address.isNull() || !read_uint(address, 0, 0, 65535, number)) return false;
     reg.address = number;
-    if (!read_uint(entry["functionCode"], 3, 3, 4, number)) return false;
+    if (wide && reg.address == 65535) return false;
+    if (!read_uint(entry[endpoint_format ? "function_code" : "functionCode"], 3, 3, 4, number)) return false;
     reg.function_code = number;
     if (!entry["scale"].isNull() && !entry["scale"].is<float>()) return false;
     reg.scale = entry["scale"].isNull() ? 1.0f : entry["scale"].as<float>();
     if (!isfinite(reg.scale)) return false;
+    const bool flat_alarms = entry.containsKey("alarm_high") || entry.containsKey("alarm_low") || entry.containsKey("alarm_critical");
+    if (flat_alarms) {
+      if (entry.containsKey("alarm")) return false;
+      if (!read_endpoint_alarm(entry, "alarm_high", "alarm_code", "alarm_severity", false, reg.alarm) ||
+          !read_endpoint_alarm(entry, "alarm_low", "alarm_low_code", "alarm_low_severity", true, reg.low_alarm) ||
+          !read_endpoint_alarm(entry, "alarm_critical", "alarm_code", "alarm_critical_severity", false, reg.critical_alarm)) return false;
+      if (reg.critical_alarm.enabled) {
+        if (!reg.alarm.enabled || strcmp(reg.alarm.severity, "high") || reg.critical_alarm.threshold <= reg.alarm.threshold) return false;
+        strcpy(reg.critical_alarm.severity, "critical");
+      }
+      if (reg.low_alarm.enabled && reg.alarm.enabled && reg.low_alarm.threshold >= reg.alarm.threshold) return false;
+    }
     if (entry.containsKey("alarm")) {
       JsonVariant alarm = entry["alarm"];
       if (!alarm.is<JsonObject>() || !alarm["threshold"].is<float>()) return false;
@@ -136,6 +216,13 @@ bool parse_device_config(const char *json_payload, device_config_t *out) {
       if (strcmp(reg.alarm.severity, "low") && strcmp(reg.alarm.severity, "medium") &&
           strcmp(reg.alarm.severity, "high") && strcmp(reg.alarm.severity, "critical")) return false;
       reg.alarm.enabled = true;
+      if (alarm.containsKey("criticalThreshold")) {
+        if (!alarm["criticalThreshold"].is<float>() || strcmp(reg.alarm.severity, "high")) return false;
+        reg.critical_alarm = reg.alarm;
+        reg.critical_alarm.threshold = alarm["criticalThreshold"].as<float>();
+        strcpy(reg.critical_alarm.severity, "critical");
+        if (!isfinite(reg.critical_alarm.threshold) || reg.critical_alarm.threshold <= reg.alarm.threshold) return false;
+      }
     }
     ++candidate.register_count;
   }

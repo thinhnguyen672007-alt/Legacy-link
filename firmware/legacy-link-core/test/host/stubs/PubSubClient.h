@@ -4,19 +4,32 @@
 #include <vector>
 struct PubSubClient {
   struct Message { std::string topic, payload; bool retained; };
-  explicit PubSubClient(WiFiClient &) {}
+  WiFiClient &transport;
+  unsigned transport_stops = 0;
+  explicit PubSubClient(WiFiClient &client) : transport(client) {}
   bool online = false, subscribe_ok = true, publish_ok = true;
   unsigned subscriptions = 0;
   std::string client_id, subscribed_topic;
+  std::string will_topic, will_payload;
+  bool will_retained = false;
+  uint8_t will_qos = 0;
+  unsigned connections = 0;
   std::vector<Message> published;
   size_t buffer_size = 256;
   void (*callback)(char *, byte *, unsigned int) = nullptr;
   void setServer(const char *, int) {}
   void setCallback(void (*fn)(char *, byte *, unsigned int)) { callback = fn; }
   bool setBufferSize(uint16_t size) { buffer_size = size; return true; }
-  bool connected() { return online; }
+  bool connected() { return online && transport.stops == transport_stops; }
   bool connect(const char *id, const char *, const char *) {
+    ++connections;
+    transport_stops = transport.stops;
     client_id = id; online = true; return true;
+  }
+  bool connect(const char *id, const char *user, const char *password,
+               const char *topic, uint8_t qos, bool retained, const char *payload) {
+    will_topic = topic; will_payload = payload; will_qos = qos; will_retained = retained;
+    return connect(id, user, password);
   }
   bool subscribe(const char *topic, uint8_t qos) {
     if (qos != 1) return false;

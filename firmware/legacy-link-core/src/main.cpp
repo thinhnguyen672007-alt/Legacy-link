@@ -6,7 +6,10 @@
 #include <PubSubClient.h>
 #include <WiFi.h>
 #include <time.h>
+#include <sys/time.h>
 #include <math.h>
+#include <memory>
+#include <new>
 
 // ============================================================
 // CẤU HÌNH MẠNG - Đổi theo môi trường của team
@@ -25,8 +28,10 @@ PubSubClient mqttClient(espClient);
 
 // Stable gateway identity allows provisioning before any device config exists.
 static char gateway_id[13];
-static char mqtt_client_id[32];
+static char mqtt_client_id[80];
 static char config_topic[80];
+static char device_config_topic[80];
+static bool pending_device_config = false;
 static constexpr size_t CONFIG_BUFFER_SIZE = 4096;
 static char pending_config[CONFIG_BUFFER_SIZE];
 static bool config_pending = false;
@@ -38,9 +43,9 @@ static constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 10000;
 // Trả về epoch MILLISECONDS (13 chữ số) khớp với backend validation
 // Backend kiểm tra: timestamp >= Date.UTC(2020,0,1) = 1577836800000
 unsigned long long current_epoch_ms() {
-  time_t now = time(nullptr);
-  if (now < 1700000000) return 0;  // NTP chưa đồng bộ
-  return (unsigned long long)(now) * 1000ULL;
+  timeval now = {};
+  if (gettimeofday(&now, nullptr) != 0 || now.tv_sec < 1700000000) return 0;
+  return static_cast<unsigned long long>(now.tv_sec) * 1000ULL + now.tv_usec / 1000;
 }
 
 // ============================================================
@@ -91,7 +96,7 @@ void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uin
 }
 
 bool publish_alarm(const device_config_t *cfg, const alarm_config_t *alarm,
-                   float value, uint64_t timestamp) {
+                   double value, uint64_t timestamp) {
   if (!mqttClient.connected() || timestamp == 0 || !isfinite(value)) return false;
   StaticJsonDocument<384> doc;
   doc["deviceId"] = cfg->device_id;
@@ -154,7 +159,8 @@ void maintain_wifi() {
     wifi_was_connected = false;
     last_wifi_retry = now;
     // Close the old transport so MQTT reconnects and restores subscriptions.
-    mqttClient.disconnect();
+    // Do not send MQTT DISCONNECT on an unexpected link loss: let the broker
+    // publish the registered Last Will for this session.
     espClient.stop();
     Serial.println("[WIFI] Disconnected; continuing local polling");
   }
@@ -172,11 +178,29 @@ void reconnect_mqtt() {
 
   Serial.print("Attempting MQTT connection...");
 
-  // Kết nối với username/password khớp với Mosquitto auth
-  if (mqttClient.connect(mqtt_client_id, mqtt_user, mqtt_pass)) {
+  bool connected = false;
+  if (is_config_valid) {
+    const uint64_t timestamp = current_epoch_ms();
+    if (!timestamp) return; // Never register a will with an invalid epoch.
+    snprintf(mqtt_client_id, sizeof(mqtt_client_id), "legacy-link-%s-%s", global_device_config.device_id, gateway_id);
+    snprintf(device_config_topic, sizeof(device_config_topic), "legacy-link/devices/%s/config", global_device_config.device_id);
+    char will_topic[80], will_payload[256];
+    snprintf(will_topic, sizeof(will_topic), "legacy-link/devices/%s/status", global_device_config.device_id);
+    StaticJsonDocument<256> will;
+    will["schemaVersion"] = 1;
+    will["deviceId"] = global_device_config.device_id;
+    will["timestamp"] = timestamp;
+    will["status"] = false;
+    serializeJson(will, will_payload, sizeof(will_payload));
+    connected = mqttClient.connect(mqtt_client_id, mqtt_user, mqtt_pass, will_topic, 1, true, will_payload);
+  } else {
+    connected = mqttClient.connect(mqtt_client_id, mqtt_user, mqtt_pass);
+  }
+  if (connected) {
     Serial.println("connected!");
 
-    if (!mqttClient.subscribe(config_topic, 1)) {
+    if (!mqttClient.subscribe(config_topic, 1) ||
+        (is_config_valid && !mqttClient.subscribe(device_config_topic, 1))) {
       Serial.println("[MQTT] Config subscription failed; reconnecting on next retry");
       mqttClient.disconnect();
       return;
@@ -191,7 +215,8 @@ void reconnect_mqtt() {
 
 // Copy the MQTT-owned bytes before returning; apply outside the callback.
 void mqtt_callback(char *topic, byte *payload, unsigned int length) {
-  if (strcmp(topic, config_topic) != 0) return;
+  const bool device_topic = device_config_topic[0] && !strcmp(topic, device_config_topic);
+  if (strcmp(topic, config_topic) != 0 && !device_topic) return;
   if (length == 0 || length >= sizeof(pending_config) || memchr(payload, '\0', length)) {
     Serial.println("[CONFIG] Rejected: empty, oversized or NUL-containing MQTT payload");
     return;
@@ -199,6 +224,34 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length) {
   memcpy(pending_config, payload, length);
   pending_config[length] = '\0';
   config_pending = true;
+  pending_device_config = device_topic;
+}
+
+// Reconnect only on identity changes, otherwise a retained config would cause
+// a reconnect loop. Device-scoped updates cannot reassign the gateway.
+bool apply_runtime_config(const char *payload, bool device_scoped = false) {
+  std::unique_ptr<device_config_t> storage(new (std::nothrow) device_config_t{});
+  if (!storage) return false;
+  device_config_t &next = *storage;
+  if (!parse_device_config(payload, &next)) {
+    Serial.println("[CONFIG] Rejected: invalid configuration; keeping current config");
+    return false;
+  }
+  if (device_scoped && (!is_config_valid || strcmp(next.device_id, global_device_config.device_id))) {
+    Serial.println("[CONFIG] Rejected: deviceId does not match config topic");
+    return false;
+  }
+  if (is_config_valid && !memcmp(&next, &global_device_config, sizeof(next))) return true;
+  const bool identity_changed = !is_config_valid || strcmp(next.device_id, global_device_config.device_id);
+  if (identity_changed && is_config_valid) publish_status(&global_device_config, false);
+  if (!apply_new_configuration(payload)) return false;
+  alarm_monitor.reset();
+  if (identity_changed) {
+    mqttClient.disconnect();
+    device_config_topic[0] = '\0';
+    reconnect_mqtt();
+  } else publish_status(&global_device_config, true);
+  return true;
 }
 
 // ============================================================
@@ -254,10 +307,7 @@ void loop() {
 
   if (config_pending) {
     config_pending = false;
-    if (apply_new_configuration(pending_config)) {
-      alarm_monitor.reset();
-      publish_status(&global_device_config, true);
-    }
+    apply_runtime_config(pending_config, pending_device_config);
   }
 
   // 2. Nhận JSON qua Serial Monitor để cấu hình (backup khi chưa có MQTT config)
@@ -282,10 +332,7 @@ void loop() {
 
       if (inputLength > 0) {
         Serial.printf("\n[RECV] %u bytes received\r\n", inputLength);
-        if (apply_new_configuration(inputBuffer)) {
-          alarm_monitor.reset();
-          publish_status(&global_device_config, true);
-        }
+        apply_runtime_config(inputBuffer);
       }
 
       inputLength = 0;

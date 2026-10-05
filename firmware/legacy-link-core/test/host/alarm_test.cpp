@@ -10,7 +10,7 @@ TestSerial Serial, Serial2;
 static unsigned attempts = 0;
 static bool send_ok = true;
 static bool send_alarm(const device_config_t *cfg, const alarm_config_t *alarm,
-                       float value, uint64_t timestamp) {
+                       double value, uint64_t timestamp) {
   assert(std::string(cfg->device_id) == "CNC-01");
   assert(std::string(alarm->code) == "OVERHEAT");
   assert(std::string(alarm->severity) == "high");
