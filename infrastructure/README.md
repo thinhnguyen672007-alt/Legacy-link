@@ -52,6 +52,7 @@ infrastructure/
 │   └── log/
 │       └── .gitkeep               # Broker runtime logs (git-ignored)
 ├── scripts/
+│   ├── init-mosquitto.sh          # One-shot ownership/permission preparation
 │   ├── setup-mosquitto-auth.sh    # Helper script to generate hashed password file
 │   └── test-mqtt.sh               # Quick pub/sub verification script
 ├── docs/
@@ -76,6 +77,8 @@ infrastructure/
 - **Scripts**: Helper utilities to manage MQTT authentication and test connectivity without requiring external host tools.
 
 ### 4. Getting Started
+Run the commands below from `infrastructure/`. For daily operations, credential updates and troubleshooting, see the [runbook](docs/runbook.md).
+
 #### Prerequisites
 - Docker Engine & Docker Compose (v2.x or later).
 
@@ -84,28 +87,31 @@ Copy the example environment file:
 ```bash
 cp .env.example .env
 ```
+Skip the copy if `.env` already exists. Set `MQTT_DEV_USER` and `MQTT_DEV_PASS` before generating credentials; each machine creates its own ignored `.env` and `passwd` files.
 
 #### Step 2: Initialize MQTT Authentication
-Generate a password file from the template or run the setup script:
+Generate the hashed password file and set its ownership/permissions using Docker:
 ```bash
 # Using the helper script (generates password file via Docker):
 ./scripts/setup-mosquitto-auth.sh
 ```
-*(Or copy `mosquitto/config/passwd.example` to `mosquitto/config/passwd` and use `mosquitto_passwd` to add credentials).*
+The script reads credentials from `.env` and also supports updating existing accounts. Editing `.env` alone does not update the password file; follow the [credential update workflow](docs/runbook.md#thêm-hoặc-đổi-mật-khẩu-mqtt).
 
 #### Step 3: Start the Infrastructure
 ```bash
 docker compose up -d
 ```
+Compose runs `mosquitto-init` before the broker to set password, data and log ownership using the image's Mosquitto UID/GID. No manual `chown` or `chmod` is needed. The helper exits successfully after preparation; an `Exited (0)` status for it is expected. Credentials still need to be generated in Step 2. File logs remain at `mosquitto/log/mosquitto.log` (read with `sudo tail -f mosquitto/log/mosquitto.log` on Linux).
 > 💡 `docker compose` reads `docker-compose.yml` from this directory and brings up every service in it. The `-d` (detached) flag runs them in the background so your terminal stays usable. Without `-d` the terminal is held until you press `Ctrl+C`.
 
 #### Step 4: Verify Status and Logs
 ```bash
-docker compose ps
+docker compose ps -a
 docker compose logs -f mosquitto
 ```
 > 💡 `docker compose ps` is the fastest way to answer "is everything alive?". Read the `STATUS` column:
 > - Mosquitto showing `Up ...` is enough — the broker has no health check of its own.
+> - `mosquitto-init` showing `Exited (0)` means preparation completed successfully.
 > - Postgres must show **`Up ... (healthy)`**. The word `healthy` appears only after a few seconds, because the database needs time to initialise before it accepts queries.
 > - `starting` means "wait a moment", not "broken".
 >
@@ -199,6 +205,7 @@ infrastructure/
 │   └── log/
 │       └── .gitkeep               # Nơi lưu trữ log file (được gitignore)
 ├── scripts/
+│   ├── init-mosquitto.sh          # Tự chuẩn bị owner/group và quyền trước broker
 │   ├── setup-mosquitto-auth.sh    # Script tạo file mật khẩu hash bằng Docker
 │   └── test-mqtt.sh               # Script kiểm tra nhanh kết nối pub/sub
 ├── docs/
@@ -223,6 +230,8 @@ infrastructure/
 - **Scripts**: Các công cụ tiện ích giúp tạo mật khẩu và test kết nối nhanh chóng mà không yêu cầu cài công cụ phụ trợ trên máy thật.
 
 ### 4. Hướng dẫn khởi chạy
+Chạy các lệnh bên dưới từ thư mục `infrastructure/`. Xem [runbook](docs/runbook.md) để vận hành hằng ngày, cập nhật mật khẩu và xử lý sự cố.
+
 #### Yêu cầu cài đặt
 - Docker Engine & Docker Compose (v2 trở lên).
 
@@ -231,27 +240,30 @@ Sao chép file cấu hình môi trường mẫu:
 ```bash
 cp .env.example .env
 ```
+Nếu đã có `.env`, giữ cấu hình hiện tại, không sao chép đè. Chỉnh `MQTT_DEV_USER` và `MQTT_DEV_PASS` trước khi tạo tài khoản; mỗi máy tự tạo `.env` và `passwd`, hai file này không được commit.
 
 #### Bước 2: Khởi tạo mật khẩu MQTT
 Tạo file mật khẩu thông qua script hỗ trợ:
 ```bash
 ./scripts/setup-mosquitto-auth.sh
 ```
-*(Hoặc đổi tên file mẫu `mosquitto/config/passwd.example` thành `mosquitto/config/passwd` và dùng `mosquitto_passwd` để đặt tài khoản).*
+Script đọc tài khoản từ `.env`, băm mật khẩu và tự đặt owner/group, quyền file bằng Docker. Chỉ sửa `.env` không cập nhật mật khẩu; khi thay đổi tài khoản, làm theo [quy trình cập nhật mật khẩu](docs/runbook.md#thêm-hoặc-đổi-mật-khẩu-mqtt).
 
 #### Bước 3: Khởi động hạ tầng
 ```bash
 docker compose up -d
 ```
+Compose chạy `mosquitto-init` trước broker để tự đặt owner/group và quyền cho mật khẩu, data và log theo UID/GID Mosquitto trong image. Không cần chạy `chown`/`chmod` thủ công. Container khởi tạo kết thúc với `Exited (0)` là bình thường. Vẫn cần tạo mật khẩu ở Bước 2. Log riêng nằm tại `mosquitto/log/mosquitto.log` (trên Linux xem bằng `sudo tail -f mosquitto/log/mosquitto.log`).
 > 💡 `docker compose` đọc file `docker-compose.yml` ngay cửa sổ này và dựng mọi service trong đó lên. Cờ `-d` (detached) nghĩa là chạy nền, terminal trả lại quyền điều khiển ngay. Bỏ `-d` thì terminal bị chiếm cho tới khi bấm `Ctrl+C`.
 
 #### Bước 4: Kiểm tra trạng thái và log
 ```bash
-docker compose ps
+docker compose ps -a
 docker compose logs -f mosquitto
 ```
 > 💡 `docker compose ps` là cách nhanh nhất xem "mọi thứ có sống không". Nhìn cột `STATUS`:
 > - Mosquitto hiện `Up ...` là được — broker không cần kiểm tra sức khoẻ riêng.
+> - `mosquitto-init` hiện `Exited (0)` nghĩa là đã chuẩn bị quyền xong, không phải lỗi.
 > - Postgres phải hiện **`Up ... (healthy)`**. Chữ `healthy` mới xuất hiện sau vài giây, vì database cần thời gian tạo nội dung trước khi nhận truy vấn.
 > - Nếu thấy `starting` thì chờ thêm, không phải lỗi.
 >

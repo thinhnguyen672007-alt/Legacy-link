@@ -22,19 +22,19 @@ The infrastructure layer hosts the containerized **Eclipse Mosquitto MQTT Broker
 
 ```mermaid
 graph TD
-    subgraph Hardware & Edge Layer [Edge / On-Site]
-        DeviceA[Modbus RTU Sensor / PLC] -->|RS-485 / Serial| ESP32[ESP32 Gateway\nfirmware/legacy-link-core]
+    subgraph EdgeLayer["Hardware & Edge Layer — Edge / On-Site"]
+        DeviceA["Modbus RTU Sensor / PLC"] -->|RS-485 / Serial| ESP32["ESP32 Gateway<br/>firmware/legacy-link-core"]
         DeviceB[Legacy Laboratory Meter] -->|UART 115200| ESP32
     end
 
-    subgraph Infrastructure Layer [Docker: legacy-link-net]
-        ESP32 -->|TCP 1883 / MQTT Auth| Broker[Mosquitto MQTT Broker\nContainer: legacy-link-mosquitto]
-        Broker <-->|Docker Internal DNS: mosquitto:1883| Backend[Backend Core API\nbackend/]
-        Backend <-->|Internal Port 5432| DB[(Time-Series / Relational DB\nPostgreSQL / TimescaleDB)]
+    subgraph InfrastructureLayer["Infrastructure Layer — Docker: legacy-link-net"]
+        ESP32 -->|TCP 1883 / MQTT Auth| Broker["Mosquitto MQTT Broker<br/>Container: legacy-link-mosquitto"]
+        Broker <-->|Docker Internal DNS: mosquitto:1883| Backend["Backend Core API<br/>backend/"]
+        Backend <-->|Internal Port 5432| DB[("Time-Series / Relational DB<br/>PostgreSQL / TimescaleDB")]
     end
 
-    subgraph Application Layer [Web & Client]
-        Backend -->|REST API / WebSocket| Frontend[Operator Dashboard UI\nfrontend/]
+    subgraph ApplicationLayer["Application Layer — Web & Client"]
+        Backend -->|REST API / WebSocket| Frontend["Operator Dashboard UI<br/>frontend/"]
     end
 ```
 

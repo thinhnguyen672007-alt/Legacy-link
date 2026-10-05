@@ -13,6 +13,9 @@ Cách dùng nhanh nhất của cẩm nang này: **đọc cột "Bạn thấy gì
 | :--- | :--- | :--- |
 | `no configuration file provided: not found` | Đang đứng sai thư mục | Mục 9, Lỗi 1 |
 | `Exited (1)` + log có `Unable to open pwfile` | Chưa tạo file mật khẩu | Mục 9, Lỗi 2 |
+| `mosquitto-init` hiện `Exited (0)` | Chuẩn bị quyền thành công, trạng thái bình thường | Mục 6 |
+| `invalid mount config for type "bind": bind source path does not exist: .../mosquitto/config/passwd` | Clone mới chưa tạo file mật khẩu; `up -d` chết trước khi broker kịp chạy | Mục 2.3 |
+| `mosquitto-init` lỗi hoặc `Unable to open log file` | Bước chuẩn bị quyền chưa hoàn tất | Mục 9, Lỗi 10 |
 | `refers to undefined network` | Thiếu khai báo network trong compose | Mục 9, Lỗi 3 |
 | `bind: address already in use` | Cổng 1883 đã bị chiếm | Mục 9, Lỗi 4 |
 | Publish OK nhưng subscriber không nhận | Gõ sai chữ trong tên topic | Mục 9, Lỗi 5 |
@@ -46,7 +49,7 @@ Trước khi bắt đầu, máy tính của bạn cần cài đặt:
 
 ## 2. Quy trình chuẩn khi vừa Clone Repository về (Onboarding Workflow)
 
-Khi bạn vừa clone repository về máy tính lần đầu tiên, hãy thực hiện đúng các bước tối ưu sau (chỉ mất chưa đầy 2 phút):
+Khi vừa clone repository về máy mới, thực hiện các bước sau. Chỉ cần Docker và Compose; không cần đổi owner hay quyền file thủ công.
 
 ```text
 [Clone Repo] ──> [cd infrastructure] ──> [cp .env.example .env] ──> [Tạo passwd] ──> [docker compose up -d] ──> [Test ping] ──> [Nạp schema DB]
@@ -66,29 +69,35 @@ cp .env.example .env
 ```
 *(Nếu cổng 1883 trên máy bạn đang bị chiếm bởi phần mềm khác, bạn có thể mở file `.env` vừa tạo và sửa `MQTT_PORT=1884`)*.
 
+Chỉnh `MQTT_DEV_USER` và `MQTT_DEV_PASS` trong `.env` trước khi tạo mật khẩu. File `.env` và file mật khẩu thật không được commit; mỗi máy cần tự tạo chúng. Nếu `.env` đã tồn tại, giữ cấu hình hiện có, không sao chép đè.
+
 ### Bước 2.3: Khởi tạo tài khoản MQTT ban đầu
 Chạy script tự động đóng gói bằng Docker (không cần cài thêm công cụ gì trên máy thật):
 ```bash
-chmod +x ./scripts/setup-mosquitto-auth.sh
 ./scripts/setup-mosquitto-auth.sh
 ```
-*Lệnh này sẽ tự động tạo user mặc định: `legacy_admin` với mật khẩu: `legacy_secret_2026`.*
+Script tạo hoặc cập nhật tài khoản theo `.env`, băm mật khẩu rồi đặt owner/group theo user Mosquitto trong image và quyền `600`. Không cần cài `mosquitto_passwd` trên máy host hoặc tự chạy `sudo chown`/`chmod`. Nếu giữ nguyên file mẫu, tài khoản là `legacy_admin` với mật khẩu `legacy_secret_2026`.
 
 ### Bước 2.4: Khởi động Broker và kiểm tra sức khỏe
 ```bash
-# Khởi chạy ngầm broker
+# Khởi chạy hạ tầng và tự chuẩn bị quyền Mosquitto
 docker compose up -d
 
+# Kiểm tra cả container khởi tạo đã kết thúc
+docker compose ps -a
+
 # Chạy script test tự động
-chmod +x ./scripts/test-mqtt.sh
 ./scripts/test-mqtt.sh
 ```
+Compose chạy `mosquitto-init` trước và chỉ khởi động broker sau khi bước này thành công. Container khởi tạo đặt quyền cho `passwd`, thư mục data và file log theo UID/GID trong image, không phụ thuộc UID của người dùng trên máy host. Log vẫn được lưu riêng tại `mosquitto/log/mosquitto.log`.
+
+Trạng thái mong đợi: `mosquitto-init` là `Exited (0)`, broker là `Up`, Postgres là `Up ... (healthy)` sau khi khởi tạo xong.
 Nếu màn hình hiện:
 ```text
 [SUCCESS] Message published successfully!
 [SUCCESS] Mosquitto broker is healthy and authentication is working.
 ```
-👉 **Chúc mừng! Hệ thống MQTT Broker của bạn đã hoạt động hoàn hảo 100%!**
+Kết quả này xác nhận broker chấp nhận publish bằng tài khoản cấu hình. Để kiểm tra subscriber nhận được dữ liệu, làm thêm bài test hai cửa sổ ở Mục 8.
 
 ### Bước 2.5: Nạp schema cho database Postgres
 
@@ -155,6 +164,24 @@ docker compose restart mosquitto
 ```
 *Lệnh này sẽ tắt tiến trình bên trong container rồi bật lại ngay lập tức mà không xóa container.*
 
+`restart` không chạy lại bước khởi tạo quyền. Khi đổi cấu hình Compose hoặc cần áp dụng quy trình tự chuẩn bị quyền, dùng:
+
+```bash
+docker compose up -d mosquitto
+```
+
+### Thêm hoặc đổi mật khẩu MQTT
+
+Chỉnh `MQTT_DEV_USER` / `MQTT_DEV_PASS` trong `.env`, rồi chạy:
+
+```bash
+./scripts/setup-mosquitto-auth.sh
+docker compose up -d --force-recreate mosquitto
+./scripts/test-mqtt.sh
+```
+
+Chỉ sửa `.env` không tự cập nhật file mật khẩu. Script giữ các tài khoản khác đã có; tạo lại container broker bảo đảm đọc đúng file mới kể cả khi công cụ cập nhật thay thế file cũ. Cập nhật mật khẩu tương ứng ở ESP32/backend/simulator nếu các client đang dùng tài khoản vừa đổi.
+
 ---
 
 ## 6. Kiểm tra trạng thái hoạt động (Check Status)
@@ -166,9 +193,10 @@ docker compose ps -a
 ```
 
 * **Cột `STATUS`:**
-  * `Up ...`: Broker đang sống và khỏe mạnh.
-  * `Exited (0)`: Broker đã tắt an toàn theo lệnh của người dùng.
-  * `Exited (1)` hoặc mã khác: Broker bị sập do lỗi (cần xem log ngay!).
+  * Service `mosquitto` hiện `Up ...`: Tiến trình broker đang chạy; dùng script test để kiểm tra publish có xác thực.
+  * Service `mosquitto-init` hiện `Exited (0)`: Đã chuẩn bị quyền xong, không phải lỗi và không cần giữ container này chạy.
+  * Service `mosquitto` hiện `Exited (0)`: Broker đã kết thúc; xem log nếu không chủ động dừng.
+  * Service `mosquitto-init` hoặc `mosquitto` hiện `Exited (1)` hay mã khác: Xem log của đúng service bị lỗi.
 * **Cột `PORTS`:**
   * `0.0.0.0:1883->1883/tcp`: Cổng 1883 đang mở đón kết nối từ mọi thiết bị trong mạng LAN (ESP32, PC khác).
   * `127.0.0.1:5432->5432/tcp` của Postgres: Cổng database **chỉ** mở trên chính máy này. Đây là chủ ý — database không được phép chạm từ LAN.
@@ -188,6 +216,22 @@ Khi nghi ngờ Broker gặp trục trặc, hãy xem nhật ký hoạt động:
 # Xem 50 dòng log gần nhất và tiếp tục theo dõi thời gian thực (nhấn Ctrl+C để thoát)
 docker compose logs -f --tail=50 mosquitto
 ```
+
+### File log riêng trên máy host
+
+Log được ghi đồng thời ra Docker và `mosquitto/log/mosquitto.log`. Trên Linux, file thuộc user Mosquitto của container và quyền `600`, nên đọc bằng:
+
+```bash
+sudo tail -n 50 -f mosquitto/log/mosquitto.log
+```
+
+Hoặc xem qua container, không cần đổi quyền file:
+
+```bash
+docker compose exec mosquitto tail -n 50 -f /mosquitto/log/mosquitto.log
+```
+
+Log Docker/lazydocker giữ lịch sử qua các lần restart. Cảnh báo cũ không có nghĩa lỗi vẫn tồn tại; đối chiếu timestamp của lần khởi động mới. Xem kết quả chuẩn bị quyền bằng `docker compose logs mosquitto-init`.
 
 ### Cách nhận diện các trạng thái qua Log:
 
@@ -211,7 +255,7 @@ docker compose logs -f --tail=50 mosquitto
    Warning: File /mosquitto/config/passwd has world readable permissions...
    Warning: File /mosquitto/config/passwd owner is not mosquitto...
    ```
-   > 💡 **Giải thích:** Đây chỉ là cảnh báo nhắc nhở của Mosquitto về quyền file trên máy Linux. Broker **vẫn đọc được file mật khẩu và vẫn hoạt động bình thường**, không cần lo lắng!
+   > 💡 **Giải thích:** Phiên bản hiện tại vẫn chạy nhưng phiên bản sau có thể từ chối file. Compose đã có `mosquitto-init` tự đặt owner/group theo user Mosquitto trong image và quyền `600` trước khi broker chạy. Nếu đang dùng container tạo bằng cấu hình cũ, chạy `docker compose up -d mosquitto` để áp dụng. Cảnh báo cũ vẫn nằm trong lịch sử log; kiểm tra log của lần khởi động mới.
 
 ---
 
@@ -257,7 +301,7 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
 ---
 
 ### 🔴 Lỗi 2: `Unable to open pwfile "/mosquitto/config/passwd"` & Container tự tắt
-* **Hiện tượng:** `docker compose ps` thấy `Exited (0)` hoặc `Exited (13)`. Xem log thấy dòng lỗi trên.
+* **Hiện tượng:** Broker không khởi động, log có `Unable to open pwfile`, `mosquitto-init` báo `Missing or empty passwd file`, hoặc Compose báo nguồn bind mount `passwd` không tồn tại.
 * **Nguyên nhân:**
   1. Chưa tạo file `passwd`.
   2. Hoặc trong `docker-compose.yml` chưa mount dòng: `- ./mosquitto/config/passwd:/mosquitto/config/passwd:ro`.
@@ -363,6 +407,27 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
   docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
   ```
   > ⚠️ **Cảnh báo:** `down -v` **xoá toàn bộ dữ liệu telemetry, trạng thái máy và alarm**. Chỉ dùng ở máy cá nhân khi thử nghiệm.
+
+---
+
+### 🔴 Lỗi 10: Không ghi được file log hoặc `mosquitto-init` thất bại
+
+Xem lỗi của bước chuẩn bị quyền:
+
+```bash
+docker compose logs mosquitto-init
+docker compose ps -a
+```
+
+Nếu thiếu hoặc rỗng `passwd`, chạy `./scripts/setup-mosquitto-auth.sh` trước. Với container tạo bằng cấu hình cũ, áp dụng Compose mới:
+
+```bash
+docker compose up -d mosquitto
+./scripts/test-mqtt.sh
+docker compose logs --tail=30 mosquitto
+```
+
+Không cần tự đổi quyền trên host: `mosquitto-init` chuẩn bị quyền và broker chờ bước này thành công. Nếu log init báo `Operation not permitted` hoặc `Read-only file system`, kiểm tra thư mục repo có nằm trên filesystem cho phép quyền POSIX và ghi dữ liệu hay không; với filesystem không hỗ trợ `chown`, chuyển repo sang filesystem Linux phù hợp (trên WSL dùng thư mục Linux thay vì ổ Windows mount). Không dùng `chmod 777` để thay thế.
 
 ---
 
