@@ -1,9 +1,14 @@
 // http/server.js
 // Nhiem vu: HTTP server cho backend. Endpoint that su hien co:
-// GET /catalog?deviceId=... — tra ve ban do thanh ghi da ghep san cho mot may.
+// GET /catalog?deviceId=... — tra ve cau hinh day du cho mot ESP32.
 //
 // Server nay la mot TIEN TRINH RIENG voi phan MQTT (src/index.js), nhung ca hai
 // dung chung mot connection pool trong src/db/pool.js.
+//
+// Diem quan trong: hinh dang JSON tra ve KHONG phai hinh dang trong database.
+// Database dung snake_case (metric_key, protocol_address), con firmware cho
+// (key, address). Viec chuyen doi dien ra o day — ranh gioi giua hai he thong.
+// Sua database khong lam vo firmware, va nguoc lai.
 
 import http from 'node:http';
 
@@ -32,6 +37,22 @@ const CATALOG_QUERY = `
   ORDER BY b.protocol_address
 `;
 
+// Chuyen mot dong database thanh mot phan tu registerMap ma firmware doc duoc.
+//
+// Chu y: "address" gui xuong la protocol_address (dia chi tho 0-based), KHONG
+// phai modicon_address. Firmware goi readHoldingRegisters(address, 1) va ham do
+// nhan dia chi tho. Gui so Modicon xuong la doc sai thanh ghi, khong bao loi.
+function toFirmwareRegister(row) {
+  return {
+    key: row.metric_key,
+    address: row.protocol_address,
+    functionCode: row.function_code,
+    dataType: row.data_type,
+    scale: row.scale,
+    unit: row.unit,
+  };
+}
+
 function sendJson(res, statusCode, body) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json');
@@ -42,14 +63,17 @@ async function handleCatalog(url, res) {
   const deviceId = url.searchParams.get('deviceId');
 
   // Thieu tham so la loi cua nguoi goi, khong phai loi he thong.
-  if (deviceId === null) {
+  if (!deviceId) {
     sendJson(res, 400, { error: 'Thieu tham so deviceId' });
     return;
   }
 
-  // Buoc 1: thiet bi nay thuoc loai may nao?
+  // Buoc 1: thiet bi nay thuoc loai may nao, va cau hinh duong truyen the nao?
   const deviceResult = await pool.query(
-    'SELECT device_id, machine_type, name FROM device WHERE device_id = $1',
+    `SELECT device_id, machine_type, name, protocol, baud_rate, parity,
+            stop_bits, slave_id, sampling_interval_ms
+     FROM device
+     WHERE device_id = $1`,
     [deviceId],
   );
 
@@ -63,11 +87,17 @@ async function handleCatalog(url, res) {
   // Buoc 2: lay ban chung cua loai may va ghep voi phan rieng cua thiet bi.
   const registerResult = await pool.query(CATALOG_QUERY, [deviceId, device.machine_type]);
 
+  // Buoc 3: doi tu hinh dang database sang hinh dang firmware cho.
   sendJson(res, 200, {
     deviceId: device.device_id,
     deviceName: device.name,
-    machineType: device.machine_type,
-    registers: registerResult.rows,
+    protocol: device.protocol,
+    baudRate: device.baud_rate,
+    parity: device.parity,
+    stopBits: device.stop_bits,
+    slaveId: device.slave_id,
+    samplingIntervalMs: device.sampling_interval_ms,
+    registerMap: registerResult.rows.map(toFirmwareRegister),
   });
 }
 
