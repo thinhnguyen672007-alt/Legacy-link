@@ -7,7 +7,7 @@
 // Kết quả đọc từ 1 thanh ghi
 typedef struct {
     char     key[MAX_REG_KEY_LEN];
-    float    scaled_value;
+    double   scaled_value;
     bool     success;
 } modbus_result_t;
 

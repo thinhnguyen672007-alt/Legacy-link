@@ -3,7 +3,7 @@
 #include "modbus_reader.h"
 
 using alarm_publisher_t = bool (*)(const device_config_t *, const alarm_config_t *,
-                                  float, uint64_t);
+                                  double, uint64_t);
 
 class AlarmMonitor {
  public:
@@ -12,4 +12,6 @@ class AlarmMonitor {
                 uint8_t count, uint64_t timestamp, alarm_publisher_t publish);
  private:
   bool notified[MAX_REGISTERS] = {};
+  bool critical_notified[MAX_REGISTERS] = {};
+  bool low_notified[MAX_REGISTERS] = {};
 };

@@ -10,7 +10,7 @@ Ask the teammate running the services for:
 
 - The broker's LAN IP address or hostname and TCP port (commonly 1883).
 - MQTT credentials and permission for device telemetry/status/alarm publishing
-  and gateway configuration subscriptions.
+  and gateway/device configuration subscriptions.
 - Confirmation that the broker listens on an interface reachable from the ESP32,
   and that the LAN firewall allows the selected MQTT port.
 - Confirmation that their backend subscribes to this same broker and has its
@@ -125,8 +125,11 @@ without switching branches or modifying them. No npm dependencies are needed.
 The host Modbus stub returns raw 0xFFFF, so this automated test deliberately checks
 signed and unsigned decoding rather than the physical simulator values above.
 It does not contact a broker, run the backend process, access PostgreSQL or prove
-delivery from an ESP32. Both online and offline status serializers are tested;
-automatic offline status/Last Will is not yet implemented in the running firmware.
+delivery from an ESP32. Both online and offline status serializers are tested.
+Provisioned connections now register a retained Last Will; its payload and
+identity changes are covered separately by host tests. See
+[backend alignment](backend-alignment.md) for timestamp semantics and the
+remaining physical power-loss test.
 
 ## Test payload transport through a live broker without an ESP32
 

@@ -1,5 +1,9 @@
 # ESP32 gateway firmware
 
+See [backend alignment](docs/backend-alignment.md) for the two supplied device
+configs, database-shaped register fields, UINT32 word order, device config
+topics, Last Will behavior, multi-level alarms, and remaining backend gaps.
+
 For a backend running on another computer, follow the
 [first-connection guide](docs/first-connection.md). It includes the information to
 get from the backend operator, a Modbus simulator configuration, and checks for
@@ -65,7 +69,7 @@ MQTT acknowledgment topic yet.
 ## Supported configuration
 
 - Required: `deviceId` (1–31 bytes, no spaces/control characters, `/`, `+`, or `#`)
-  and `registerMap` (1–16 entries).
+  and `registerMap` (1–16 entries), or the `registers` compatibility format.
 - Defaults: `deviceName: ""`, `protocol: "MODBUS_RTU"`, `baudRate: 9600`,
   `parity: "NONE"`, `stopBits: 1`, `slaveId: 1`, `samplingIntervalMs: 1000`.
 - Only `MODBUS_RTU` is supported. Baud rates must be 300–2,000,000; parity is
@@ -73,8 +77,10 @@ MQTT acknowledgment topic yet.
   intervals are 100–86,400,000 ms. Use a baud rate supported by your equipment.
 - Every register requires a unique, nonempty `key` (up to 19 bytes) and an integer
   `address` (0–65535). Function codes are 3 or 4 (default 3).
-- Data types are `INT16` (default, signed) or `UINT16` (unsigned). Each reads one
-  register. Scale defaults to 1 and must be finite. Units default to an empty
+- Data types are `INT16` (legacy default, signed), `UINT16` (unsigned), and
+  `UINT32` (two consecutive registers). The default word order is `HIGH_FIRST`;
+  set `wordOrder: "LOW_FIRST"` when required by the device manual.
+  Scale defaults to 1 and must be finite. Units default to an empty
   string and can contain up to 7 bytes. Device names can contain up to 47 bytes.
 - Optional fields set to `null` use their defaults. Numeric strings, out-of-range
   integers, duplicate keys, unsupported types, and overlong strings are rejected.
@@ -147,10 +153,10 @@ the correct limit is unknown, omit `alarm` until it is established.
 | `code` | `OVERHEAT`, `OVERCURRENT`, `OVERSPEED`, `VIBRATION` |
 | `severity` | `low`, `medium`, `high`, `critical` |
 
-An omitted `alarm` disables alerts for that register. A present but invalid alarm
+Omitting both `alarm` and flat alarm thresholds disables alerts for that register. A present but invalid alarm
 object (including `null`) rejects the entire configuration and preserves the
-previous settings. Lower-bound alarms and automatic machine control are not
-implemented.
+previous settings. Lower-bound and critical alarms are described in
+[backend alignment](docs/backend-alignment.md). Automatic machine control is not implemented.
 
 The firmware publishes to `legacy-link/devices/{deviceId}/alarm`:
 
@@ -168,8 +174,8 @@ reached. No separate recovery message is emitted.
 Alarm messages use non-retained QoS 0 publishing, as supported by the current
 PubSubClient API. A successful publish means the client accepted the send, not
 that the backend acknowledged receipt. MQTT reconnect alone keeps alarm state;
-a successful configuration update (including retained redelivery) or reboot
-resets it and may produce another alert. Invalid updates keep alarm state.
+a changed configuration or reboot resets it and may produce another alert.
+Identical retained redelivery and invalid updates keep alarm state.
 
 ## Verification
 
