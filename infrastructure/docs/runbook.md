@@ -14,6 +14,7 @@ Cách dùng nhanh nhất của cẩm nang này: **đọc cột "Bạn thấy gì
 | `no configuration file provided: not found` | Đang đứng sai thư mục | Mục 9, Lỗi 1 |
 | `Exited (1)` + log có `Unable to open pwfile` | Chưa tạo file mật khẩu | Mục 9, Lỗi 2 |
 | `mosquitto-init` hiện `Exited (0)` | Chuẩn bị quyền thành công, trạng thái bình thường | Mục 6 |
+| `invalid mount config for type "bind": bind source path does not exist: .../mosquitto/config/passwd` | Clone mới chưa tạo file mật khẩu; `up -d` chết trước khi broker kịp chạy | Mục 2.3 |
 | `mosquitto-init` lỗi hoặc `Unable to open log file` | Bước chuẩn bị quyền chưa hoàn tất | Mục 9, Lỗi 10 |
 | `refers to undefined network` | Thiếu khai báo network trong compose | Mục 9, Lỗi 3 |
 | `bind: address already in use` | Cổng 1883 đã bị chiếm | Mục 9, Lỗi 4 |

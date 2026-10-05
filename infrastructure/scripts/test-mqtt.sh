@@ -103,13 +103,65 @@ echo "[INFO] Testing Mosquitto container: '$CONTAINER_NAME'..."
 # - `^...$`: neo đầu và cuối dòng, bắt buộc khớp TRÒN VẸN tên container.
 #   Thiếu `$` thì tên "legacy-link-mosquitto-abc" cũng khớp với
 #   "legacy-link-mosquitto" và ta tưởng container đã chạy.
-# - `if !` đảo ngữ: grep trả 0 (tìm thấy) -> `!` đổi thành 1 -> không vào
-#   nhánh then. Vào nhánh then nghĩa là ĐANG chạy, còn lại là không chạy.
+# - `if !` đảo ngữ: grep trả 0 (TÌM THẤY) -> `!` đổi thành 1 -> KHÔNG vào
+#   nhánh then. Vậy vào nhánh then nghĩa là KHÔNG tìm thấy container đang chạy.
+#   (Đã kiểm lại bằng thực nghiệm: grep có khớp thì exit 0 và nhánh then bị bỏ
+#   qua. Câu trước đây viết ngược — "Vào nhánh then nghĩa là ĐANG chạy" — và sai,
+#   vì chính dòng echo bên dưới in ra "is not running".)
 # - `if !` có chủ đích KHÔNG để script chết ngay (dù có `set -e`): ta muốn in
-#   thông báo "chạy docker compose up -d trước" thay vì chết không nói lý do.
+#   thông báo hướng dẫn cụ thể thay vì chết không nói lý do.
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
   echo "[ERROR] Container '$CONTAINER_NAME' is not running!"
-  echo "        Run 'docker compose up -d' first to start the infrastructure."
+
+  # ----------------------------------------------------------------------------
+  # PHÂN BIỆT HAI NGUYÊN NHÂN, vì chúng cần hai cách sửa khác nhau.
+  #
+  # LÝ DO PHẢI LÀM: trước đây nhánh này luôn in
+  #     Run 'docker compose up -d' first
+  # Nhưng nguyên nhân phổ biến nhất lại KHÔNG PHẢI "quên bật Docker". Đó là
+  # clone mới: file `mosquitto/config/passwd` bị .gitignore nên không có trong
+  # repo, và `docker-compose.yml` mount passwd với `create_host_path: false`.
+  # Với cờ đó, daemon TỪ CHỐI tạo container mosquitto và in ra:
+  #     invalid mount config for type "bind": bind source path does not exist
+  # Dòng lỗi đó không chứa một từ nào chỉ tới nguyên nhân thật. Người mới sẽ
+  # đi tra cứu "bind source path does not exist" thay vì chạy
+  # ./scripts/setup-mosquitto-auth.sh — và bị hướng dẫn chạy lại đúng cái lệnh
+  # vừa thất bại.
+  #
+  # Vì sao lời nhắc đúng của `mosquitto-init` không tự hiện ra:
+  # init-mosquitto.sh CÓ in "Missing or empty passwd file. Run
+  # ./scripts/setup-mosquitto-auth.sh first." rồi exit 1. Nhưng nó nằm trong
+  # log của riêng container init, còn lỗi mount của daemon xuất hiện trước và
+  # che mất. Muốn thấy thì phải tự gõ `docker compose logs mosquitto-init`.
+  # Ở đây ta kiểm tra nguyên nhân trực tiếp trên máy host nên không cần log.
+  #
+  # VÌ SAO DÙNG `-f` VÀ `-s`, KHÔNG DÙNG `-r`:
+  #   -f  file tồn tại và là file thường (loại trừ: thư mục, socket, symlink lỗi)
+  #   -s  file có nội dung khác rỗng
+  # Cần cả hai: thiếu file, file rỗng, và trường hợp đường dẫn bị tạo nhầm
+  # thành thư mục (Docker có thể làm vậy nếu ai đó bật `create_host_path: true`).
+  # KHÔNG dùng `-r` (đọc được): passwd là 0600 thuộc UID của user mosquitto
+  # trong image (1883), nên user desktop thường KHÔNG đọc được file dù nó
+  # hợp lệ. Kiểm tra bằng -r sẽ báo nhầm "thiếu mật khẩu" và bắt người dùng
+  # tạo lại mật khẩu đang chạy tốt. Chỉ cần metadata là đủ.
+  #
+  # Vì sao kiểm tra ở ĐÂY, trong nhánh "broker không chạy":
+  # Nếu kiểm tra ở đầu script, một máy đã có passwd hợp lệ nhưng broker chết vì
+  # lý do khác (port trùng, image hỏng) cũng phải chạy qua bước kiểm tra này.
+  # Đặt trong nhánh lỗi giữ nguyên hành vi cũ cho mọi trường hợp khác.
+  # ----------------------------------------------------------------------------
+  if [ ! -f "$INFRA_DIR/mosquitto/config/passwd" ] ||
+     [ ! -s "$INFRA_DIR/mosquitto/config/passwd" ]; then
+    echo "        Nguyên nhân: chưa có file mật khẩu 'mosquitto/config/passwd'."
+    echo "        File này bị .gitignore nên không có sẵn khi mới clone repo."
+    echo "        Tạo mật khẩu TRƯỚC, rồi mới khởi động. Chạy từ thư mục infrastructure/:"
+    echo "          ./scripts/setup-mosquitto-auth.sh && docker compose up -d"
+  else
+    echo "        File mật khẩu đã có, nên nguyên nhân nằm ở chỗ khác."
+    echo "        Từ thư mục infrastructure/, chạy: docker compose up -d"
+    echo "        Nếu vẫn lỗi, xem log: docker compose logs mosquitto-init mosquitto"
+  fi
+
   exit 1
 fi
 
