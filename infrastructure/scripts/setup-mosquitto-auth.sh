@@ -182,12 +182,12 @@ mkdir -p "$CONFIG_DIR"
 #      Tham số truyền vào, luôn đặt trong dấu ngoặc kép để tránh lỗi nếu chứa ký tự đặc biệt.
 if [ ! -f "$PASSWD_FILE" ]; then
   echo "[INFO] File does not exist. Creating new password file..."
-  touch "$PASSWD_FILE"
-  
+  # mosquitto_passwd -c creates the file itself; pre-creating it fails on 2.1+.
+
   # Trường hợp 1: File passwd CHƯA có -> Dùng cờ '-c' để tạo mới
   # NẾU VIẾT KHÁC ĐI (bỏ cờ -c khi file chưa có): Một số phiên bản mosquitto_passwd sẽ báo lỗi
   # không tìm thấy file để cập nhật.
-  docker run --rm -v "$CONFIG_DIR":/mosquitto/config eclipse-mosquitto:2 \
+  docker run --rm --user 0:0 -v "$CONFIG_DIR":/mosquitto/config:z eclipse-mosquitto:2 \
     mosquitto_passwd -c -b /mosquitto/config/passwd "$USERNAME" "$PASSWORD"
 else
   # Trường hợp 2: File passwd ĐÃ có từ trước -> KHÔNG DÙNG cờ '-c'
@@ -196,26 +196,18 @@ else
   # NẾU VIẾT SAI (vẫn để cờ -c ở đây):
   # Toàn bộ các user đã tạo trước đó (ví dụ user 'legacy_admin') sẽ bị XÓA SẠCH,
   # chỉ còn lại duy nhất một user mới vừa thêm!
-  docker run --rm -v "$CONFIG_DIR":/mosquitto/config eclipse-mosquitto:2 \
+  docker run --rm --user 0:0 -v "$CONFIG_DIR":/mosquitto/config:z eclipse-mosquitto:2 \
     mosquitto_passwd -b /mosquitto/config/passwd "$USERNAME" "$PASSWORD"
 fi
 
 # ------------------------------------------------------------------------------
-# 8. Phân quyền truy cập file passwd (chmod 0644)
+# 8. Phân quyền truy cập file passwd bên trong Docker
 # ------------------------------------------------------------------------------
-# - Cú pháp: chmod 0644 "$PASSWD_FILE"
-#   * Số 6 (Owner): Đọc & Ghi (4 + 2 = 6).
-#   * Số 4 (Group): Chỉ đọc (4).
-#   * Số 4 (Others): Chỉ đọc (4).
-# - NẾU THIẾU DÒNG NÀY:
-#   * File do Docker tạo ra có thể mang quyền '0600' (chỉ chủ sở hữu đọc được).
-#   * Khi container Mosquitto chính thức khởi động dưới user nội bộ 'mosquitto' (UID 1883),
-#     nó sẽ bị lỗi "Error: Unable to open pwfile ... Permission denied" và tắt ngay lập tức!
-# - NẾU VIẾT KHÁC ĐI:
-#   * Viết 'chmod 777': Cấp quyền quá mức cho phép (bất kỳ ai/tiến trình nào cũng sửa hoặc xóa được),
-#     vi phạm nguyên tắc bảo mật.
-#   * Viết 'chmod 700': Mosquitto container chạy với UID 1883 sẽ không đọc được file nếu file thuộc sở hữu của user máy host (UID 1000).
-chmod 0644 "$PASSWD_FILE"
+# File thuộc user mosquitto của image, chỉ owner được đọc/ghi.
+# Dùng root trong container để cập nhật được cả file đã thuộc UID khác trên host.
+docker run --rm --network none --user 0:0 \
+  -v "$CONFIG_DIR":/mosquitto/config:z --entrypoint sh eclipse-mosquitto:2 \
+  -c 'chown "$(id -u mosquitto):$(id -g mosquitto)" /mosquitto/config/passwd && chmod 0600 /mosquitto/config/passwd'
 
 echo "[SUCCESS] Password file successfully configured at: $PASSWD_FILE"
 echo "[NOTE] Reminder: '$PASSWD_FILE' is ignored by Git to protect secrets."
