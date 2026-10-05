@@ -32,6 +32,42 @@ is display metadata only, never an automatic fallback. For holding registers,
 the backend/catalog converts Modicon 40050 to protocol address 49. Firmware must
 not subtract 40001 again.
 
+## Metric names and scaling
+
+The team-agreed metric keys are `temperature`, `speed`, `torque`, `current`,
+`rpm`, and `pressure`. Firmware copies each register key unchanged into the
+telemetry `metrics` object. Use these exact, case-sensitive names; `temp` does
+not become `temperature`. Backend validators must allow the same names.
+
+Firmware decodes the signed/unsigned register value first, then multiplies
+by `scale` exactly once. The backend receives the engineering value and must
+not multiply by the scale again. For example, INT16 raw -180 with scale 0.1
+becomes -18.0 degrees, and raw 1200 becomes 120.0. Host tests verify the negative
+example through the actual telemetry serializer, including its metric key.
+
+## Configuration size
+
+The receive buffer is 4096 bytes, including the terminating NUL byte. The JSON
+payload must therefore be **at most 4095 bytes**, measured as UTF-8 bytes, not
+characters. The direct parser, MQTT callback and Serial input enforce the same
+limit. Whitespace counts toward it; compact JSON is preferable.
+
+The parser uses `DynamicJsonDocument(8192)` for its internal representation.
+This allocation is separate from serialized JSON length. Up to 16 registers are
+supported, but a map with long names, alarms and optional metadata must still
+fit both limits. Check the final serialized payload after applying overrides:
+
+```js
+const payload = JSON.stringify(config);
+if (Buffer.byteLength(payload, 'utf8') > 4095) {
+  throw new Error('Firmware configuration exceeds 4095 bytes');
+}
+```
+
+Host tests exercise a full 16-register map with maximum-length metric keys,
+4095-byte valid JSON, and rejection of 4096-byte valid JSON through parser,
+MQTT and Serial. Rejection preserves the previous configuration and UART.
+
 ## MQTT identity, provisioning and offline status
 
 - Bootstrap topic: `legacy-link/gateways/{hardwareGatewayId}/config`.

@@ -32,7 +32,7 @@ static char mqtt_client_id[80];
 static char config_topic[80];
 static char device_config_topic[80];
 static bool pending_device_config = false;
-static constexpr size_t CONFIG_BUFFER_SIZE = 4096;
+static constexpr size_t CONFIG_BUFFER_SIZE = MAX_CONFIG_PAYLOAD_BYTES + 1;
 static char pending_config[CONFIG_BUFFER_SIZE];
 static bool config_pending = false;
 static AlarmMonitor alarm_monitor;

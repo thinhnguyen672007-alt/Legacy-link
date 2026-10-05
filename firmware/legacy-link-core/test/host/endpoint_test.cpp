@@ -37,6 +37,23 @@ int main() {
   modbus_poll_and_collect(&global_device_config, &result, 1);
   assert(modbus_address() == 49 && modbus_words() == 1);
   assert(result.success && result.scaled_value < 0);
+  // Decode the team's exact negative-temperature example, then verify the
+  // named metric is already scaled in the actual MQTT serialization.
+  modbus_response()[0] = static_cast<uint16_t>(-180);
+  modbus_poll_and_collect(&global_device_config, &result, 1);
+  assert(fabs(result.scaled_value - (-18.0)) < 0.00001);
+  mqttClient.online = true;
+  publish_telemetry(&global_device_config, &result, 1);
+  DynamicJsonDocument telemetry(1024);
+  assert(!deserializeJson(telemetry, mqttClient.published.back().payload));
+  assert(telemetry["metrics"].size() == 1);
+  assert(fabs(telemetry["metrics"]["temperature"].as<double>() + 18.0) < 0.00001);
+  assert(mqttClient.published.back().topic == "legacy-link/devices/CNC-01/telemetry");
+  modbus_response()[0] = 1200;
+  modbus_poll_and_collect(&global_device_config, &result, 1);
+  assert(fabs(result.scaled_value - 120.0) < 0.00001);
+  mqttClient.online = false;
+  modbus_response()[0] = 0xFFFF;
   const auto before = global_device_config;
   const char *bad[] = {
     R"({"deviceId":"CNC-01","registers":[]})",

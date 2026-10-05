@@ -59,6 +59,10 @@ available: paste compact JSON on one line and press Enter. A retained MQTT confi
 will be reapplied on reconnect and may replace a later Serial configuration.
 
 The callback copies up to 4095 bytes and applies the update in the main loop.
+The parser and Serial input enforce the same payload limit; the 4096-byte
+receive buffer reserves one byte for the string terminator. JSON parsing uses
+an independent 8192-byte dynamic document. Count UTF-8 bytes after serialization,
+including whitespace, even for maps within the 16-register limit.
 Empty, oversized, or NUL-containing MQTT payloads are rejected. Oversized Serial
 lines are discarded completely through the next newline. Parsing and validation
 complete before the running configuration or UART is changed. Rejected updates
@@ -84,8 +88,10 @@ MQTT acknowledgment topic yet.
   string and can contain up to 7 bytes. Device names can contain up to 47 bytes.
 - Optional fields set to `null` use their defaults. Numeric strings, out-of-range
   integers, duplicate keys, unsupported types, and overlong strings are rejected.
-- Backend `main` at commit `c33b72e` accepts `temperature`, `current`, `rpm`,
-  `speed`, and `pressure`. Older backend versions may accept only the first three.
+- Team-agreed keys are `temperature`, `speed`, `torque`, `current`, `rpm`, and
+  `pressure`. The checked backend `main` at commit `abd2134` still rejects
+  `torque`; its validator must be updated to match this list. Keys are preserved
+  exactly, and values are scaled once by firmware before publication.
   The bench example uses those three for compatibility; verify against the actual
   backend revision with the contract test below.
 

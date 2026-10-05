@@ -10,6 +10,7 @@
 #define MAX_REG_TYPE_LEN    10
 #define MAX_REG_UNIT_LEN    8
 #define MAX_REGISTERS       16
+#define MAX_CONFIG_PAYLOAD_BYTES 4095
 
 typedef struct {
     bool enabled;
