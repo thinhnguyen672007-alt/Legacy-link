@@ -2,10 +2,13 @@
 -- Du lieu mau de thu nghiem. Chay:
 --   docker exec -i legacy-link-postgres psql -U legacy_admin -d legacy_link < backend/db/seed-demo.sql
 
--- Hai may CNC CUNG LOAI. Chung se dung chung ban do thanh ghi.
-INSERT INTO device (device_id, machine_type, name) VALUES
-  ('esp32-01', 'FANUC-30i', 'CNC so 1'),
-  ('esp32-03', 'FANUC-30i', 'CNC so 3')
+-- Hai may CNC CUNG LOAI. Chung dung chung ban do thanh ghi.
+-- Sau cot cuoi la cau hinh duong truyen, dung de sinh JSON gui xuong ESP32.
+INSERT INTO device
+  (device_id, machine_type, name, protocol, baud_rate, parity, stop_bits, slave_id, sampling_interval_ms)
+VALUES
+  ('esp32-01', 'FANUC-30i', 'CNC so 1', 'MODBUS_RTU', 9600, 'NONE', 1, 1, 1000),
+  ('esp32-03', 'FANUC-30i', 'CNC so 3', 'MODBUS_RTU', 9600, 'NONE', 1, 1, 1000)
 ON CONFLICT (device_id) DO NOTHING;
 
 -- Ban chung cua loai FANUC-30i.

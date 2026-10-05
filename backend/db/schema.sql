@@ -2,8 +2,8 @@
 -- Chay tren database trong:
 --   docker exec -i legacy-link-postgres psql -U legacy_admin -d legacy_link < backend/db/schema.sql
 --
--- File nay TAO MOI cac bang. No khong sua bang da co.
--- Khi doi cau truc mot bang dang co du lieu that, phai viet migration rieng.
+-- File nay TAO MOI cac bang, VA them cot con thieu vao bang da co.
+-- No khong xoa du lieu. Chay lai bao nhieu lan cung duoc.
 
 -- Lich su telemetry. Day la bang lon nhat, se phinh theo thoi gian.
 CREATE TABLE IF NOT EXISTS telemetry (
@@ -43,13 +43,32 @@ CREATE TABLE IF NOT EXISTS alarms (
   UNIQUE (device_id, ts, code)
 );
 
--- Danh sach thiet bi. Cho biet moi thiet bi gan voi LOAI MAY nao.
+-- Thiet bi: no la ai, thuoc loai may nao, va noi chuyen voi no the nao.
+--
+-- Cac cot name..sampling_interval_ms la cau hinh duong truyen. Chung duoc dung
+-- de sinh phan dau cua JSON gui xuong ESP32 (xem GET /catalog).
 CREATE TABLE IF NOT EXISTS device (
-  device_id    text        PRIMARY KEY,
-  machine_type text        NOT NULL,
-  name         text,
-  created_at   timestamptz NOT NULL DEFAULT now()
+  device_id            text        PRIMARY KEY,
+  machine_type         text        NOT NULL,
+  name                 text,
+  protocol             text        NOT NULL DEFAULT 'MODBUS_RTU',
+  baud_rate            integer     NOT NULL DEFAULT 9600,
+  parity               text        NOT NULL DEFAULT 'NONE',
+  stop_bits            smallint    NOT NULL DEFAULT 1,
+  slave_id             smallint    NOT NULL DEFAULT 1,
+  sampling_interval_ms integer     NOT NULL DEFAULT 1000,
+  created_at           timestamptz NOT NULL DEFAULT now()
 );
+
+-- Cac dong duoi day danh cho database DA TON TAI tu truoc, khi bang device
+-- chua co sau cot cau hinh. Tren database moi tao thi chung khong lam gi.
+-- Nho vay file nay chay lai bao nhieu lan cung duoc.
+ALTER TABLE device ADD COLUMN IF NOT EXISTS protocol             text     NOT NULL DEFAULT 'MODBUS_RTU';
+ALTER TABLE device ADD COLUMN IF NOT EXISTS baud_rate            integer  NOT NULL DEFAULT 9600;
+ALTER TABLE device ADD COLUMN IF NOT EXISTS parity               text     NOT NULL DEFAULT 'NONE';
+ALTER TABLE device ADD COLUMN IF NOT EXISTS stop_bits            smallint NOT NULL DEFAULT 1;
+ALTER TABLE device ADD COLUMN IF NOT EXISTS slave_id             smallint NOT NULL DEFAULT 1;
+ALTER TABLE device ADD COLUMN IF NOT EXISTS sampling_interval_ms integer  NOT NULL DEFAULT 1000;
 
 -- Ban do thanh ghi NEN CHUNG theo loai may.
 --

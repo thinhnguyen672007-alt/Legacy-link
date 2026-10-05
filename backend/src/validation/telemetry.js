@@ -16,11 +16,19 @@ import { isPlainObject, checkDeviceId, checkTimestamp, checkSchemaVersion } from
 
 const MAX_METRIC_COUNT = 32
 
-// Danh sach chi so duoc phep cho may cua nhom.
-// Whitelist cung: an toan, nhung them cam bien moi thi phai sua code va deploy lai.
-// Dung Set thay vi Array: tra cuu O(1) thay vi O(n). Voi 3 phan tu thi khong
-// khac biet, nhung chon dung cau truc la thoi quen dang luyen.
-const ALLOWED_METRICS = new Set(['temperature', 'current', 'rpm', 'speed', 'pressure']);
+// Danh sach chi so duoc phep.
+//
+// QUY TAC BAT BUOC: danh sach nay phai la SUPERSET cua moi gia tri metric_key
+// trong bang register_map. Nghia la moi chi so xuat hien trong catalog deu phai
+// co mat o day.
+//
+// Neu mot chi so co trong catalog ma thieu o day, ESP32 se doc duoc thanh ghi,
+// gui du lieu len, va bi backend chan. Nhung firmware KHONG he biet — no chi
+// thay minh gui thanh cong. Chi nguoi doc log backend moi thay loi.
+//
+// Day la lan thu hai chuyen nay xay ra (lan dau la "speed", lan nay la "torque").
+// Ve lau dai nen doc danh sach nay tu database luc khoi dong thay vi viet cung.
+const ALLOWED_METRICS = new Set(['temperature', 'current', 'rpm', 'speed', 'pressure', 'torque']);
 
 export function validateTelemetry(topicDeviceId, payload) {
   const errors = []; // khai báo biến errors để hứng tất cả các lỗi thay vì throw 1 lỗi và phải sửa đi sửa lại nhiều lần 
