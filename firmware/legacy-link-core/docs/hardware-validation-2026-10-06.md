@@ -7,7 +7,9 @@
 - Local ignored settings: reachable 2.4 GHz Wi-Fi and a LAN test broker.
 - Broker: Mosquitto 2.1.2, running from a temporary directory on the development
   computer, with the agreed demo account and anonymous access disabled.
-- No Modbus source, TTL adapter wiring or RS-485 transceiver was attached.
+- The initial USB/MQTT checks ran without a Modbus source. A subsequent wired
+  test used a CH340 USB-to-TTL adapter and a Python Modbus RTU slave simulator on
+  the development computer. No RS-485 transceiver or CNC machine was attached.
 - Existing local include-only edits in `main.cpp` were preserved during testing.
 
 ## Passed checks
@@ -38,6 +40,21 @@
    to a 2000 ms sampling interval for the next wired test.
 10. Captured physical online/offline status payloads passed the actual backend
     status validator, including the connection-time timestamp in the Last Will.
+11. After the UART wiring was corrected, the CH340 simulator completed 11 Modbus
+    requests at 9600 baud, 8N1, slave ID 1, with zero CRC errors or exceptions.
+    Physical ESP32 telemetry reached the authenticated MQTT broker and the test
+    subscriber with the expected values in three successive phases:
+
+    | Raw temperature register (INT16) | MQTT temperature | MQTT current | MQTT rpm |
+    | --- | --- | --- | --- |
+    | 250 | approximately 25.0 | approximately 1.23 | 1500 |
+    | -180 | approximately -18.0 | approximately 1.23 | 1500 |
+    | 250 | approximately 25.0 | approximately 1.23 | 1500 |
+
+    This confirms UART request/response wiring, signed decoding, scaling and
+    physical telemetry publication. All four captured telemetry messages,
+    including an initial partial sample, passed the actual backend telemetry
+    validator. Small decimal differences are normal floating-point rounding.
 
 ## Observations and limits
 
@@ -52,10 +69,11 @@ An initial Python test broker did not enforce receive keepalive timeouts in its
 installed implementation. Its failed offline test was superseded by the passing
 test against Mosquitto; firmware was not changed to work around that broker.
 
-With no Modbus source, `0xE2` response timeouts were expected, and the firmware
-omitted failed readings. No physical telemetry value or physical alarm threshold
+Before the wired test, `0xE2` response timeouts were expected, and the firmware
+omitted failed readings. Earlier CH340 attempts received no valid requests; the
+passing run followed the user's wiring correction. No physical alarm threshold
 crossing was validated. The backend MQTT process and PostgreSQL were not running
-in this test; validator acceptance is not proof of database insertion. Real
+in these tests; validator acceptance is not proof of database insertion. Real
 RS-485 wiring, machine register maps and production broker settings still require
 their own acceptance check.
 
@@ -68,7 +86,7 @@ sending text cannot supply register responses.
 
 Local files are under `.pio/device-backups/20261006-finalize/` and excluded from Git:
 `before-flash.bin`, `before-flash.sha256`, `usb-smoke.log`, `mqtt-events.jsonl`,
-and `validated-status-snapshot.json`. The previous-program backup has SHA-256
+`ttl-modbus.jsonl`, and `validated-status-snapshot.json`. The previous-program backup has SHA-256
 `6c03bf3278fdab70761545cdf0fd2b4e545cf56a7e1fdd87005812df3824d48d`.
 Keep this backup if the cold-chain program needs to be restored. Wi-Fi secrets
 remain in ignored `include/local_settings.h`; firmware binaries containing them
