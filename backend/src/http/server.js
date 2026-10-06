@@ -1,56 +1,39 @@
 // http/server.js
-// Nhiem vu: HTTP server cho backend. Endpoint that su hien co:
-// GET /catalog?deviceId=... — tra ve cau hinh day du cho mot ESP32.
+// Nhiem vu: HTTP server. Noi nhan request, kiem tra tham so, goi tang db/,
+// va gui ket qua ve. KHONG chua SQL — moi cau lenh database nam trong src/db/.
+//
+// Cac endpoint hien co:
+//
+//   GET  /health                  — kiem tra song
+//   GET  /hello?name=...          — thu nghiem
+//   GET  /catalog?deviceId=...    — cau hinh cho ESP32
+//   GET  /machines                — danh sach may cho dashboard
 //
 // Server nay la mot TIEN TRINH RIENG voi phan MQTT (src/index.js), nhung ca hai
 // dung chung mot connection pool trong src/db/pool.js.
-//
-// Diem quan trong: hinh dang JSON tra ve KHONG phai hinh dang trong database.
-// Database dung snake_case (metric_key, protocol_address), con firmware cho
-// (key, address). Viec chuyen doi dien ra o day — ranh gioi giua hai he thong.
-// Sua database khong lam vo firmware, va nguoc lai.
 
 import http from 'node:http';
 
-import { pool, closePool } from '../db/pool.js';
+import { closePool } from '../db/pool.js';
+import { getCatalog } from '../db/catalog.js';
+import { listMachines } from '../db/machines.js';
 
-// Cau SQL ghep "ban chung cua loai may" voi "phan khac biet cua tung may".
+// Cho phep trinh duyet goi API nay tu mot cong khac.
 //
-// COALESCE(a, b) nghia la: neu a co gia tri thi lay a, neu a la NULL thi lay b.
-// Nho vay o bang override de NULL co nghia "khong doi, lay tu ban chung".
-// Toan bo quy tac ghep nam gon trong mot ham SQL, khong phai logic tu viet.
-const CATALOG_QUERY = `
-  SELECT
-    b.metric_key,
-    COALESCE(o.protocol_address, b.protocol_address) AS protocol_address,
-    COALESCE(o.modicon_address,  b.modicon_address)  AS modicon_address,
-    COALESCE(o.function_code,    b.function_code)    AS function_code,
-    COALESCE(o.data_type,        b.data_type)        AS data_type,
-    COALESCE(o.scale,            b.scale)            AS scale,
-    COALESCE(o.unit,             b.unit)             AS unit,
-    COALESCE(o.alarm_high,       b.alarm_high)       AS alarm_high,
-    COALESCE(o.alarm_low,        b.alarm_low)        AS alarm_low
-  FROM register_map b
-  LEFT JOIN register_override o
-    ON o.device_id = $1 AND o.metric_key = b.metric_key
-  WHERE b.machine_type = $2
-  ORDER BY b.protocol_address
-`;
-
-// Chuyen mot dong database thanh mot phan tu registerMap ma firmware doc duoc.
+// VI SAO CAN:
+// Frontend chay o mot cong (vi du 5500), backend o cong khac (3000). Voi trinh
+// duyet, do la hai "origin" khac nhau, nen mac dinh no CHAN moi request.
 //
-// Chu y: "address" gui xuong la protocol_address (dia chi tho 0-based), KHONG
-// phai modicon_address. Firmware goi readHoldingRegisters(address, 1) va ham do
-// nhan dia chi tho. Gui so Modicon xuong la doc sai thanh ghi, khong bao loi.
-function toFirmwareRegister(row) {
-  return {
-    key: row.metric_key,
-    address: row.protocol_address,
-    functionCode: row.function_code,
-    dataType: row.data_type,
-    scale: row.scale,
-    unit: row.unit,
-  };
+// Trieu chung rat de gay hieu nham: goi bang curl thi chay binh thuong, nhung
+// goi tu trang web thi bao loi "CORS policy". Nhin tu backend khong thay gi bat
+// thuong, vi request cua trinh duyet khong bao gio duoc gui di.
+//
+// Dau "*" nghia la cho phep moi origin. Voi demo thi du. San pham that thi nen
+// liet ke dung ten mien cua frontend.
+function applyCors(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
 function sendJson(res, statusCode, body) {
@@ -59,52 +42,27 @@ function sendJson(res, statusCode, body) {
   res.end(JSON.stringify(body));
 }
 
-async function handleCatalog(url, res) {
-  const deviceId = url.searchParams.get('deviceId');
-
-  // Thieu tham so la loi cua nguoi goi, khong phai loi he thong.
-  if (!deviceId) {
-    sendJson(res, 400, { error: 'Thieu tham so deviceId' });
-    return;
-  }
-
-  // Buoc 1: thiet bi nay thuoc loai may nao, va cau hinh duong truyen the nao?
-  const deviceResult = await pool.query(
-    `SELECT device_id, machine_type, name, protocol, baud_rate, parity,
-            stop_bits, slave_id, sampling_interval_ms
-     FROM device
-     WHERE device_id = $1`,
-    [deviceId],
-  );
-
-  if (deviceResult.rowCount === 0) {
-    sendJson(res, 404, { error: `Khong biet thiet bi "${deviceId}"` });
-    return;
-  }
-
-  const device = deviceResult.rows[0];
-
-  // Buoc 2: lay ban chung cua loai may va ghep voi phan rieng cua thiet bi.
-  const registerResult = await pool.query(CATALOG_QUERY, [deviceId, device.machine_type]);
-
-  // Buoc 3: doi tu hinh dang database sang hinh dang firmware cho.
-  sendJson(res, 200, {
-    deviceId: device.device_id,
-    deviceName: device.name,
-    protocol: device.protocol,
-    baudRate: device.baud_rate,
-    parity: device.parity,
-    stopBits: device.stop_bits,
-    slaveId: device.slave_id,
-    samplingIntervalMs: device.sampling_interval_ms,
-    registerMap: registerResult.rows.map(toFirmwareRegister),
-  });
-}
-
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
+  // Dat CORS cho MOI response, truoc khi dinh tuyen. Lam o day thi khong phai
+  // nho them vao tung nhanh.
+  applyCors(res);
+
   try {
+    // Trinh duyet gui mot request OPTIONS "tham do" truoc khi gui request that
+    // (goi la preflight), khi request do dung POST hoac co header dac biet.
+    //
+    // Phai tra loi no. Neu khong, trinh duyet se KHONG gui request that, va
+    // backend khong bao gio thay gi ca.
+    //
+    // 204 = "xong, khong co noi dung de tra ve".
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
+
     if (url.pathname === '/health') {
       res.end('OK');
       return;
@@ -117,7 +75,29 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === '/catalog') {
-      await handleCatalog(url, res);
+      const deviceId = url.searchParams.get('deviceId');
+
+      // Thieu tham so la loi cua nguoi goi. Day la chuyen cua tang HTTP —
+      // tang db/ khong can biet gi ve ma loi HTTP.
+      if (!deviceId) {
+        sendJson(res, 400, { error: 'Thieu tham so deviceId' });
+        return;
+      }
+
+      const catalog = await getCatalog(deviceId);
+
+      // null = khong co thiet bi nay trong database.
+      if (catalog === null) {
+        sendJson(res, 404, { error: `Khong biet thiet bi "${deviceId}"` });
+        return;
+      }
+
+      sendJson(res, 200, catalog);
+      return;
+    }
+
+    if (url.pathname === '/machines') {
+      sendJson(res, 200, await listMachines());
       return;
     }
 
