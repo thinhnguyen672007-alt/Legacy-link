@@ -7,6 +7,7 @@ import { startMqttClient, getStats } from './mqtt/client.js';
 import { validateTelemetry } from './validation/telemetry.js';
 import { validateStatus } from './validation/status.js';
 import { validateAlarm, ALARM_HINTS, SEVERITY_HINTS } from './validation/alarm.js';
+import { checkCatalogMetrics } from './validation/catalog-check.js';
 import { saveTelemetry } from './db/telemetry.js';
 import { saveStatus } from './db/status.js';
 import { saveAlarm } from './db/alarm.js';
@@ -16,6 +17,14 @@ import { closePool } from './db/pool.js';
 
 console.log('[BACKEND] Khoi dong MQTT consumer...');
 console.log(`[BACKEND] Broker: ${config.mqtt.url}`);
+
+// Kiem tra mot lan luc khoi dong: moi chi so trong catalog phai nam trong
+// ALLOWED_METRICS. Khong de loi o day lam sap backend — chi canh bao.
+try {
+  await checkCatalogMetrics();
+} catch (err) {
+  console.warn('[CATALOG] Khong kiem tra duoc catalog:', err.message);
+}
 
 let countSigint = 0
 

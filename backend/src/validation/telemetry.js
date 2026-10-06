@@ -28,7 +28,9 @@ const MAX_METRIC_COUNT = 32
 //
 // Day la lan thu hai chuyen nay xay ra (lan dau la "speed", lan nay la "torque").
 // Ve lau dai nen doc danh sach nay tu database luc khoi dong thay vi viet cung.
-const ALLOWED_METRICS = new Set(['temperature', 'current', 'rpm', 'speed', 'pressure', 'torque']);
+// Tam thoi, src/validation/catalog-check.js se canh bao luc khoi dong neu
+// danh sach nay lech voi bang register_map.
+export const ALLOWED_METRICS = new Set(['temperature', 'current', 'rpm', 'speed', 'pressure', 'torque']);
 
 export function validateTelemetry(topicDeviceId, payload) {
   const errors = []; // khai báo biến errors để hứng tất cả các lỗi thay vì throw 1 lỗi và phải sửa đi sửa lại nhiều lần 
