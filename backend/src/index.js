@@ -6,6 +6,11 @@ import { config } from './config.js';
 import { startMqttClient, getStats } from './mqtt/client.js';
 import { validateTelemetry } from './validation/telemetry.js';
 import { validateStatus } from './validation/status.js';
+import { validateAlarm, ALARM_HINTS, SEVERITY_HINTS } from './validation/alarm.js';
+import { saveTelemetry } from './db/telemetry.js';
+import { saveStatus } from './db/status.js';
+import { saveAlarm } from './db/alarm.js';
+import { closePool } from './db/pool.js';
 
 
 
@@ -26,7 +31,7 @@ function logTiming(payload){
 }
 
 const client = startMqttClient({
-  onTelemetry: (deviceId, payload) => {
+  onTelemetry: async (deviceId, payload) => {
     const result = validateTelemetry(deviceId, payload);
 
     if (!result.ok) {
@@ -36,11 +41,23 @@ const client = startMqttClient({
 
     const telemetry = result.value;
 
-    console.log(`[TELEMETRY] ${telemetry.deviceId}:`, JSON.stringify(telemetry.metrics));
+    try {
+      const { inserted } = await saveTelemetry(telemetry);
+
+      if (inserted) {
+        console.log(`[TELEMETRY] ${telemetry.deviceId}:`, JSON.stringify(telemetry.metrics));
+      } else {
+        console.log(`[TELEMETRY] ${telemetry.deviceId}: ban ghi trung lap, da bo qua`);
+      }
+    } catch (err) {
+      // Database loi thi ghi log roi di tiep. Khong de mot loi ha tang lam
+      // sap ca tien trinh dang phuc vu cac thiet bi khac.
+      console.error(`[TELEMETRY] Loi ghi database:`, err.message);
+    }
 
     logTiming(telemetry);
   },
-  onStatus: (deviceId, payload) => {
+  onStatus: async (deviceId, payload) => {
     const result = validateStatus(deviceId, payload);
 
     if (!result.ok) {
@@ -50,14 +67,40 @@ const client = startMqttClient({
 
     const status = result.value;
 
-    console.log(`[STATUS] ${status.deviceId}:`, JSON.stringify(status.status));
-    
+    try {
+      await saveStatus(status);
+
+      console.log(`[STATUS] ${status.deviceId}: ${status.status ? 'online' : 'offline'}`);
+    } catch (err) {
+      console.error(`[STATUS] Loi ghi database:`, err.message);
+    }
+
     logTiming(status);
   },
-  onAlarm: (deviceId, payload) => {
-    console.log(`[ALARM] ${deviceId}:`, JSON.stringify(payload));
+  onAlarm: async (deviceId, payload) => {
+    const result = validateAlarm(deviceId, payload);
 
-    logTiming(payload);
+    if (!result.ok) {
+      console.error(`[ALARM] Bo qua ${deviceId}:`, result.errors.join('; '));
+      return;
+    }
+
+    const alarm = result.value;
+
+    try {
+      const { inserted } = await saveAlarm(alarm);
+
+      if (inserted) {
+        console.log(
+          `[ALARM] ${alarm.deviceId}: ${alarm.code} [${alarm.severity}] -> ${ALARM_HINTS[alarm.code]}; ${SEVERITY_HINTS[alarm.severity]}`,
+        );
+      } else {
+        console.log(`[ALARM] ${alarm.deviceId}: ban ghi trung lap, da bo qua`);
+      }
+    } catch (err) {
+      console.error(`[ALARM] Loi ghi database:`, err.message);
+    }
+    logTiming(alarm);
   }
 });
 
@@ -74,8 +117,10 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
     console.log('Total CountSigint: ', countSigint)
     console.log('Errors count: ', getStats().errorsCount)
 
-    client.end(false, {}, () => {
+    client.end(false, {}, async () => {
       console.log('[BACKEND] Da dong ket noi MQTT.');
+      await closePool();
+      console.log('[BACKEND] Da dong connection pool.');
       process.exit(0);
     });
   });

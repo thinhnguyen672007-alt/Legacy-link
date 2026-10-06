@@ -1,53 +1,31 @@
 // validation/status.js
-// nhiệm vụ: kiểm tra một payload status có hợp lệ không.
+// Nhiem vu: kiem tra mot payload status co hop le khong.
+//
+// Status la tin hieu song con cua thiet bi. Firmware gui retained message nay
+// kem Last Will and Testament, nen khi thiet bi mat dien, broker tu phat mot
+// payload "offline" thay no.
 
-import { isPlainObject, MIN_VALID_TIMESTAMP_MS, MAX_FUTURE_SKEW_MS } from "./shared.js"
-
+import { isPlainObject, checkDeviceId, checkTimestamp, checkSchemaVersion } from "./shared.js";
 
 export function validateStatus(topicDeviceId, payload) {
+  if (!isPlainObject(payload)) {
+    return { ok: false, errors: ['payload must be an object'] };
+  }
+
   const errors = [];
 
-  if (!isPlainObject(payload)) {
-    return {
-      ok: false,
-      errors: ["payload must be a object"]
-    }
-  }
+  checkDeviceId(topicDeviceId, payload.deviceId, errors);
+  checkTimestamp(payload.timestamp, errors);
+  checkSchemaVersion(payload.schemaVersion, errors);
 
-// 1. Phỉa có deviceID trong payload và phải trùng với topicDeviceID
-
-  if (typeof payload.deviceId !== 'string' || payload.deviceId.trim() === '') {
-    errors.push("deviceId must be a non-empty string")
-  } else if (payload.deviceId !== topicDeviceId) {
-    errors.push(`deviceId in payload ("${payload.deviceId}") does not match topic ("${topicDeviceId}")`);
-  }
-
-  // 2. timestamp phải là một số nguyên 
-  if (!Number.isInteger(payload.timestamp)) {
-    errors.push("timestamp must be an integer")
-  } else if (payload.timestamp < MIN_VALID_TIMESTAMP_MS) {
-    errors.push(`timestamp out of range (too old): ${payload.timestamp}`)
-  } else if (payload.timestamp > Date.now() + MAX_FUTURE_SKEW_MS) {
-    errors.push(`timestamp out of range (too new): ${payload.timestamp}`)
-  }
-
-  // 3. schemaVersion: là số nguyên và phải là bằng 1 
-  if (!Number.isInteger(payload.schemaVersion)) {
-    errors.push('schemaVersion must be a interger');  // kiểm tra schemaVersion có phải là số nguyên không 
-  } else if (payload.schemaVersion !== 1) {
-    errors.push(`schemaVersion is invalid, received: ${payload.schemaVersion}`)
-  }
-
-  // 4. bật/ tắt phải là bool kể cả object : "true" thì cũng loại 
+  // Online/offline phai la boolean THAT. Chuoi "true" cung bi tu choi,
+  // vi do la loi firmware rat de xay ra.
   if (typeof payload.status !== 'boolean') {
-    errors.push("status must be a boolean")
-  } 
+    errors.push('status must be a boolean');
+  }
 
   if (errors.length > 0) {
-    return {
-      ok: false,
-      errors,
-    };
+    return { ok: false, errors };
   }
 
   return {
@@ -55,8 +33,8 @@ export function validateStatus(topicDeviceId, payload) {
     value: {
       deviceId: payload.deviceId,
       timestamp: payload.timestamp,
+      schemaVersion: payload.schemaVersion,
       status: payload.status,
-      schemaVersion : payload.schemaVersion,
     },
   };
 }

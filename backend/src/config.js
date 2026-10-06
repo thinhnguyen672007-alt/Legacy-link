@@ -11,7 +11,7 @@ try {
   // Khong co .env thi bo qua, dung bien moi truong da set san.
 }
 
-const REQUIRED = ['MQTT_URL', 'MQTT_USERNAME', 'MQTT_PASSWORD', 'MQTT_QOS'];
+const REQUIRED = ['MQTT_URL', 'MQTT_USERNAME', 'MQTT_PASSWORD', 'MQTT_QOS', 'DATABASE_URL'];
 
 for (const key of REQUIRED) {
   if (!process.env[key]) {
@@ -46,5 +46,8 @@ export const config = Object.freeze({
     telemetry: 'legacy-link/devices/+/telemetry',
     status: 'legacy-link/devices/+/status',
     alarm: 'legacy-link/devices/+/alarm',
+  },
+  database: {
+    url: process.env.DATABASE_URL,
   },
 });

@@ -9,10 +9,26 @@
 #   - Stop services:       docker compose down
 #   - Check running status: docker compose ps
 #   - View service logs:   docker compose logs -f mosquitto
+#   - Load DB schema:      docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
 # ==============================================================================
 services:
+  # One-shot preparation: derive UID/GID from the image, not the host user.
+  mosquitto-init:
+    image: eclipse-mosquitto:2
+    user: "0:0"
+    network_mode: none
+    entrypoint: ["/bin/sh", "/init-mosquitto.sh"]
+    volumes:
+      - ./scripts/init-mosquitto.sh:/init-mosquitto.sh:ro,z
+      - ./mosquitto/config:/mosquitto/config:z
+      - ./mosquitto/data:/mosquitto/data:z
+      - ./mosquitto/log:/mosquitto/log:z
+
   mosquitto:
     image: eclipse-mosquitto:2
+    depends_on:
+      mosquitto-init:
+        condition: service_completed_successfully
     container_name: ${MQTT_CONTAINER_NAME:-legacy-link-mosquitto}
     ports:
       - "${MQTT_PORT:-1883}:1883"
@@ -36,6 +52,7 @@ services:
         target: /mosquitto/config/passwd
         read_only: true
         bind:
+          create_host_path: false
           selinux: z
       - type: bind
         source: ./mosquitto/log
@@ -46,16 +63,102 @@ services:
     networks:
       - legacy-link-net
 
+  # ------------------------------------------------------------------------------
+  # PostgreSQL — nơi lưu telemetry, trạng thái máy và alarm.
+  #
+  # BA BIẾN MÔI TRƯỜNG DướI ĐÂY KHÔNG PHẢI BẤT BUỘC:
+  # Chúng chỉ tồn tại để Postgres "khởi tạo" lần đầu. Cụ thể, image postgres
+  # đọc đúng 3 biến này vào đúng một thời điểm: lúc container khởi động lần
+  # ĐẦU TIÊN, tức là lúc thư mục dữ liệu còn trống.
+  #   POSTGRES_USER     -> tên user mặc định được tạo ra
+  #   POSTGRES_PASSWORD -> mật khẩu của user đó
+  #   POSTGRES_DB       -> tên database mặc định được tạo ra
+  # Sau khi volume đã có dữ liệu, Postgres BỎ QUA hoàn toàn 3 biến này. Đổi
+  # POSTGRES_USER trong .env rồi `up -d` lại sẽ KHÔNG tạo user mới — nếu bạn
+  # cần đổi thật thì phải xóa volume (xem runbook).
+  #
+  # VÌ SAO CẦN healthcheck:
+  # Postgres sau khi bật listener vẫn còn vài giây để tạo database và chạy
+  # script khởi tạo. Nếu backend khởi động đúng khoảnh thời gian đó, lệnh
+  # kết nối đầu tiên sẽ bị từ chối và backend crash. `pg_isready` là lệnh có
+  # sẵn trong image, trả về 0 khi database thật sự sẵn sàng nhận truy vấn —
+  # đúng ý nghĩa ta cần, khác với việc chỉ kiểm tra tiến trình còn sống.
+  # Sau đó `docker compose ps` sẽ hiện cột STATUS là `healthy` thay vì `Up`.
+  # ------------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    # Tên container này KHÔNG tùy ý đặt. `backend/scripts/test-messages.sh`
+    # (nhánh feature/backend-base) hardcode biến `POSTGRES=legacy-link-postgres`
+    # và dùng nó để `docker ps | grep`, đồng thời `backend/db/schema.sql` ghi
+    # sẵn câu lệnh `docker exec -i legacy-link-postgres psql ...` trong comment.
+    # Đổi tên ở đây thì script của team backend hỏng mà không có báo lỗi rõ.
+    # Nếu bạn buộc phải đổi thì sửa cả hai file kia cùng lúc.
+    container_name: ${POSTGRES_CONTAINER_NAME:-legacy-link-postgres}
+    # Dạng mapping `KEY: value` (không phải dạng danh sách `- KEY=value` như ở
+    # compose cũ). Cả hai đều hợp lệ, nhưng mapping đọc dễ hơn khi giá trị chứa
+    # `:` hoặc ký tự đặc biệt. Ở đây giá trị lấy từ ${...} của Compose, nên
+    # ${...} bên trong được Compose nội suy trước, rồi mới truyền vào container.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-legacy_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASS:-change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-legacy_link}
+    ports:
+      # Cú pháp ngắn: "<ip_host>:<port_host>:<port_container>". Ba phần với dấu
+      # hai chấm. Ở mosquitto ở trên dùng long syntax (`type: bind` + `target:`),
+      # ở đây dùng cú pháp ngắn vì chỉ cần ánh xạ cổng thuần, không cần thêm
+      # tuỳ chọn nào. Hai kiểu MIXED trong cùng file là bình thường — chọn cái
+      # nào đủ dùng cho khối đó.
+      #
+      # VÌ SAO CHỈ BIND 127.0.0.1:
+      # backend chạy trên máy host (không phải container) nên vẫn kết nối được
+      # qua localhost:5432, nhưng máy khác trong LAN không thấy cổng này.
+      # Nếu mở "5432:5432" (tức 0.0.0.0) thì database — với mật khẩu yếu
+      # `change_me` mặc định — sẽ bị chạm từ mọi máy trong mạng.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Named volume thay vì bind mount thư mục:
+      # Postgres cần quyền ghi POSIX đặc biệt trên thư mục dữ liệu, bind mount
+      # thường gây lỗi quyền khi chạy bằng UID của user desktop. Named volume
+      # do Docker tạo với owner đúng (uid 70 trong image alpine) nên không lỗi.
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # `test` là DANH SÁCH, phần tử đầu là CÁCH chạy lệnh:
+      #   "CMD"       -> chạy lệnh trực tiếp, KHÔNG qua shell
+      #   "CMD-SHELL" -> chạy qua /bin/sh -c, CÓ nội suy biến shell
+      # Phần tử thứ hai là lệnh dạng chuỗi.
+      # Ở đây phải dùng CMD-SHELL vì lệnh có chứa ${...}: Compose nội suy được
+      # các biến ${POSTGRES_USER:-...} trong file compose, nhưng bên trong
+      # container, `pg_isready -U $POSTGRES_USER` mới cần shell để đọc biến môi
+      # trường thật của Postgres. Dùng "CMD" thì chuỗi đó bị truyền nguyên văn
+      # vào execve, Postgres sẽ tưởng tên user là chuỗi "${POSTGRES_USER".
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-legacy_admin} -d ${POSTGRES_DB:-legacy_link}"]
+      # Mỗi `interval` giây chạy lệnh trên một lần trong container.
+      interval: 5s
+      # Một lần chạy mà quá `timeout` giây vẫn chưa xong thì tính là thất bại.
+      # Giá trị này phải nhỏ hơn interval, nếu không hai lần kiểm tra chồng lấn.
+      timeout: 5s
+      # Thất bại `retries` lần liên tiếp thì đánh dấu container là unhealthy.
+      # 12 x 5s = tối đa chờ 60 giây. Quá lâu thì `up -d` bị treo vô ích khi
+      # máy yếu; quá ngắn thì container bị đánh dấu unhealthy dù chỉ vì khởi
+      # động chậm.
+      retries: 12
+      # Khoảng "miễn trừ" ngay sau khi container vừa bật: trong 10 giây này thất
+      # bại KHÔNG tính vào `retries`. Postgres cần vài giây để tạo database
+      # dù chưa sẵn sàng thì `pg_isready` cũng chạy được (nó chỉ kiểm tra
+      # server nghe kết nối, không kiểm tra bảng). Không có `start_period`,
+      # lần `pg_isready` đầu tiên quá sớm sẽ bị tính nhầm là lỗi.
+      start_period: 10s
+    networks:
+      - legacy-link-net
+
 networks:
   legacy-link-net:
     name: ${DOCKER_NETWORK_NAME:-legacy-link-net}
     driver: bridge
 
-
-
-# # ==============================================================================
-# # [NOTE] Future Service Expansion:
-# # When backend or database containers are added:
-# # 1. Add new service entries under `services:` (e.g. backend, postgres).
-# # 2. Attach them to `legacy-link-net` network.
-# # ==============================================================================
+volumes:
+  # Khai báo named volume ở tầng top-level (ngang hàng với `services` và
+  # `networks`). Nếu khai báo tên volume trong `services.postgres.volumes` mà
+  # không có khối `volumes:` tương ứng, Docker coi đó là bind mount và tạo một
+  # thư mục rỗng — dữ liệu sẽ nằm trong thư mục đó chứ không phải trong volume.
+  postgres-data:

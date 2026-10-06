@@ -22,19 +22,19 @@ The infrastructure layer hosts the containerized **Eclipse Mosquitto MQTT Broker
 
 ```mermaid
 graph TD
-    subgraph Hardware & Edge Layer [Edge / On-Site]
-        DeviceA[Modbus RTU Sensor / PLC] -->|RS-485 / Serial| ESP32[ESP32 Gateway\nfirmware/legacy-link-core]
+    subgraph EdgeLayer["Hardware & Edge Layer — Edge / On-Site"]
+        DeviceA["Modbus RTU Sensor / PLC"] -->|RS-485 / Serial| ESP32["ESP32 Gateway<br/>firmware/legacy-link-core"]
         DeviceB[Legacy Laboratory Meter] -->|UART 115200| ESP32
     end
 
-    subgraph Infrastructure Layer [Docker: legacy-link-net]
-        ESP32 -->|TCP 1883 / MQTT Auth| Broker[Mosquitto MQTT Broker\nContainer: legacy-link-mosquitto]
-        Broker <-->|Docker Internal DNS: mosquitto:1883| Backend[Backend Core API\nbackend/]
-        Backend <-->|Internal Port 5432| DB[(Time-Series / Relational DB\nPostgreSQL / TimescaleDB)]
+    subgraph InfrastructureLayer["Infrastructure Layer — Docker: legacy-link-net"]
+        ESP32 -->|TCP 1883 / MQTT Auth| Broker["Mosquitto MQTT Broker<br/>Container: legacy-link-mosquitto"]
+        Broker <-->|Docker Internal DNS: mosquitto:1883| Backend["Backend Core API<br/>backend/"]
+        Backend <-->|Internal Port 5432| DB[("Time-Series / Relational DB<br/>PostgreSQL / TimescaleDB")]
     end
 
-    subgraph Application Layer [Web & Client]
-        Backend -->|REST API / WebSocket| Frontend[Operator Dashboard UI\nfrontend/]
+    subgraph ApplicationLayer["Application Layer — Web & Client"]
+        Backend -->|REST API / WebSocket| Frontend["Operator Dashboard UI<br/>frontend/"]
     end
 ```
 
@@ -84,9 +84,6 @@ graph TD
 
 ### 6. Security & Credential Isolation
 - **Anonymous Access Disabled:** Set `allow_anonymous false` in `mosquitto.conf`.
-- **Role-Based Accounts:**
-  - `esp32_gateway`: Restricted to publishing telemetry and subscribing to its own command topic.
-  - `backend_service`: Full subscribe access (`legacy-link/#`) to ingest data and dispatch commands.
 - **Credential Storage:**
   - Passwords are encrypted/hashed via SHA512-PBKDF2 in `mosquitto/config/passwd`.
   - The actual `passwd` file and `.env` are strictly excluded from version control via `.gitignore`.
@@ -241,9 +238,6 @@ Việc đặt tên topic rõ ràng giúp hệ thống dễ mở rộng khi có h
 
 ### 6. Kiến trúc bảo mật & Quản lý thông tin nhạy cảm
 - **Vô hiệu hóa truy cập tự do:** Bật `allow_anonymous false` trong `mosquitto.conf`. Bất kỳ kết nối nào không cung cấp tài khoản đều bị Broker từ chối lập tức.
-- **Phân tách tài khoản chuyên biệt:**
-  - `esp32_gateway`: Tài khoản nạp vào firmware ESP32, chỉ có quyền gửi tin vào topic thiết bị của mình.
-  - `backend_service`: Tài khoản backend, có quyền bao quát toàn bộ topic `legacy-link/#`.
 - **Mã hóa và cô lập mật khẩu:**
   - Mật khẩu được mã hóa băm (SHA512-PBKDF2) trong file `mosquitto/config/passwd`.
   - File mật khẩu thật và file môi trường `.env` tuyệt đối **không được đẩy lên Git** (đã được cấu hình chặn trong file [infrastructure/.gitignore](file:///home/james/Projects/Hackathon%20DENSON/Legacy-link-/infrastructure/.gitignore)).
