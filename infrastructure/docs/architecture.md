@@ -65,7 +65,7 @@ graph TD
 | :--- | :--- | :--- | :--- |
 | **Mosquitto MQTT** | `1883:1883` | TCP / MQTT | Primary communication bus for ESP32 gateway and backend services. |
 | **Mosquitto WebSockets** | `9001:9001` *(Optional)* | TCP / WS | Reserved for optional direct browser telemetry streaming if needed. |
-| **Future Backend** | `8000:8000` *(Tentative)* | HTTP / WS | RESTful configuration API and real-time dashboard sockets. |
+| **Backend HTTP** | `3000:3000` | HTTP | REST API (`backend/src/http/server.js` calls `server.listen(3000)`). Currently `GET /health` and `GET /catalog`. |
 | **Future Database** | `5432:5432` *(Internal)* | TCP | Persistent storage for sensor logs and device registry. Not exposed to public host. |
 
 ---
@@ -173,7 +173,7 @@ Hệ thống được chia làm 3 tầng rõ rệt:
 | :--- | :---: | :---: | :--- |
 | **Mosquitto MQTT** | `1883:1883` | TCP / MQTT | Cổng chính cho ESP32 ngoài đời thực và backend kết nối qua MQTT. |
 | **Mosquitto WebSocket** | `9001:9001` | TCP / WS | *(Tùy chọn tương lai)* Cổng mở nếu frontend dashboard muốn nhận luồng dữ liệu thời gian thực trực tiếp từ broker. |
-| **Backend API** | `8000:8000` *(Dự kiến)* | HTTP / WS | Cung cấp REST API cấu hình thiết bị và WebSocket cho giao diện quản trị. |
+| **Backend API** | `3000:3000` | HTTP | Cung cấp REST API cấu hình thiết bị. Mã nguồn dùng cứng cổng 3000 trong `server.listen(3000)`, không đọc từ biến môi trường — nên bảng này ghi đúng cổng đó. |
 | **Database** | `5432` *(Chỉ nội bộ Docker)* | TCP | Cổng cơ sở dữ liệu PostgreSQL/TimescaleDB. Không cần mở ra máy host để đảm bảo bảo mật. |
 
 ---

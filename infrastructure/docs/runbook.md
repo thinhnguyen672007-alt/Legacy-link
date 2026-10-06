@@ -270,20 +270,27 @@ Log Docker/lazydocker giữ lịch sử qua các lần restart. Cảnh báo cũ 
 
 Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệnh `ip a` hoặc `hostname -I`).
 
+> 💡 **Vì sao dùng `legacy-link/test/` chứ không phải `legacy-link/devices/`?**
+> Bài test này kiểm tra broker có truyền tin hay không, KHÔNG kiểm tra backend. Topic
+> `legacy-link/devices/+/telemetry` đang được backend subscribe, nên gửi vào đó sẽ
+> bị backend nhận rồi từ chối payload (thiếu `schemaVersion`, `metrics`), và bạn sẽ
+> tưởng broker hỏng. Nhánh `legacy-link/test/` tách biệt, giống hệt topic mà
+> `scripts/test-mqtt.sh` dùng.
+
 * **Cửa sổ 1 - Đóng vai trò Subscriber (Người nhận tin):**
   ```bash
-  mosquitto_sub -h 192.168.1.5 -p 1883 -t "factory/site-a/#" -u legacy_admin -P "legacy_secret_2026" -v
+  mosquitto_sub -h 192.168.1.5 -p 1883 -t "legacy-link/test/#" -u legacy_admin -P "legacy_secret_2026" -v
   ```
   *(Cờ `-v` giúp in ra cả tên Topic kèm nội dung)*.
 
 * **Cửa sổ 2 - Đóng vai trò Publisher (Thiết bị ESP32 gửi tin):**
   ```bash
-  mosquitto_pub -h 192.168.1.5 -p 1883 -t "factory/site-a/cnc-01/temperature" -u legacy_admin -P "legacy_secret_2026" -m '{"temp": 68.5, "unit": "C"}'
+  mosquitto_pub -h 192.168.1.5 -p 1883 -t "legacy-link/test/cnc-01/temperature" -u legacy_admin -P "legacy_secret_2026" -m '{"temp": 68.5, "unit": "C"}'
   ```
 
 * **Kết quả bên Subscriber nhận được:**
   ```text
-  factory/site-a/cnc-01/temperature {"temp": 68.5, "unit": "C"}
+  legacy-link/test/cnc-01/temperature {"temp": 68.5, "unit": "C"}
   ```
 
 ---
@@ -355,7 +362,7 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
 * **Cách sửa:**
   * Kiểm tra khớp chính xác từng chữ cái giữa bên gửi và bên nhận.
   * Hoặc dùng Wildcard `#` ở bên nhận để bắt toàn bộ tín hiệu con:
-    `-t "factory/site-a/#"`
+    `-t "legacy-link/test/#"`
 
 ---
 

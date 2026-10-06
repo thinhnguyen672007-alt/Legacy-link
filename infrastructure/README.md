@@ -79,8 +79,19 @@ infrastructure/
 ### 4. Getting Started
 Run the commands below from `infrastructure/`. For daily operations, credential updates and troubleshooting, see the [runbook](docs/runbook.md).
 
+#### The short way: one command
+To get a working stack without running each step by hand:
+```bash
+./scripts/setup.sh          # broker + database + schema
+./scripts/setup.sh --seed   # plus the demo data
+```
+It runs every step below in order, waits for the database to become ready, stops at the first failure, and prints what it did. It also handles a checkout that has no `backend/` directory: the schema step is skipped with a notice instead of failing. Use the manual steps when you want to inspect or repeat a single step.
+
 #### Prerequisites
 - Docker Engine & Docker Compose (v2.x or later).
+
+<details>
+<summary>Manual steps</summary>
 
 #### Step 1: Environment Configuration
 Copy the example environment file:
@@ -120,7 +131,7 @@ docker compose logs -f mosquitto
 #### Step 5: Load the Database Schema
 The Postgres container creates an **empty** database on first start — the database exists but has no tables. `schema.sql` is the list of tables to create, and it belongs to the backend team, so it lives in `../backend/db/`.
 
-Apply it **once per fresh volume**. Running it a second time is safe: every statement uses `CREATE TABLE IF NOT EXISTS`, so existing data is never overwritten.
+Apply it **once per fresh volume**. Running it a second time is safe: the 6 table definitions use `CREATE TABLE IF NOT EXISTS` and the 6 column additions use `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so nothing existing is overwritten. It is still not a migration system — it only ever adds, never renames, retypes or drops.
 ```bash
 docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
 ```
@@ -145,6 +156,8 @@ docker compose down
 > 💡 `down` removes the containers and the virtual network, but **not** the named volumes. Postgres data and the Mosquitto message store both survive. On the next `up -d` everything comes back with its data intact.
 
 Data in the Postgres named volume and the Mosquitto store survives `down`. Remove them only when you intend to start from scratch — see the runbook.
+
+</details>
 
 ### 5. Security & Credentials
 - **Never commit credentials**: The file `mosquitto/config/passwd` and `.env` contain sensitive secrets and are excluded via `.gitignore`.
@@ -206,6 +219,7 @@ infrastructure/
 │       └── .gitkeep               # Nơi lưu trữ log file (được gitignore)
 ├── scripts/
 │   ├── init-mosquitto.sh          # Tự chuẩn bị owner/group và quyền trước broker
+│   ├── setup.sh                   # Dựng toàn bộ hạ tầng bằng MỘT lệnh
 │   ├── setup-mosquitto-auth.sh    # Script tạo file mật khẩu hash bằng Docker
 │   └── test-mqtt.sh               # Script kiểm tra nhanh kết nối pub/sub
 ├── docs/
@@ -232,8 +246,19 @@ infrastructure/
 ### 4. Hướng dẫn khởi chạy
 Chạy các lệnh bên dưới từ thư mục `infrastructure/`. Xem [runbook](docs/runbook.md) để vận hành hằng ngày, cập nhật mật khẩu và xử lý sự cố.
 
+#### Cách nhanh: một lệnh
+Muốn có hạ tầng chạy được mà không phải gõ từng bước một:
+```bash
+./scripts/setup.sh          # broker + database + schema
+./scripts/setup.sh --seed   # kèm dữ liệu mẫu
+```
+Script chạy đúng thứ tự các bước bên dưới, chờ database sẵn sàng, dừng ngay tại bước đầu tiên thất bại, và in ra nó đã làm gì. Nó cũng xử lý được trường hợp checkout không có thư mục `backend/`: bước nạp schema được bỏ qua kèm thông báo, không phải báo lỗi. Khi nào muốn xem hoặc chạy lại riêng một bước thì làm theo các bước tay bên dưới.
+
 #### Yêu cầu cài đặt
 - Docker Engine & Docker Compose (v2 trở lên).
+
+<details>
+<summary>Các bước thủ công</summary>
 
 #### Bước 1: Thiết lập biến môi trường
 Sao chép file cấu hình môi trường mẫu:
@@ -272,7 +297,7 @@ docker compose logs -f mosquitto
 #### Bước 5: Nạp schema cho database
 Container Postgres chỉ tạo database **rỗng** ở lần khởi động đầu tiên — tức có nơi chứa, nhưng chưa có bảng nào. `schema.sql` là danh sách bảng cần tạo, và nó thuộc về team backend nên nằm ở `../backend/db/`.
 
-Nạp **một lần cho mỗi volume mới**. Chạy lại lần hai vẫn an toàn: các câu lệnh trong file đều dùng `CREATE TABLE IF NOT EXISTS`, nên không ghi đè dữ liệu đang có.
+Nạp **một lần cho mỗi volume mới**. Chạy lại lần hai vẫn an toàn: 6 câu tạo bảng dùng `CREATE TABLE IF NOT EXISTS` và 6 câu thêm cột dùng `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, nên không ghi đè dữ liệu đang có. Tuy nhiên đây **không phải** hệ thống migration — file này chỉ thêm, không đổi tên, không đổi kiểu cột, không xoá.
 ```bash
 docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
 ```
