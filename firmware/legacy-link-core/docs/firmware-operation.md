@@ -6,7 +6,11 @@ Copy `include/local_settings.example.h` to `include/local_settings.h` before
 building. This ignored file contains Wi-Fi credentials, MQTT host/port and
 credentials, the primary NTP server, and optional RS-485 direction GPIO. Use a
 broker reachable from the ESP32; `localhost` is not the backend computer.
-Default placeholders are only for compilation. These settings require a rebuild;
+Wi-Fi placeholders must be replaced before connecting. MQTT defaults and the
+example header use the agreed shared hackathon account, `legacy_admin` /
+`legacy_secret_2026`. An existing `local_settings.h` overrides those defaults;
+update its MQTT credentials too if it still uses the old account.
+These settings require a rebuild;
 machine register maps and thresholds can change at runtime through Serial/MQTT.
 
 UART2 uses TX GPIO17 and RX GPIO16. A suitable 3.3 V-compatible RS-485

@@ -17,10 +17,10 @@
 #define LEGACYLINK_MQTT_PORT 1883
 #endif
 #ifndef LEGACYLINK_MQTT_USER
-#define LEGACYLINK_MQTT_USER "esp32"
+#define LEGACYLINK_MQTT_USER "legacy_admin"
 #endif
 #ifndef LEGACYLINK_MQTT_PASSWORD
-#define LEGACYLINK_MQTT_PASSWORD "esp32"
+#define LEGACYLINK_MQTT_PASSWORD "legacy_secret_2026"
 #endif
 #ifndef LEGACYLINK_NTP_SERVER
 #define LEGACYLINK_NTP_SERVER "pool.ntp.org"
