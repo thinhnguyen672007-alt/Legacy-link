@@ -131,7 +131,7 @@ docker compose logs -f mosquitto
 #### Step 5: Load the Database Schema
 The Postgres container creates an **empty** database on first start — the database exists but has no tables. `schema.sql` is the list of tables to create, and it belongs to the backend team, so it lives in `../backend/db/`.
 
-Apply it **once per fresh volume**. Running it a second time is safe: every statement uses `CREATE TABLE IF NOT EXISTS`, so existing data is never overwritten.
+Apply it **once per fresh volume**. Running it a second time is safe: the 6 table definitions use `CREATE TABLE IF NOT EXISTS` and the 6 column additions use `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so nothing existing is overwritten. It is still not a migration system — it only ever adds, never renames, retypes or drops.
 ```bash
 docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
 ```
@@ -297,7 +297,7 @@ docker compose logs -f mosquitto
 #### Bước 5: Nạp schema cho database
 Container Postgres chỉ tạo database **rỗng** ở lần khởi động đầu tiên — tức có nơi chứa, nhưng chưa có bảng nào. `schema.sql` là danh sách bảng cần tạo, và nó thuộc về team backend nên nằm ở `../backend/db/`.
 
-Nạp **một lần cho mỗi volume mới**. Chạy lại lần hai vẫn an toàn: các câu lệnh trong file đều dùng `CREATE TABLE IF NOT EXISTS`, nên không ghi đè dữ liệu đang có.
+Nạp **một lần cho mỗi volume mới**. Chạy lại lần hai vẫn an toàn: 6 câu tạo bảng dùng `CREATE TABLE IF NOT EXISTS` và 6 câu thêm cột dùng `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, nên không ghi đè dữ liệu đang có. Tuy nhiên đây **không phải** hệ thống migration — file này chỉ thêm, không đổi tên, không đổi kiểu cột, không xoá.
 ```bash
 docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
 ```
