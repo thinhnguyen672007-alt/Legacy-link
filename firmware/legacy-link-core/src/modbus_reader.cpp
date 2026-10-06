@@ -1,8 +1,16 @@
 #include "modbus_reader.h"
+#include "gateway_settings.h"
 #include <ModbusMaster.h>
 
 // Khởi tạo đối tượng Modbus
 static ModbusMaster node;
+
+#if LEGACYLINK_RS485_DE_RE_PIN >= 0
+static void begin_transmission() { digitalWrite(LEGACYLINK_RS485_DE_RE_PIN, HIGH); }
+static void end_transmission() { digitalWrite(LEGACYLINK_RS485_DE_RE_PIN, LOW); }
+#endif
+
+void modbus_set_idle_callback(void (*callback)()) { node.idle(callback); }
 
 static uint8_t read_metric(const register_config_t &reg, double &value) {
   const bool wide = strcmp(reg.data_type, "UINT32") == 0;
@@ -26,8 +34,30 @@ static uint8_t read_metric(const register_config_t &reg, double &value) {
 }
 
 void modbus_init(uint8_t slave_id) {
+#if LEGACYLINK_RS485_DE_RE_PIN >= 0
+  pinMode(LEGACYLINK_RS485_DE_RE_PIN, OUTPUT);
+  digitalWrite(LEGACYLINK_RS485_DE_RE_PIN, LOW);
+  node.preTransmission(begin_transmission);
+  node.postTransmission(end_transmission);
+#endif
   node.begin(slave_id, Serial2);
   Serial.printf("[MODBUS] Initialized node for Slave ID: %u\r\n", slave_id);
+}
+
+bool modbus_read_one(const device_config_t *cfg, uint8_t index, modbus_result_t *out) {
+  if (!cfg || !out || index >= cfg->register_count) return false;
+  const auto &reg = cfg->registers[index];
+  *out = {};
+  strlcpy(out->key, reg.key, sizeof(out->key));
+  if (reg.function_code != 3 && reg.function_code != 4) return false;
+  node.begin(cfg->slave_id, Serial2);
+  const uint8_t status = read_metric(reg, out->scaled_value);
+  out->success = status == node.ku8MBSuccess;
+  if (!out->success) {
+    out->scaled_value = 0;
+    Serial.printf("[%s] Modbus Error: 0x%02X\r\n", reg.key, status);
+  }
+  return out->success;
 }
 
 void modbus_poll_data(const device_config_t *cfg) {
@@ -63,24 +93,7 @@ uint8_t modbus_poll_and_collect(const device_config_t *cfg, modbus_result_t *res
   uint8_t collected = 0;
 
   for (int i = 0; i < cfg->register_count && collected < max_results; i++) {
-    const register_config_t *reg = &cfg->registers[i];
-    uint8_t result;
-    double value = 0;
-    if (reg->function_code != 3 && reg->function_code != 4) continue;
-    result = read_metric(*reg, value);
-
-    strlcpy(results[collected].key, reg->key, sizeof(results[collected].key));
-
-    if (result == node.ku8MBSuccess) {
-      results[collected].scaled_value = value;
-      results[collected].success = true;
-      Serial.printf("[%s] Scaled: %.2f %s\r\n", reg->key,
-                    results[collected].scaled_value, reg->unit);
-    } else {
-      results[collected].scaled_value = 0;
-      results[collected].success = false;
-      Serial.printf("[%s] Modbus Error: 0x%02X\r\n", reg->key, result);
-    }
+    modbus_read_one(cfg, i, &results[collected]);
     collected++;
   }
 

@@ -14,11 +14,14 @@ struct PubSubClient {
   bool will_retained = false;
   uint8_t will_qos = 0;
   unsigned connections = 0;
+  unsigned loops = 0;
+  unsigned long last_loop_time = 0, max_loop_gap = 0;
   std::vector<Message> published;
   size_t buffer_size = 256;
   void (*callback)(char *, byte *, unsigned int) = nullptr;
   void setServer(const char *, int) {}
   void setCallback(void (*fn)(char *, byte *, unsigned int)) { callback = fn; }
+  void setSocketTimeout(uint16_t) {}
   bool setBufferSize(uint16_t size) { buffer_size = size; return true; }
   bool connected() { return online && transport.stops == transport_stops; }
   bool connect(const char *id, const char *, const char *) {
@@ -37,7 +40,10 @@ struct PubSubClient {
   }
   void disconnect() { online = false; }
   int state() { return 0; }
-  void loop() {}
+  void loop() {
+    if (loops && millis() - last_loop_time > max_loop_gap) max_loop_gap = millis() - last_loop_time;
+    ++loops; last_loop_time = millis();
+  }
   bool publish(const char *topic, const char *payload, bool retained = false) {
     if (!online || !publish_ok) return false;
     published.push_back({topic, payload, retained}); return true;

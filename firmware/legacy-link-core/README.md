@@ -1,5 +1,8 @@
 # ESP32 gateway firmware
 
+See [firmware operation](docs/firmware-operation.md) for local network settings,
+flash recovery, configuration acknowledgements, polling timing and RS-485 direction.
+
 See [backend alignment](docs/backend-alignment.md) for the two supplied device
 configs, database-shaped register fields, UINT32 word order, device config
 topics, Last Will behavior, multi-level alarms, and remaining backend gaps.
@@ -53,18 +56,23 @@ mosquitto_pub -h "$MQTT_HOST" -p 1883 \
 
 The broker must allow that gateway to subscribe to its configuration topic and
 allow the provisioning publisher to write it. The `-r` option retains the
-configuration so the broker can deliver it after a reboot. Without retention,
-configuration lasts only until the ESP32 restarts. Serial configuration remains
+configuration so the broker can deliver it after a reboot. Valid configuration
+is also saved to ESP32 flash and restored before MQTT is available. Serial configuration remains
 available: paste compact JSON on one line and press Enter. A retained MQTT config
 will be reapplied on reconnect and may replace a later Serial configuration.
 
 The callback copies up to 4095 bytes and applies the update in the main loop.
+The parser and Serial input enforce the same payload limit; the 4096-byte
+receive buffer reserves one byte for the string terminator. JSON parsing uses
+an independent 8192-byte dynamic document. Count UTF-8 bytes after serialization,
+including whitespace, even for maps within the 16-register limit.
 Empty, oversized, or NUL-containing MQTT payloads are rejected. Oversized Serial
 lines are discarded completely through the next newline. Parsing and validation
 complete before the running configuration or UART is changed. Rejected updates
 keep the previous configuration active; accepted updates log success and publish
-online status when MQTT and NTP time are available. Configuration has no separate
-MQTT acknowledgment topic yet.
+online status when MQTT and NTP time are available. The gateway reports the result
+on `legacy-link/gateways/{gatewayId}/config/ack`; see the operation guide for its
+schema, optional `requestId`, flash failure reporting and delivery limits.
 
 ## Supported configuration
 
@@ -84,9 +92,10 @@ MQTT acknowledgment topic yet.
   string and can contain up to 7 bytes. Device names can contain up to 47 bytes.
 - Optional fields set to `null` use their defaults. Numeric strings, out-of-range
   integers, duplicate keys, unsupported types, and overlong strings are rejected.
-- Backend `main` at commit `c33b72e` accepts `temperature`, `current`, `rpm`,
-  `speed`, and `pressure`. Older backend versions may accept only the first three.
-  The bench example uses those three for compatibility; verify against the actual
+- Team-agreed keys are `temperature`, `speed`, `torque`, `current`, `rpm`, and
+  `pressure`. Backend `main` at checked commit `9a7afa6` accepts all six.
+  Keys are preserved exactly, and values are scaled once by firmware before publication.
+  Verify against the actual
   backend revision with the contract test below.
 
 ## Wi-Fi recovery
@@ -103,9 +112,12 @@ closed; after recovery, the existing MQTT retry loop restores the configuration
 subscription. Active device settings and alarm state are preserved, though a
 retained configuration delivered by the broker can subsequently replace them.
 
-This removes the previous 20-second startup wait. Modbus transactions and MQTT
-connection attempts can still wait for their library timeouts; the entire main
-loop is not fully non-blocking. No offline telemetry queue is implemented.
+Each main-loop iteration reads at most one register entry, and ModbusMaster's
+idle callback services Wi-Fi/MQTT while waiting for a response. Configuration
+received during a transaction is applied after it finishes; partial scans are
+discarded on changes. A scan can exceed the requested interval when registers
+time out. MQTT connection and packet reads can still wait for library timeouts;
+the entire loop is not fully non-blocking. No offline telemetry queue is implemented.
 
 ## Threshold alarms
 
@@ -220,7 +232,8 @@ Hardware smoke test:
    after NTP synchronizes. Verify Modbus telemetry against the connected device.
 3. Publish an invalid slave ID (257) or broken JSON. Confirm the rejection log and
    continued polling with the previous settings.
-4. Restart the gateway with a retained valid config. Confirm it restores polling.
+4. Restart with the broker unavailable. Confirm flash restores the valid config
+   and polling; then restore the broker and check retained configuration behavior.
 5. Run two gateways and verify each accepts only its own configuration topic.
 6. Configure an alarm, then use a Modbus simulator or test device to move the
    scaled value above the threshold. Check for one alarm, keep the value high to
@@ -235,6 +248,12 @@ Network host tests simulate a missing access point at boot, late connection,
 connection loss, offline Serial configuration/polling, NTP setup on each observed
 connection, MQTT resubscription, retry spacing and the 32-bit timer wrapping.
 They verify firmware decisions, not physical Wi-Fi association or NTP delivery.
+
+Additional host tests cover a 32-second scan with all 16 reads timing out while
+MQTT is serviced, configuration arriving during a read, flash restore/corruption
+and save failures, correlated acknowledgements, and manual RS-485 direction on
+both successful reads and timeouts. Nine test executables run in CI alongside the
+ESP32 build and the backend payload contract check.
 
 The host tests and build do not verify physical UART, Wi-Fi, or broker delivery.
 The contract test additionally checks actual firmware JSON against backend

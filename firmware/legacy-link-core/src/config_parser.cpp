@@ -105,6 +105,10 @@ static bool read_endpoint_alarm(JsonVariant entry, const char *threshold_field,
 
 bool parse_device_config(const char *json_payload, device_config_t *out) {
   if (!json_payload || !out) return false;
+  if (strnlen(json_payload, MAX_CONFIG_PAYLOAD_BYTES + 1) > MAX_CONFIG_PAYLOAD_BYTES) {
+    Serial.println("[CONFIG] Rejected: JSON exceeds 4095 bytes");
+    return false;
+  }
   // Keep JSON storage off the ESP32 loop stack as register configs grow.
   DynamicJsonDocument doc(8192);
   DeserializationError err = deserializeJson(doc, json_payload);

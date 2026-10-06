@@ -23,7 +23,9 @@ For compatibility with database-shaped responses, firmware also accepts:
 Top-level fields remain camelCase in both formats. Mixing the two arrays or
 register naming conventions is rejected. Empty maps, invalid rows, unsupported
 types and invalid alarms reject the entire update, preserving current settings.
-Rejections are logged on Serial. There is no MQTT configuration acknowledgement.
+Rejections are logged on Serial and reported through the gateway configuration
+acknowledgement topic. See [firmware operation](firmware-operation.md) for the
+ACK contract, optional request IDs and delivery limits.
 `data_type` defaults to `UINT16` in the database-shaped format, matching the
 catalog; legacy `dataType` retains its `INT16` default. Prefer explicit types.
 
@@ -31,6 +33,42 @@ Both address fields are **raw zero-based protocol addresses**. `modicon_address`
 is display metadata only, never an automatic fallback. For holding registers,
 the backend/catalog converts Modicon 40050 to protocol address 49. Firmware must
 not subtract 40001 again.
+
+## Metric names and scaling
+
+The team-agreed metric keys are `temperature`, `speed`, `torque`, `current`,
+`rpm`, and `pressure`. Firmware copies each register key unchanged into the
+telemetry `metrics` object. Use these exact, case-sensitive names; `temp` does
+not become `temperature`. Backend validators must allow the same names.
+
+Firmware decodes the signed/unsigned register value first, then multiplies
+by `scale` exactly once. The backend receives the engineering value and must
+not multiply by the scale again. For example, INT16 raw -180 with scale 0.1
+becomes -18.0 degrees, and raw 1200 becomes 120.0. Host tests verify the negative
+example through the actual telemetry serializer, including its metric key.
+
+## Configuration size
+
+The receive buffer is 4096 bytes, including the terminating NUL byte. The JSON
+payload must therefore be **at most 4095 bytes**, measured as UTF-8 bytes, not
+characters. The direct parser, MQTT callback and Serial input enforce the same
+limit. Whitespace counts toward it; compact JSON is preferable.
+
+The parser uses `DynamicJsonDocument(8192)` for its internal representation.
+This allocation is separate from serialized JSON length. Up to 16 registers are
+supported, but a map with long names, alarms and optional metadata must still
+fit both limits. Check the final serialized payload after applying overrides:
+
+```js
+const payload = JSON.stringify(config);
+if (Buffer.byteLength(payload, 'utf8') > 4095) {
+  throw new Error('Firmware configuration exceeds 4095 bytes');
+}
+```
+
+Host tests exercise a full 16-register map with maximum-length metric keys,
+4095-byte valid JSON, and rejection of 4096-byte valid JSON through parser,
+MQTT and Serial. Rejection preserves the previous configuration and UART.
 
 ## MQTT identity, provisioning and offline status
 
@@ -53,11 +91,13 @@ not subtract 40001 again.
 - The will's timestamp is fixed **at connection time**, because MQTT 3.1.1 cannot
   generate a fresh payload on power loss. The backend must treat receipt time as
   the offline detection time and must not discard offline wills as older than
-  the latest online heartbeat. At checked commit `4285889`, `saveStatus` uses
+  the latest online heartbeat. At checked commit `9a7afa6`, `saveStatus` uses
   database receipt time and updates status without comparing payload timestamps,
   which is compatible with this behavior. The existing schema has no event-source marker.
-- No device configuration is persisted to flash. After reset, a retained
-  gateway config or Serial provisioning is still required.
+- Valid device configuration is saved to NVS flash and validated again at boot.
+  A flash-write failure leaves the new config active in RAM and reports
+  `persisted: false`; the previous saved configuration may return after reset.
+  Identical persisted redelivery avoids flash writes and alarm resets.
 
 NTP starts when Wi-Fi connects and restarts after Wi-Fi recovery. Outbound
 telemetry, status and alarms wait for valid time. Timestamps use `gettimeofday`
@@ -112,10 +152,13 @@ disabled protection or an invented mapping from a metric name.
 
 ## Remaining backend coordination and physical validation
 
-At checked backend `origin/main` commit `4285889`, the telemetry validator allows
-temperature, current, rpm, speed and pressure, but **not torque**. Both supplied
-configurations contain torque, so their complete telemetry payloads will be
-rejected until the backend adds it. Firmware does not rename or drop the metric.
+At checked backend `origin/main` commit `9a7afa6`, the telemetry validator allows
+all six agreed keys, including torque. The catalog endpoint returns camelCase
+register entries with raw protocol addresses and resolves device overrides.
+However, its `toFirmwareRegister()` mapping omits alarm settings even though the
+query selects thresholds. Backend work is still needed to supply explicit alarm
+codes, levels and hysteresis, publish configs to the gateway/device topic, and
+consume the new ACK topic. Fetching the HTTP catalog alone does not provision an ESP32.
 
 The alarm validator currently accepts only OVERHEAT, OVERCURRENT, OVERSPEED and
 VIBRATION. Under-temperature/current/speed codes remain a team decision and need

@@ -12,6 +12,8 @@ typedef struct {
 } modbus_result_t;
 
 void modbus_init(uint8_t slave_id);
+void modbus_set_idle_callback(void (*callback)());
+bool modbus_read_one(const device_config_t *cfg, uint8_t index, modbus_result_t *result);
 void modbus_poll_data(const device_config_t *cfg);
 
 // Hàm mới: đọc Modbus VÀ trả kết quả ra mảng để publish lên MQTT
