@@ -152,10 +152,10 @@ disabled protection or an invented mapping from a metric name.
 
 ## Remaining backend coordination and physical validation
 
-At checked backend `origin/main` commit `9a7afa6`, the telemetry validator allows
+At checked backend `origin/main` commit `1c7a872`, the telemetry validator allows
 all six agreed keys, including torque. The catalog endpoint returns camelCase
 register entries with raw protocol addresses and resolves device overrides.
-However, its `toFirmwareRegister()` mapping omits alarm settings even though the
+However, its `src/db/catalog.js` `toFirmwareRegister()` mapping omits alarm settings even though the
 query selects thresholds. Backend work is still needed to supply explicit alarm
 codes, levels and hysteresis, publish configs to the gateway/device topic, and
 consume the new ACK topic. Fetching the HTTP catalog alone does not provision an ESP32.
