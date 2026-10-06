@@ -7,6 +7,7 @@
 #include <string>
 
 TestSerial Serial, Serial2;
+unsigned long test_millis = 0;
 static unsigned attempts = 0;
 static bool send_ok = true;
 static bool send_alarm(const device_config_t *cfg, const alarm_config_t *alarm,

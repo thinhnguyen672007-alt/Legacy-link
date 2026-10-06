@@ -23,7 +23,9 @@ For compatibility with database-shaped responses, firmware also accepts:
 Top-level fields remain camelCase in both formats. Mixing the two arrays or
 register naming conventions is rejected. Empty maps, invalid rows, unsupported
 types and invalid alarms reject the entire update, preserving current settings.
-Rejections are logged on Serial. There is no MQTT configuration acknowledgement.
+Rejections are logged on Serial and reported through the gateway configuration
+acknowledgement topic. See [firmware operation](firmware-operation.md) for the
+ACK contract, optional request IDs and delivery limits.
 `data_type` defaults to `UINT16` in the database-shaped format, matching the
 catalog; legacy `dataType` retains its `INT16` default. Prefer explicit types.
 
@@ -89,11 +91,13 @@ MQTT and Serial. Rejection preserves the previous configuration and UART.
 - The will's timestamp is fixed **at connection time**, because MQTT 3.1.1 cannot
   generate a fresh payload on power loss. The backend must treat receipt time as
   the offline detection time and must not discard offline wills as older than
-  the latest online heartbeat. At checked commit `4285889`, `saveStatus` uses
+  the latest online heartbeat. At checked commit `9a7afa6`, `saveStatus` uses
   database receipt time and updates status without comparing payload timestamps,
   which is compatible with this behavior. The existing schema has no event-source marker.
-- No device configuration is persisted to flash. After reset, a retained
-  gateway config or Serial provisioning is still required.
+- Valid device configuration is saved to NVS flash and validated again at boot.
+  A flash-write failure leaves the new config active in RAM and reports
+  `persisted: false`; the previous saved configuration may return after reset.
+  Identical persisted redelivery avoids flash writes and alarm resets.
 
 NTP starts when Wi-Fi connects and restarts after Wi-Fi recovery. Outbound
 telemetry, status and alarms wait for valid time. Timestamps use `gettimeofday`
@@ -148,10 +152,13 @@ disabled protection or an invented mapping from a metric name.
 
 ## Remaining backend coordination and physical validation
 
-At checked backend `origin/main` commit `4285889`, the telemetry validator allows
-temperature, current, rpm, speed and pressure, but **not torque**. Both supplied
-configurations contain torque, so their complete telemetry payloads will be
-rejected until the backend adds it. Firmware does not rename or drop the metric.
+At checked backend `origin/main` commit `9a7afa6`, the telemetry validator allows
+all six agreed keys, including torque. The catalog endpoint returns camelCase
+register entries with raw protocol addresses and resolves device overrides.
+However, its `toFirmwareRegister()` mapping omits alarm settings even though the
+query selects thresholds. Backend work is still needed to supply explicit alarm
+codes, levels and hysteresis, publish configs to the gateway/device topic, and
+consume the new ACK topic. Fetching the HTTP catalog alone does not provision an ESP32.
 
 The alarm validator currently accepts only OVERHEAT, OVERCURRENT, OVERSPEED and
 VIBRATION. Under-temperature/current/speed codes remain a team decision and need

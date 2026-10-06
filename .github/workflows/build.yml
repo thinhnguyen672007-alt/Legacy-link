@@ -18,3 +18,14 @@ jobs:
 
       - name: Build ESP32 firmware
         run: pio run -d firmware/legacy-link-core
+
+      - name: Test firmware behavior on the host
+        run: ASAN_OPTIONS=detect_leaks=0 bash firmware/legacy-link-core/test/host/run.sh
+
+      - name: Set up Node.js for backend contract checks
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check firmware payloads against this revision's backend validators
+        run: ASAN_OPTIONS=detect_leaks=0 python3 firmware/legacy-link-core/test/host/run_contract.py --backend-ref HEAD

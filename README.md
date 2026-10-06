@@ -2,7 +2,7 @@
 
 Configuration-driven, low-cost gateway for connecting legacy equipment to modern software.
 
-> Status: active development -- the full data pipeline (ESP32 -> MQTT -> Backend) is operational. The firmware accepts JSON device configurations at runtime (via Serial or MQTT), polls Modbus RTU registers, and publishes telemetry to an MQTT broker. The backend validates and processes incoming messages. Infrastructure services (Mosquitto MQTT broker) are containerised with Docker Compose.
+> Status: active development. Firmware supports runtime configuration, Modbus polling, telemetry, alarms and retained connection status. Host tests and ESP32 builds cover the software paths; physical RS-485, Wi-Fi and backend/database acceptance checks remain deployment requirements. See the [firmware operation guide](firmware/legacy-link-core/docs/firmware-operation.md).
 
 ## Overview
 
@@ -17,6 +17,7 @@ The repository is organised as a monorepo so firmware, infrastructure, backend, 
 | Directory | Purpose | Status |
 | --- | --- | --- |
 | `firmware/` | PlatformIO firmware for the ESP32 gateway | Active |
+| `firmware/legacy-link-core/test/host/` | Firmware behavior and contract tests without an ESP32 | Active |
 | `infrastructure/` | Docker Compose services (Mosquitto MQTT broker), scripts, and environment config | Active |
 | `backend/` | MQTT consumer with payload validation | Active |
 | `frontend/` | Operator dashboard / interface | Planned |
@@ -38,13 +39,15 @@ ESP32 Gateway        Mosquitto Broker       Node.js Backend
 
 ### Modules
 
-The firmware is split into three modules:
+The firmware modules are:
 
 | Module | File(s) | Responsibility |
 | --- | --- | --- |
 | **Config Parser** | `config_parser.cpp/.h`, `device_config.h` | Parse incoming JSON into a C struct, validate fields, and reconfigure UART2 automatically |
 | **Modbus Reader** | `modbus_reader.cpp/.h` | Initialise `ModbusMaster`, poll holding/input registers, apply scaling, and return structured results |
-| **Main Loop** | `main.cpp` | WiFi + NTP, MQTT connect/publish, Serial input handler, non-blocking Modbus polling timer |
+| **Alarm Monitor** | `alarm_monitor.cpp/.h` | Evaluate configured thresholds, critical escalation and hysteresis |
+| **Config Store** | `config_store.cpp/.h` | Persist validated JSON to ESP32 NVS and restore at boot |
+| **Main Loop** | `main.cpp` | Wi-Fi + NTP, MQTT, config acknowledgements and one-register polling steps with network service during waits |
 
 ### MQTT Publishing
 
@@ -53,20 +56,41 @@ The gateway publishes data to three topic families (matching `backend/src/config
 | Topic | Payload | Trigger |
 | --- | --- | --- |
 | `legacy-link/devices/{deviceId}/telemetry` | `{deviceId, timestamp, schemaVersion:1, metrics:{...}}` | Every sampling interval |
-| `legacy-link/devices/{deviceId}/status` | `{deviceId, timestamp, schemaVersion:1, status:true/false}` | On config change + heartbeat every 30s |
-| `legacy-link/devices/{deviceId}/alarm` | *(reserved for future use)* | -- |
+| `legacy-link/devices/{deviceId}/status` | `{deviceId, timestamp, schemaVersion:1, status:true/false}` | On accepted config, MQTT reconnect, heartbeat every 30s and broker Last Will |
+| `legacy-link/devices/{deviceId}/alarm` | `{deviceId, timestamp, schemaVersion:1, code, severity, value}` | Configured threshold crossed; repeats suppressed by hysteresis |
 
 - **Timestamps** are NTP-synchronised Unix epoch **milliseconds** (13 digits), matching backend validation.
 - **`schemaVersion: 1`** is included in every message as required by the backend.
 - Status messages use **retained** publish so new subscribers receive the last known state.
+- Provisioned connections register a retained offline **Last Will**. The gateway
+  also publishes configuration results to `legacy-link/gateways/{gatewayId}/config/ack`.
+
+### Remote Configuration
+
+At startup, Serial prints the stable hardware gateway ID and its topic
+`legacy-link/gateways/{gatewayId}/config`. Publish the device JSON to that topic
+at QoS 1, optionally retained so the broker redelivers it on reconnect. After
+provisioning, the device topic `legacy-link/devices/{deviceId}/config` also accepts
+updates with the same device ID. Use the gateway topic to change device identity.
+
+Validated settings are saved to ESP32 flash and restored at boot. A retained
+config can overwrite later Serial changes on reconnect. Invalid configs preserve
+active settings; payloads must fit 4095 bytes and maps must have 1–16 entries.
+See the [firmware guide](firmware/legacy-link-core/README.md) for publishing examples
+and the [operation guide](firmware/legacy-link-core/docs/firmware-operation.md) for
+ACKs and persistence failures.
 
 ### JSON Configuration Example
 
-Send a single-line JSON via Serial Monitor (or MQTT in the future) to configure the gateway:
+Send a single-line JSON via Serial Monitor or the gateway MQTT config topic:
 
 ```json
-{"deviceId":"CNC-01","deviceName":"Fanuc 0i","protocol":"MODBUS_RTU","baudRate":9600,"parity":"EVEN","stopBits":1,"slaveId":1,"samplingIntervalMs":2000,"registerMap":[{"key":"spindle_speed","address":100,"functionCode":3,"dataType":"INT16","scale":1.0,"unit":"RPM"},{"key":"feed_rate","address":101,"functionCode":3,"dataType":"INT16","scale":0.1,"unit":"mm/min"}]}
+{"deviceId":"CNC-01","deviceName":"Bench example","protocol":"MODBUS_RTU","baudRate":9600,"parity":"NONE","stopBits":1,"slaveId":1,"samplingIntervalMs":2000,"registerMap":[{"key":"speed","address":1,"functionCode":3,"dataType":"UINT16","scale":1.0,"unit":"rpm"},{"key":"temperature","address":49,"functionCode":3,"dataType":"INT16","scale":0.1,"unit":"C"}]}
 ```
+
+Addresses are raw zero-based protocol addresses, not Modicon labels. Replace the
+illustrative map with the equipment manual's settings. INT16, UINT16 and UINT32
+are supported; scaling happens once in firmware. See [the contract](firmware/legacy-link-core/docs/backend-alignment.md).
 
 ### Dependencies
 
@@ -104,15 +128,31 @@ pio device monitor -d firmware/legacy-link-core -b 115200
 
 Paste a JSON configuration line and press Enter. The gateway will parse, validate, reconfigure UART2, and begin polling Modbus registers.
 
+### Firmware Verification
+
+After the PlatformIO build downloads ArduinoJson:
+
+```bash
+bash firmware/legacy-link-core/test/host/run.sh
+python3 firmware/legacy-link-core/test/host/run_contract.py --backend-ref origin/main
+```
+
+Host tests run real firmware code with simulated hardware and address/undefined
+behavior sanitizers. In ptrace sandboxes, set `ASAN_OPTIONS=detect_leaks=0` if
+LeakSanitizer cannot start. Fetch the backend revision before the contract check.
+These checks do not prove physical Wi-Fi/RS-485 or database delivery; follow the
+[acceptance checklist](firmware/legacy-link-core/docs/firmware-operation.md#acceptance-checks-with-hardware).
+
 ### Network Configuration
 
-Before uploading, edit the network constants in `firmware/legacy-link-core/src/main.cpp`:
+Before uploading, copy the example site settings and edit the ignored local file:
 
-```cpp
-const char *ssid = "YOUR_WIFI_SSID";
-const char *password = "YOUR_WIFI_PASSWORD";
-const char *mqtt_server = "192.168.1.100"; // IP of the machine running Docker Mosquitto
+```bash
+cp firmware/legacy-link-core/include/local_settings.example.h firmware/legacy-link-core/include/local_settings.h
 ```
+
+Set Wi-Fi, broker credentials/address, NTP server and any RS-485 direction GPIO.
+Follow the [first-connection guide](firmware/legacy-link-core/docs/first-connection.md).
 
 ## Backend
 
@@ -152,7 +192,9 @@ See [`infrastructure/README.md`](infrastructure/README.md) for full setup instru
 
 ## CI/CD
 
-GitHub Actions automatically builds the ESP32 firmware on every push and pull request to `main` and `dev`. See [`.github/workflows/build.yml`](.github/workflows/build.yml).
+GitHub Actions builds the ESP32 firmware, runs nine host test executables and
+checks firmware payloads against backend validators on pushes and pull requests
+to `main` and `dev`. See [`.github/workflows/build.yml`](.github/workflows/build.yml).
 
 ## Development Progress
 
@@ -185,11 +227,14 @@ GitHub Actions automatically builds the ESP32 firmware on every push and pull re
 - [x] NTP time synchronisation for accurate timestamps
 - [x] Backend MQTT consumer with payload validation
 - [x] CI/CD: GitHub Actions firmware build
-- [ ] MQTT callback to receive config from broker (OTA config)
-- [ ] Publish alarm messages on threshold violation
+- [x] MQTT callback to receive config from broker (runtime config)
+- [x] Publish configurable alarms with hysteresis and critical escalation
+- [x] Save configuration to flash and report application/persistence results
+- [x] Keep network service running during Modbus response waits
 - [ ] Add a frontend for device status and configuration
-- [ ] Add simulator-driven tests for malformed and partial messages
-- [ ] Document supported hardware, wiring, and deployment
+- [x] Add host tests for malformed configs, timeout scans and recovery
+- [x] Document settings, adapter requirements and deployment checks
+- [ ] Verify physical ESP32/RS-485 and backend/database integration
 
 ## License
 

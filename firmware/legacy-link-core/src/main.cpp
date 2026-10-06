@@ -1,6 +1,8 @@
 #include "config_parser.h"
 #include "modbus_reader.h"
 #include "alarm_monitor.h"
+#include "config_store.h"
+#include "gateway_settings.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
@@ -14,13 +16,13 @@
 // ============================================================
 // CẤU HÌNH MẠNG - Đổi theo môi trường của team
 // ============================================================
-const char *ssid = "YOUR_WIFI_SSID";
-const char *password = "YOUR_WIFI_PASSWORD";
-const char *mqtt_server = "192.168.1.100"; // IP máy chạy Docker Mosquitto của Huy
-const int mqtt_port = 1883;
-const char *mqtt_user = "esp32";           // Khớp với passwd của Mosquitto
-const char *mqtt_pass = "esp32";           // Khớp với passwd của Mosquitto
-const char *ntp_server_1 = "pool.ntp.org";
+const char *ssid = LEGACYLINK_WIFI_SSID;
+const char *password = LEGACYLINK_WIFI_PASSWORD;
+const char *mqtt_server = LEGACYLINK_MQTT_HOST;
+const int mqtt_port = LEGACYLINK_MQTT_PORT;
+const char *mqtt_user = LEGACYLINK_MQTT_USER;
+const char *mqtt_pass = LEGACYLINK_MQTT_PASSWORD;
+const char *ntp_server_1 = LEGACYLINK_NTP_SERVER;
 const char *ntp_server_2 = "time.nist.gov";
 
 WiFiClient espClient;
@@ -39,6 +41,19 @@ static AlarmMonitor alarm_monitor;
 static bool wifi_was_connected = false;
 static uint32_t last_wifi_retry = 0;
 static constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 10000;
+static bool active_config_persisted = false;
+static char config_ack[768];
+static bool config_ack_pending = false;
+static bool poll_active = false;
+static uint8_t poll_index = 0;
+static uint32_t last_poll_started = 0;
+static modbus_result_t poll_results[MAX_REGISTERS];
+
+void reset_poll_cycle() {
+  poll_active = false;
+  poll_index = 0;
+  last_poll_started = static_cast<uint32_t>(millis()) - global_device_config.sampling_interval_ms;
+}
 
 // Trả về epoch MILLISECONDS (13 chữ số) khớp với backend validation
 // Backend kiểm tra: timestamp >= Date.UTC(2020,0,1) = 1577836800000
@@ -46,6 +61,42 @@ unsigned long long current_epoch_ms() {
   timeval now = {};
   if (gettimeofday(&now, nullptr) != 0 || now.tv_sec < 1700000000) return 0;
   return static_cast<unsigned long long>(now.tv_sec) * 1000ULL + now.tv_usec / 1000;
+}
+
+void flush_config_ack() {
+  if (!config_ack_pending || !mqttClient.connected()) return;
+  char topic[96];
+  snprintf(topic, sizeof(topic), "legacy-link/gateways/%s/config/ack", gateway_id);
+  if (mqttClient.publish(topic, config_ack, false)) config_ack_pending = false;
+}
+
+void queue_config_ack(const char *result, const char *reason, const char *request_id = "") {
+  Serial.printf("[CONFIG] %s: %s; persisted=%s\r\n", result, reason,
+                active_config_persisted ? "true" : "false");
+  StaticJsonDocument<512> doc;
+  doc["schemaVersion"] = 1;
+  doc["gatewayId"] = gateway_id;
+  if (is_config_valid) doc["deviceId"] = global_device_config.device_id;
+  if (request_id[0]) doc["requestId"] = request_id;
+  doc["result"] = result;
+  doc["reason"] = reason;
+  doc["persisted"] = active_config_persisted;
+  const uint64_t timestamp = current_epoch_ms();
+  if (timestamp) doc["timestamp"] = timestamp;
+  if (doc.overflowed() || measureJson(doc) >= sizeof(config_ack)) return;
+  serializeJson(doc, config_ack, sizeof(config_ack));
+  config_ack_pending = true;
+}
+
+static bool read_request_id(const char *payload, char (&id)[65]) {
+  DynamicJsonDocument doc(8192);
+  if (deserializeJson(doc, payload) || !doc.is<JsonObject>()) return false;
+  if (!doc.containsKey("requestId")) return true;
+  const char *value = doc["requestId"].as<const char *>();
+  if (!value || !value[0] || strlen(value) >= sizeof(id) ||
+      doc["requestId"].as<JsonString>().size() != strlen(value)) return false;
+  strlcpy(id, value, sizeof(id));
+  return true;
 }
 
 // ============================================================
@@ -171,6 +222,19 @@ void maintain_wifi() {
   }
 }
 
+// ModbusMaster calls this while waiting for UART bytes. MQTT callbacks only
+// copy configurations; UART/config changes remain deferred until loop().
+void service_modbus_wait() {
+  static uint32_t last_service = 0;
+  const uint32_t now = millis();
+  if (static_cast<uint32_t>(now - last_service) >= 10) {
+    last_service = now;
+    maintain_wifi();
+    if (mqttClient.connected()) mqttClient.loop();
+  }
+  delay(1); // Give ESP32 background networking and watchdog tasks CPU time.
+}
+
 // --- HÀM RECONNECT MQTT (Non-blocking, thử 1 lần rồi thôi) ---
 void reconnect_mqtt() {
   if (mqttClient.connected()) return;
@@ -207,6 +271,7 @@ void reconnect_mqtt() {
     }
     Serial.printf("[MQTT] Config topic: %s\r\n", config_topic);
     if (is_config_valid) publish_status(&global_device_config, true);
+    flush_config_ack();
   } else {
     Serial.print("failed, rc=");
     Serial.println(mqttClient.state());
@@ -219,6 +284,11 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length) {
   if (strcmp(topic, config_topic) != 0 && !device_topic) return;
   if (length == 0 || length >= sizeof(pending_config) || memchr(payload, '\0', length)) {
     Serial.println("[CONFIG] Rejected: empty, oversized or NUL-containing MQTT payload");
+    queue_config_ack("rejected", "invalid_payload");
+    return;
+  }
+  if (config_pending) {
+    queue_config_ack("rejected", "busy");
     return;
   }
   memcpy(pending_config, payload, length);
@@ -230,22 +300,41 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length) {
 // Reconnect only on identity changes, otherwise a retained config would cause
 // a reconnect loop. Device-scoped updates cannot reassign the gateway.
 bool apply_runtime_config(const char *payload, bool device_scoped = false) {
+  char request_id[65] = {};
+  if (!payload || strnlen(payload, CONFIG_BUFFER_SIZE) >= CONFIG_BUFFER_SIZE ||
+      !read_request_id(payload, request_id)) {
+    queue_config_ack("rejected", "invalid_payload");
+    return false;
+  }
   std::unique_ptr<device_config_t> storage(new (std::nothrow) device_config_t{});
-  if (!storage) return false;
+  if (!storage) { queue_config_ack("rejected", "out_of_memory", request_id); return false; }
   device_config_t &next = *storage;
   if (!parse_device_config(payload, &next)) {
     Serial.println("[CONFIG] Rejected: invalid configuration; keeping current config");
+    queue_config_ack("rejected", "invalid_config", request_id);
     return false;
   }
   if (device_scoped && (!is_config_valid || strcmp(next.device_id, global_device_config.device_id))) {
     Serial.println("[CONFIG] Rejected: deviceId does not match config topic");
+    queue_config_ack("rejected", "device_id_mismatch", request_id);
     return false;
   }
-  if (is_config_valid && !memcmp(&next, &global_device_config, sizeof(next))) return true;
+  if (is_config_valid && !memcmp(&next, &global_device_config, sizeof(next))) {
+    if (!active_config_persisted) active_config_persisted = save_config(payload);
+    queue_config_ack("unchanged", active_config_persisted ? "ok" : "storage_error", request_id);
+    return true;
+  }
   const bool identity_changed = !is_config_valid || strcmp(next.device_id, global_device_config.device_id);
   if (identity_changed && is_config_valid) publish_status(&global_device_config, false);
-  if (!apply_new_configuration(payload)) return false;
+  if (!apply_new_configuration(payload)) {
+    queue_config_ack("rejected", "apply_failed", request_id);
+    return false;
+  }
+  active_config_persisted = save_config(payload);
+  if (!active_config_persisted) Serial.println("[CONFIG] Applied in RAM; flash save failed");
   alarm_monitor.reset();
+  reset_poll_cycle();
+  queue_config_ack("applied", active_config_persisted ? "ok" : "storage_error", request_id);
   if (identity_changed) {
     mqttClient.disconnect();
     device_config_topic[0] = '\0';
@@ -254,10 +343,39 @@ bool apply_runtime_config(const char *payload, bool device_scoped = false) {
   return true;
 }
 
+bool restore_saved_configuration() {
+  if (!load_saved_config(pending_config, sizeof(pending_config))) return false;
+  const bool restored = apply_new_configuration(pending_config);
+  pending_config[0] = '\0';
+  if (!restored) return false;
+  active_config_persisted = true;
+  alarm_monitor.reset();
+  reset_poll_cycle();
+  Serial.println("[CONFIG] Restored validated configuration from flash");
+  return true;
+}
+
+void poll_modbus_step() {
+  if (!is_config_valid) return;
+  const uint32_t now = millis();
+  if (!poll_active) {
+    if (static_cast<uint32_t>(now - last_poll_started) < global_device_config.sampling_interval_ms) return;
+    last_poll_started = now;
+    poll_index = 0;
+    poll_active = true;
+  }
+  modbus_read_one(&global_device_config, poll_index, &poll_results[poll_index]);
+  if (++poll_index < global_device_config.register_count) return;
+  poll_active = false;
+  alarm_monitor.evaluate(&global_device_config, poll_results, poll_index, current_epoch_ms(), publish_alarm);
+  publish_telemetry(&global_device_config, poll_results, poll_index);
+}
+
 // ============================================================
 // HÀM SETUP CHÍNH
 // ============================================================
 void setup() {
+  Serial.setRxBufferSize(CONFIG_BUFFER_SIZE + 128);
   Serial.begin(115200);
   delay(1000);
 
@@ -280,12 +398,16 @@ void setup() {
   // Cấu hình MQTT Broker
   mqttClient.setServer(mqtt_server, mqtt_port);
   mqttClient.setCallback(mqtt_callback);
+  mqttClient.setSocketTimeout(1);
+  modbus_init(1); // Bind UART and optional RS-485 direction callbacks; no poll yet.
+  modbus_set_idle_callback(service_modbus_wait);
   // Include MQTT header and topic overhead in addition to the config payload.
   if (!mqttClient.setBufferSize(CONFIG_BUFFER_SIZE + 128)) {
     Serial.println("[MQTT] Failed to allocate configuration receive buffer");
   }
+  restore_saved_configuration();
 
-  Serial.println("  Status   : Waiting for JSON config...");
+  Serial.println(is_config_valid ? "  Status   : Configuration restored" : "  Status   : Waiting for JSON config...");
   Serial.println("========================================");
   Serial.println("Paste JSON config and press Enter:\n");
 }
@@ -351,26 +473,10 @@ void loop() {
     }
   }
 
-  // 3. Chạy vòng lặp Modbus non-blocking + Publish MQTT
-  if (is_config_valid) {
-    static unsigned long last_poll_time = 0;
-    unsigned long current_time = millis();
-
-    if (current_time - last_poll_time >= global_device_config.sampling_interval_ms) {
-      last_poll_time = current_time;
-
-      // Đọc Modbus và thu thập kết quả
-      modbus_result_t results[MAX_REGISTERS];
-      uint8_t count = modbus_poll_and_collect(&global_device_config, results, MAX_REGISTERS);
-
-      alarm_monitor.evaluate(&global_device_config, results, count, current_epoch_ms(), publish_alarm);
-
-      // Publish lên MQTT (nếu đang kết nối)
-      if (mqttClient.connected() && count > 0) {
-        publish_telemetry(&global_device_config, results, count);
-      }
-    }
-  }
+  flush_config_ack();
+  // At most one register transaction per iteration; network service continues
+  // inside the transaction through ModbusMaster's idle hook.
+  poll_modbus_step();
 
   // 4. Publish heartbeat status mỗi 30 giây
   if (is_config_valid && mqttClient.connected()) {

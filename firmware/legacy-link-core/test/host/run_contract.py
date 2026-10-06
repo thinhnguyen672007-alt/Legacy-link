@@ -44,6 +44,7 @@ def main():
             '-I', str(host / 'stubs'), '-I', str(project / 'include'), '-I', str(include),
             str(project / 'src/modbus_reader.cpp'), str(project / 'src/alarm_monitor.cpp'),
             str(project / 'src/config_parser.cpp'), str(host / 'contract_messages.cpp'),
+            str(project / 'src/config_store.cpp'),
             '-o', str(binary),
         ], check=True)
         capture = work / 'messages.jsonl'

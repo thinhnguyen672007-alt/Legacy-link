@@ -8,6 +8,7 @@
 
 TestSerial Serial;
 TestSerial Serial2;
+unsigned long test_millis = 0;
 const char *valid = R"({"deviceId":"CNC-01","registerMap":[{"key":"temperature","address":100}]})";
 
 void rejected(const std::string &json) {

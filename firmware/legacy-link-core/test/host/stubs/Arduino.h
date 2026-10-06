@@ -5,7 +5,15 @@
 #include <cstring>
 #include <string>
 #include <ctime>
+#include <vector>
 using byte = unsigned char;
+#define HIGH 1
+#define LOW 0
+#define OUTPUT 1
+inline int &gpio_output_pin() { static int pin = -1; return pin; }
+inline std::vector<int> &gpio_levels() { static std::vector<int> levels; return levels; }
+inline void pinMode(int pin, int) { gpio_output_pin() = pin; }
+inline void digitalWrite(int, int level) { gpio_levels().push_back(level); }
 extern unsigned long test_millis;
 inline unsigned long millis() { return test_millis; }
 inline void delay(unsigned long value) { test_millis += value; }
@@ -36,6 +44,7 @@ struct TestSerial {
   int available() { return cursor < input.size(); }
   int read() { return input[cursor++]; }
   void begin(uint32_t) { ++begin_count; }
+  size_t setRxBufferSize(size_t size) { return size; }
   void begin(uint32_t, uint32_t, int, int) { ++begin_count; }
   void println() {}
   void println(int) {}

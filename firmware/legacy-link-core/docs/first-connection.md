@@ -9,8 +9,8 @@ broker address, not the database address or a backend HTTP URL.
 Ask the teammate running the services for:
 
 - The broker's LAN IP address or hostname and TCP port (commonly 1883).
-- MQTT credentials and permission for device telemetry/status/alarm publishing
-  and gateway/device configuration subscriptions.
+- MQTT credentials and permission for device telemetry/status/alarm publishing,
+  gateway configuration ACK publishing and gateway/device configuration subscriptions.
 - Confirmation that the broker listens on an interface reachable from the ESP32,
   and that the LAN firewall allows the selected MQTT port.
 - Confirmation that their backend subscribes to this same broker and has its
@@ -24,12 +24,15 @@ Before wiring, identify the ESP32 board, the Modbus device or simulator, and the
 electrical interface/adapter in use. UART pins alone are not an RS-485 interface.
 The current firmware uses UART2 TX GPIO17 and RX GPIO16; adapter wiring and any
 direction-control requirements must be checked against the actual hardware.
+For a transceiver with tied active-high DE and active-low /RE, set the optional
+direction GPIO in local settings; see [firmware operation](firmware-operation.md).
 
 ## Configure and upload the gateway
 
-Set `ssid`, `password`, `mqtt_server`, `mqtt_port`, `mqtt_user`, and `mqtt_pass`
-in `src/main.cpp` locally. Do not commit real credentials. Build and upload using
-the actual port shown by PlatformIO:
+Copy `include/local_settings.example.h` to `include/local_settings.h` within the
+firmware project and set the Wi-Fi credentials, reachable broker host/port,
+broker credentials and NTP server. The local file is ignored by Git. Build and
+upload using the actual port shown by PlatformIO:
 
 ```bash
 pio device list
@@ -39,8 +42,9 @@ pio device monitor -d firmware/legacy-link-core -b 115200 --port <ESP32_PORT>
 ```
 
 The Serial log prints the gateway ID, its configuration topic, Wi-Fi connection
-and MQTT subscription. Internet access to the configured NTP servers is needed
-to establish a valid clock after boot; unsynchronized time suppresses publishing.
+and MQTT subscription. A reachable NTP server (public or local LAN) is needed
+to establish a valid clock after boot; unsynchronized time suppresses device
+telemetry, status and alarms. Valid configs are saved to flash for offline restart.
 
 ## Start with a known Modbus register map
 
@@ -79,9 +83,9 @@ mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" \
 
 ## Verify each step separately
 
-1. Serial should report `Configuration applied successfully`, then successful
-   Modbus readings with the expected scaled values. `Modbus Error` means the
-   device link must be fixed before telemetry can be sent.
+1. Serial should report `Configuration applied successfully` and
+   `[CONFIG] applied: ok; persisted=true`. Check the published readings below.
+   `Modbus Error` means the device link must be fixed before telemetry can be sent.
 2. Subscribe to the bench device from a computer that can reach the broker:
 
    ```bash
