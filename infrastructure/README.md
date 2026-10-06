@@ -79,8 +79,19 @@ infrastructure/
 ### 4. Getting Started
 Run the commands below from `infrastructure/`. For daily operations, credential updates and troubleshooting, see the [runbook](docs/runbook.md).
 
+#### The short way: one command
+To get a working stack without running each step by hand:
+```bash
+./scripts/setup.sh          # broker + database + schema
+./scripts/setup.sh --seed   # plus the demo data
+```
+It runs every step below in order, waits for the database to become ready, stops at the first failure, and prints what it did. It also handles a checkout that has no `backend/` directory: the schema step is skipped with a notice instead of failing. Use the manual steps when you want to inspect or repeat a single step.
+
 #### Prerequisites
 - Docker Engine & Docker Compose (v2.x or later).
+
+<details>
+<summary>Manual steps</summary>
 
 #### Step 1: Environment Configuration
 Copy the example environment file:
@@ -146,6 +157,8 @@ docker compose down
 
 Data in the Postgres named volume and the Mosquitto store survives `down`. Remove them only when you intend to start from scratch — see the runbook.
 
+</details>
+
 ### 5. Security & Credentials
 - **Never commit credentials**: The file `mosquitto/config/passwd` and `.env` contain sensitive secrets and are excluded via `.gitignore`.
 - Only commit `.example` files with dummy placeholder values.
@@ -206,6 +219,7 @@ infrastructure/
 │       └── .gitkeep               # Nơi lưu trữ log file (được gitignore)
 ├── scripts/
 │   ├── init-mosquitto.sh          # Tự chuẩn bị owner/group và quyền trước broker
+│   ├── setup.sh                   # Dựng toàn bộ hạ tầng bằng MỘT lệnh
 │   ├── setup-mosquitto-auth.sh    # Script tạo file mật khẩu hash bằng Docker
 │   └── test-mqtt.sh               # Script kiểm tra nhanh kết nối pub/sub
 ├── docs/
@@ -232,8 +246,19 @@ infrastructure/
 ### 4. Hướng dẫn khởi chạy
 Chạy các lệnh bên dưới từ thư mục `infrastructure/`. Xem [runbook](docs/runbook.md) để vận hành hằng ngày, cập nhật mật khẩu và xử lý sự cố.
 
+#### Cách nhanh: một lệnh
+Muốn có hạ tầng chạy được mà không phải gõ từng bước một:
+```bash
+./scripts/setup.sh          # broker + database + schema
+./scripts/setup.sh --seed   # kèm dữ liệu mẫu
+```
+Script chạy đúng thứ tự các bước bên dưới, chờ database sẵn sàng, dừng ngay tại bước đầu tiên thất bại, và in ra nó đã làm gì. Nó cũng xử lý được trường hợp checkout không có thư mục `backend/`: bước nạp schema được bỏ qua kèm thông báo, không phải báo lỗi. Khi nào muốn xem hoặc chạy lại riêng một bước thì làm theo các bước tay bên dưới.
+
 #### Yêu cầu cài đặt
 - Docker Engine & Docker Compose (v2 trở lên).
+
+<details>
+<summary>Các bước thủ công</summary>
 
 #### Bước 1: Thiết lập biến môi trường
 Sao chép file cấu hình môi trường mẫu:
