@@ -53,6 +53,7 @@ infrastructure/
 │       └── .gitkeep               # Broker runtime logs (git-ignored)
 ├── scripts/
 │   ├── init-mosquitto.sh          # One-shot ownership/permission preparation
+│   ├── setup.sh                   # Build the whole stack with one command
 │   ├── setup-mosquitto-auth.sh    # Helper script to generate hashed password file
 │   └── test-mqtt.sh               # Quick pub/sub verification script
 ├── docs/

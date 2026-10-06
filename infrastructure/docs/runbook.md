@@ -51,9 +51,13 @@ Trước khi bắt đầu, máy tính của bạn cần cài đặt:
 
 Khi vừa clone repository về máy mới, thực hiện các bước sau. Chỉ cần Docker và Compose; không cần đổi owner hay quyền file thủ công.
 
+> 🚀 **Cách nhanh nhất — một lệnh:** chạy `./scripts/setup.sh` từ thư mục `infrastructure/`. Nó tự làm hết toàn bộ các bước 2.2 → 2.5 ở dưới (copy `.env` nếu chưa có, tạo mật khẩu, bật Docker, nạp schema, test broker). Bảng bên dưới dành cho người muốn làm từng bước để hiểu, hoặc gỡ lỗi từng bước một.
+
 ```text
-[Clone Repo] ──> [cd infrastructure] ──> [cp .env.example .env] ──> [Tạo passwd] ──> [docker compose up -d] ──> [Test ping] ──> [Nạp schema DB]
+[Clone Repo] ──> [cd infrastructure] ──> [./scripts/setup.sh] ──> Xong
 ```
+
+Các bước tay, dùng khi cần kiểm soát từng bước:
 
 ### Bước 2.1: Di chuyển vào thư mục hạ tầng
 > ⚠️ **LƯU Ý QUAN TRỌNG:** Toàn bộ các lệnh Docker Compose bắt buộc phải được chạy từ bên trong thư mục `infrastructure/`.
