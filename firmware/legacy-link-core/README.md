@@ -191,6 +191,10 @@ Identical retained redelivery and invalid updates keep alarm state.
 
 ## Verification
 
+For a connected board, use the [USB smoke test and TTL wiring guide](test/hardware/README.md).
+The [2026-10-06 hardware report](docs/hardware-validation-2026-10-06.md) records
+the completed USB, Wi-Fi, MQTT configuration and Last Will checks and their limits.
+
 ```bash
 pio run -d firmware/legacy-link-core
 bash firmware/legacy-link-core/test/host/run.sh
