@@ -1,27 +1,40 @@
 // mqtt/client.js
 // Nhiem vu: tao ket noi MQTT toi broker, subscribe cac topic can thiet, va
 // dinh tuyen message nhan duoc cho dung handler.
+//
+// File nay la TANG VAN CHUYEN. No khong biet gi ve nghiep vu: khong validate,
+// khong goi database. No chi lam hai viec — tach topic de biet ai gui va gui
+// loai gi, roi chuyen cho dung handler.
 
 import mqtt from 'mqtt';
 import { config } from '../config.js';
 
-// đếm số lần parseJson và in tổng số backend nhận SIGINT
-let errorsCount = 0
+// Dem so lan parse JSON that bai, de in ra luc tat.
+let errorsCount = 0;
+
 export function getStats() {
-  return { errorsCount }
+  return { errorsCount };
 }
 
+// Bang tra: phan cuoi cua topic -> ham xu ly tuong ung.
+//
+// Dat o pham vi module vi no khong doi giua cac message. Khai bao trong ham
+// nghia la tao lai object nay moi lan co message.
+const KIND_TO_HANDLER = {
+  telemetry: 'onTelemetry',
+  status: 'onStatus',
+  alarm: 'onAlarm',
+};
 
 export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
-
+  const handlers = { onTelemetry, onStatus, onAlarm };
 
   // mqtt.connect(url, options): tham so thu nhat la URL broker,
-  // tham so thu hai la tuychon. Khong gop URL vao trong options.
+  // tham so thu hai la tuy chon. Khong gop URL vao trong options.
   const client = mqtt.connect(config.mqtt.url, {
     clientId: config.mqtt.clientId,
     username: config.mqtt.username,
     password: config.mqtt.password,
-    clean: true,
     reconnectPeriod: 5000,
     connectTimeout: 10000,
     keepalive: 30,
@@ -54,7 +67,7 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
       payload = JSON.parse(rawPayload.toString());
     } catch {
       console.error(`[MQTT] Payload khong phai JSON hop le, topic=${topic}`);
-      errorsCount++
+      errorsCount++;
       return;
     }
 
@@ -62,24 +75,41 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
       `[MQTT] Nhan topic=${topic} qos=${packet.qos} retain=${packet.retain} byte=${rawPayload.length}`,
     );
 
-    if (kind === 'telemetry') {
-      onTelemetry(deviceId, payload);
-    } else if (kind === 'status') {
-      onStatus(deviceId, payload);
-    } else if (kind === 'alarm') {
-      onAlarm(deviceId, payload);
-    } else {
+    const handlerName = KIND_TO_HANDLER[kind];
+    const handler = handlerName ? handlers[handlerName] : undefined;
+
+    if (!handler) {
       console.warn(`[MQTT] Bo qua topic khong xu ly: ${topic}`);
+      return;
     }
 
-
+    // LUOI AN TOAN — doan quan trong nhat cua file nay.
+    //
+    // Cac handler la ham async, nen chung tra ve mot Promise. Neu ben trong
+    // co loi khong duoc bat, Promise do bi TU CHOI. Va Node mac dinh coi mot
+    // Promise bi tu choi ma khong ai bat la loi nghiem trong -> THOAT tien trinh.
+    //
+    // Da tai hien thuc te: ban mot payload co `metrics.temperature` la object
+    // dac biet lam validator nem TypeError -> backend exit 1. Chi MOT message
+    // cua MOT thiet bi lam dung ca he thong.
+    //
+    // Luoi nay KHONG thay the viec sua loi goc trong validator. No chi dam bao:
+    // du mot handler co loi, cac thiet bi khac van duoc phuc vu binh thuong.
+    //
+    // Cach viet `Promise.resolve().then(...)` de bat ca hai loai loi:
+    //   - ham nem loi dong bo (throw truoc khi tra ve Promise)
+    //   - Promise bi tu choi sau do
+    Promise.resolve()
+      .then(() => handler(deviceId, payload, packet))
+      .catch((err) => {
+        console.error(`[MQTT] Handler "${kind}" loi:`, err.message);
+      });
   });
 
   client.on('reconnect', () => console.log('[MQTT] Dang thu ket noi lai...'));
   client.on('offline', () => console.warn('[MQTT] Mat ket noi toi broker'));
   client.on('close', () => console.warn('[MQTT] Ket noi da dong'));
   client.on('error', (err) => console.error('[MQTT] Loi:', err.message));
-
 
   return client;
 }

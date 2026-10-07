@@ -99,3 +99,83 @@ test('payload la mang thi bi tu choi', () => {
 
   assert.equal(result.ok, false);
 });
+
+// ---------------------------------------------------------------------------
+// TEST TAI HIEN LOI CRASH (C1)
+//
+// Tat ca payload duoi day deu la JSON HOP LE. Chi co gia tri metric la khong
+// phai so. Truoc khi sua, chung lam validateTelemetry nem TypeError va giet
+// tien trinh backend.
+//
+// Chung PHAI tra ve ok:false, KHONG duoc nem loi. Khac biet nay la song con:
+//
+//   tra ve ok:false  -> backend bo qua message, cac thiet bi khac van chay
+//   nem loi          -> backend thoat, MOI thiet bi mat ket noi
+//
+// Mot thiet bi gui sai khong duoc phep lam mat du lieu cua tat ca thiet bi.
+// ---------------------------------------------------------------------------
+
+test('metric la object dac biet thi tu choi, KHONG nem loi', () => {
+  // Object nay lam JavaScript khong the chuyen thanh chuoi: ca `toString` lan
+  // `valueOf` deu khong phai ham. Chen no vao template string se nem
+  // "TypeError: Cannot convert object to primitive value".
+  //
+  // Day chinh la payload da lam backend exit 1 trong thuc te.
+  const payload = {
+    ...validPayload(),
+    metrics: { temperature: { toString: 0, valueOf: 0 } },
+  };
+
+  const result = validateTelemetry('esp32-01', payload);
+
+  assert.equal(result.ok, false);
+});
+
+test('metric la mang thi tu choi, KHONG nem loi', () => {
+  const payload = { ...validPayload(), metrics: { temperature: [1, 2] } };
+
+  const result = validateTelemetry('esp32-01', payload);
+
+  assert.equal(result.ok, false);
+});
+
+test('metric la null thi tu choi, KHONG nem loi', () => {
+  const payload = { ...validPayload(), metrics: { temperature: null } };
+
+  const result = validateTelemetry('esp32-01', payload);
+
+  assert.equal(result.ok, false);
+});
+
+test('metric la chuoi thi tu choi, KHONG nem loi', () => {
+  const payload = { ...validPayload(), metrics: { temperature: 'nong' } };
+
+  const result = validateTelemetry('esp32-01', payload);
+
+  assert.equal(result.ok, false);
+});
+
+test('metric la Infinity hoac NaN thi tu choi', () => {
+  // JSON khong bieu dien duoc Infinity/NaN, nhung ham nay con duoc goi tu cho
+  // khac (vi du REST API sau nay). Nen phai chiu duoc truong hop do.
+  const inf = validateTelemetry('esp32-01', {
+    ...validPayload(),
+    metrics: { temperature: Infinity },
+  });
+  const nan = validateTelemetry('esp32-01', {
+    ...validPayload(),
+    metrics: { temperature: NaN },
+  });
+
+  assert.equal(inf.ok, false);
+  assert.equal(nan.ok, false);
+});
+
+test('thong bao loi chi noi KIEU, khong noi gia tri', () => {
+  const payload = { ...validPayload(), metrics: { temperature: {} } };
+
+  const result = validateTelemetry('esp32-01', payload);
+
+  // Phai noi "received type: object", khong phai "received: [object Object]".
+  assert.ok(result.errors.some((message) => message.includes('received type: object')));
+});
