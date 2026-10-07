@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Legacy-link · D1 Modbus rehearsal</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#e8eef4;background:#101920;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0 auto;padding:28px;max-width:1250px}h1{font-size:30px;margin:5px 0}h2{font-size:18px;margin:0 0 18px}
+.kicker{color:#77d9c7;font-size:12px;letter-spacing:2px}p{color:#a9b9c5;line-height:1.55}.scope{border-left:3px solid #eac06c;padding:12px 18px;background:#24251e;font-size:14px}
+.path{padding:20px 0;color:#77d9c7;display:flex;gap:14px;flex-wrap:wrap;font-size:15px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.panel{background:#192730;border:1px solid #30434f;border-radius:12px;padding:22px}.value{font-size:40px;font-variant-numeric:tabular-nums}.unit{font-size:18px;color:#90a9b8}
+.label{font-size:13px;color:#a9b9c5}.row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}button,input,select{font:inherit;padding:10px 12px;border:1px solid #415865;border-radius:7px;background:#223640;color:#e8eef4}
+button{cursor:pointer}button:hover{border-color:#77d9c7;background:#2e4854}button:disabled{opacity:.4}button.hot{border-color:#d8a15f}button.critical{border-color:#e47a7a}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}input{width:100px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;color:#a9c1d0;margin:10px 0}
+.event{padding:12px 0;border-top:1px solid #30434f}.event b{font-size:12px;color:#77d9c7}.event.alarm b,.error{color:#ff9b8e}.events{max-height:390px;overflow:auto}.badge{font-size:12px;padding:5px 9px;background:#273d46;border-radius:5px}
+canvas{width:100%;height:155px;display:block}.small{font-size:12px}#feedback{min-height:20px;color:#77d9c7}footer{padding:24px 0;color:#90a9b8;font-size:12px}
+@media(max-width:760px){body{padding:16px}.grid,.row{grid-template-columns:1fr}}
+</style>
+<header>
+<div class="kicker">LEGACY-LINK / DENSO FACTORY HACKS · D1</div>
+<h1>Connect the legacy machine</h1>
+<p>Read named metrics from Modbus registers, send them to a server, and adapt the machine map through configuration.</p>
+<div class="scope">SOFTWARE REHEARSAL · PLC and ESP32 hardware are simulated on Linux. Modbus RTU frames, firmware C++ logic and MQTT traffic run live. This page is a demo receiver, separate from the team's production dashboard and PostgreSQL.</div>
+</header>
+<div class="path"><span>01 · Virtual Modbus slave</span><span>→</span><span>02 · Host firmware gateway</span><span>→</span><span>03 · MQTT</span><span>→</span><span>04 · Validated server receipt</span></div>
+<div class="grid">
+<div class="panel"><div class="label">TEMPERATURE / INT16 × 0.1</div><div class="value"><span id="temperature">—</span> <span class="unit">°C</span></div></div>
+<div class="panel"><div class="label">CURRENT / UINT16 × 0.01</div><div class="value"><span id="current">—</span> <span class="unit">A</span></div></div>
+<div class="panel"><div class="label">SPINDLE SPEED / UINT16 × 1</div><div class="value"><span id="rpm">—</span> <span class="unit">rpm</span></div></div>
+</div>
+<div class="row">
+<section class="panel"><h2>Operate the simulated machine</h2>
+<div class="controls"><button data-temp="25">Normal · 25°C</button><button class="hot" data-temp="95">Overheat · 95°C</button><button class="critical" data-temp="105">Critical · 105°C</button><button data-temp="86">Cool down · 86°C</button><button data-temp="-18">Signed value · −18°C</button></div>
+<div class="controls"><label>Temperature <input id="raw-temperature" type="number" min="-100" max="200" step="0.1" value="25"></label><button id="set-temperature">Apply</button></div>
+<p class="small">Demo limits: high above 90°C, critical above 100°C. High rearms at or below 87°C. These are illustrative limits, not machine-approved thresholds.</p>
+<div class="controls"><button id="slave-toggle">Disconnect Modbus source</button><span class="badge" id="slave-state">Slave 1 · RTU · 9600 8N1</span></div>
+<p class="small">Disconnecting the source stops new readings after the scan completes. The gateway may stay online; connection status does not prove fresh machine data.</p>
+</section>
+<section class="panel"><h2>Configure another machine map</h2>
+<div class="controls"><label>Temperature address <select id="address"><option value="0">0 · demo PLC A</option><option value="49">49 · demo PLC B</option></select></label><label>Scan interval <select id="interval"><option value="1000">1 second</option><option value="2000">2 seconds</option></select></label></div>
+<button id="configure">Send configuration through MQTT</button>
+<p class="small">This moves the simulated PLC temperature register and sends a new gateway config. Firmware applies the register map without recompiling. Address 49 is raw protocol address (Modicon label 40050).</p>
+<div id="feedback"></div><pre id="ack">Waiting for firmware ACK…</pre>
+<p class="small">The host Preferences adapter stores config in memory. “persisted” in this rehearsal does not prove ESP32 flash persistence.</p>
+</section>
+</div>
+<div class="row">
+<section class="panel"><h2>Temperature received at server</h2><canvas id="chart" width="600" height="155"></canvas><p id="freshness" class="small">Waiting for server receipt…</p><div id="stats" class="small"></div><p id="gateway" class="small"></p></section>
+<section class="panel"><h2>Live Modbus frames</h2><p class="small">Requests and responses cross the Linux serial pair. Bytes include the RTU CRC.</p><pre id="frames">Waiting for frames…</pre></section>
+</div>
+<section class="panel" style="margin-top:16px"><h2>Server events · newest first</h2><div id="events" class="events"></div></section>
+<footer>D1 · Low-Cost Connectivity for Non-IPC Legacy Equipment. Use the physical ESP32 acceptance report separately; this rehearsal does not establish hardware cost savings, field deployment time, Wi-Fi reliability or database insertion.</footer>
+<script>
+const $=id=>document.getElementById(id);
+let state={},history=[],lastTimestamp=0;
+async function command(body){
+ try{const response=await fetch('/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await response.json();if(!response.ok)throw Error(result.error);$('feedback').textContent='Command sent. Wait for the next sample or configuration ACK.';}
+ catch(error){$('feedback').textContent=error.message;}
+}
+document.querySelectorAll('[data-temp]').forEach(button=>button.onclick=()=>{const value=Number(button.dataset.temp);$('raw-temperature').value=value;command({action:'temperature',value});});
+$('set-temperature').onclick=()=>command({action:'temperature',value:Number($('raw-temperature').value)});
+$('slave-toggle').onclick=()=>command({action:'slave',online:!state.slaveOnline});
+$('configure').onclick=()=>command({action:'config',address:Number($('address').value),interval:Number($('interval').value)});
+function draw(){
+ const canvas=$('chart'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);ctx.strokeStyle='#344853';ctx.lineWidth=1;
+ for(let t=-20;t<=120;t+=20){const y=h-12-(t+20)/140*(h-24);ctx.beginPath();ctx.moveTo(34,y);ctx.lineTo(w,y);ctx.stroke();ctx.fillStyle='#8ca4b4';ctx.font='10px system-ui';ctx.fillText(t,0,y+4);}
+ ctx.strokeStyle='#77d9c7';ctx.lineWidth=2;ctx.beginPath();history.forEach((v,i)=>{const x=34+i/Math.max(history.length-1,1)*(w-40),y=h-12-(v+20)/140*(h-24);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();
+}
+async function refresh(){
+ try{
+ state=await(await fetch('/state')).json();const m=state.metrics;
+ ['temperature','current','rpm'].forEach(key=>$(key).textContent=Number.isFinite(m[key])?m[key].toFixed(key==='rpm'?0:2):'—');
+ if(state.receivedAt!==lastTimestamp&&Number.isFinite(m.temperature)){history.push(m.temperature);if(history.length>100)history.shift();lastTimestamp=state.receivedAt;draw();}
+ const age=state.receivedAt?(Date.now()-state.receivedAt)/1000:null;
+ $('freshness').textContent=age===null?'Waiting for server receipt…':`Last telemetry received ${age.toFixed(1)} seconds ago${age>5?' · STALE':''}`;
+ $('freshness').className=age>5?'small error':'small';
+ $('slave-toggle').textContent=state.slaveOnline?'Disconnect Modbus source':'Reconnect Modbus source';
+ $('slave-state').textContent=`Slave ${state.slaveOnline?'responding':'disconnected'} · temperature address ${state.address}`;
+ $('stats').textContent=`${state.counts.requests} RTU requests · ${state.counts.crcErrors} CRC errors · ${state.counts.exceptions} exceptions · ${state.counts.telemetry} accepted telemetry · ${state.counts.alarms} alarms · ${state.counts.rejected} rejected messages`;
+ $('gateway').textContent=`Host gateway process: ${state.gatewayAlive?'running':'stopped'} · MQTT status: ${state.status===null?'waiting':state.status?'online':'offline'}`;
+ $('ack').textContent=state.ack?JSON.stringify(state.ack,null,2):'Waiting for firmware ACK…';
+ $('frames').textContent=state.frames.slice(0,5).map(frame=>`Address ${frame.address}\nTX ${frame.request}\nRX ${frame.response}`).join('\n\n');
+ $('events').replaceChildren(...state.events.filter(e=>e.kind!=='status'||e.payload.status===false).slice(0,20).map(event=>{const div=document.createElement('div');div.className='event '+event.kind;const title=document.createElement('b');title.textContent=`${new Date(event.receivedAt).toLocaleTimeString()} · ${event.kind.toUpperCase()}`;const pre=document.createElement('pre');pre.textContent=JSON.stringify(event.payload);div.append(title,pre);return div;}));
+ }catch(error){$('feedback').textContent='Demo server unavailable: '+error.message;}
+}
+refresh();setInterval(refresh,700);
+</script>
+</html>

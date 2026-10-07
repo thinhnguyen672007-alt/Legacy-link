@@ -1,5 +1,9 @@
 # ESP32 gateway firmware
 
+Without a connected ESP32, run the [Linux D1 software rehearsal](demo/linux/README.md).
+It sends real Modbus RTU frames through a virtual serial pair, runs firmware C++
+logic on the host, and displays validated MQTT receipts on a local demo server.
+
 For a Windows hackathon demonstration with Witte Modbus Slave and the physical
 ESP32, follow the [Modbus demo guide](docs/hackathon-modbus-demo.md). It includes
 ready-to-publish alarm and alternate-register-map profiles, a Windows MQTT setup,

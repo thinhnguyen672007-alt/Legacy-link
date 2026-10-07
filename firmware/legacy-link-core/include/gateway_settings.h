@@ -1,7 +1,7 @@
 #pragma once
 
 // Optional, gitignored site settings. See local_settings.example.h.
-#if __has_include("local_settings.h")
+#if !defined(LEGACYLINK_HOST_BUILD) && __has_include("local_settings.h")
 #include "local_settings.h"
 #endif
 #ifndef LEGACYLINK_WIFI_SSID
