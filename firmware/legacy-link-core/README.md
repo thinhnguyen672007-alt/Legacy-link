@@ -1,5 +1,10 @@
 # ESP32 gateway firmware
 
+For a Windows hackathon demonstration with Witte Modbus Slave and the physical
+ESP32, follow the [Modbus demo guide](docs/hackathon-modbus-demo.md). It includes
+ready-to-publish alarm and alternate-register-map profiles, a Windows MQTT setup,
+presentation steps, and the evidence needed for the DENSO D1 deliverables.
+
 See [firmware operation](docs/firmware-operation.md) for local network settings,
 flash recovery, configuration acknowledgements, polling timing and RS-485 direction.
 
