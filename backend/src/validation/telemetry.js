@@ -71,7 +71,23 @@ export function validateTelemetry(topicDeviceId, payload) {
       }
 
       if (!Number.isFinite(payload.metrics[name])) {
-        errors.push(`metrics.${name} must be a finite number, received: ${payload.metrics[name]}`);
+        // KHONG noi suy GIA TRI vao thong bao loi.
+        //
+        // O day ta da biet gia tri KHONG phai so huu han. No co the la object,
+        // chuoi, null, hay mang. Chen mot object vao template string se goi
+        // ham toString() cua no — va mot object duoc che tao nhu
+        //   { "toString": 0, "valueOf": 0 }
+        // se lam JavaScript nem TypeError: Cannot convert object to primitive value.
+        //
+        // Loi do nem ra TU TRONG validator, khong biet try/catch nao bat, va lam
+        // tien trinh thoat. Da tai hien thuc te.
+        //
+        // Thay vao do chi noi KIEU du lieu. `typeof` luon tra ve mot chuoi, nen
+        // khong bao gio nem loi. Va no van du thong tin de debug: biet duoc
+        // thiet bi gui object thay vi so la du.
+        errors.push(
+          `metrics.${name} must be a finite number, received type: ${typeof payload.metrics[name]}`,
+        );
       }
     }
   }

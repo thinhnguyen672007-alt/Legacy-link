@@ -92,3 +92,36 @@ test('payload la mang thi bi tu choi', () => {
 
   assert.equal(result.ok, false);
 });
+
+// ---------------------------------------------------------------------------
+// TEST TAI HIEN LOI CRASH (C1) — cung loai voi telemetry
+//
+// Gia tri `value` khong phai so thi phai bi tu choi bang ok:false, KHONG duoc
+// lam nem loi. Xem giai thich day du trong telemetry.test.js.
+// ---------------------------------------------------------------------------
+
+test('value la object dac biet thi tu choi, KHONG nem loi', () => {
+  const payload = { ...validPayload(), value: { toString: 0, valueOf: 0 } };
+
+  const result = validateAlarm('esp32-01', payload);
+
+  assert.equal(result.ok, false);
+});
+
+test('value la mang thi tu choi, KHONG nem loi', () => {
+  const payload = { ...validPayload(), value: [1, 2] };
+
+  const result = validateAlarm('esp32-01', payload);
+
+  assert.equal(result.ok, false);
+});
+
+test('value la null thi duoc chap nhan, vi null dong nghia "khong co"', () => {
+  // Khac voi telemetry: o alarm, `value` la truong TUY CHON. null nghia la
+  // "khong gui gia tri", chu khong phai "gui gia tri sai".
+  const payload = { ...validPayload(), value: null };
+
+  const result = validateAlarm('esp32-01', payload);
+
+  assert.equal(result.ok, true);
+});

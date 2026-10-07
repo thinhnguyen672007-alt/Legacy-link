@@ -58,9 +58,22 @@ export function validateAlarm(topicDeviceId, payload) {
   }
 
   // value la TUY CHON: gia tri do da kich hoat alarm (nhiet do, dong dien...).
-  // Co thi phai la so huu han, khong co thi bo qua.
-  if (payload.value !== undefined && !Number.isFinite(payload.value)) {
-    errors.push(`value must be a finite number when present, received: ${payload.value}`);
+  //
+  // "Khong co gia tri" co the den bang HAI cach, va ca hai phai duoc chap nhan
+  // nhu nhau:
+  //   - thieu han truong trong JSON      -> undefined
+  //   - gui null                          -> null
+  //
+  // Cach thu hai rat de xay ra: nhieu bo tao JSON xuat ra `"value": null` khi
+  // khong co gia tri. Neu chi kiem tra `!== undefined` thi moi alarm khong kem
+  // gia tri se bi tu choi — va nguoi phat hien se la nguoi viet firmware, qua
+  // mot thong bao loi chi hien o phia backend.
+  //
+  // KHONG noi suy gia tri vao thong bao loi — xem giai thich trong telemetry.js.
+  const hasValue = payload.value !== undefined && payload.value !== null;
+
+  if (hasValue && !Number.isFinite(payload.value)) {
+    errors.push(`value must be a finite number when present, received type: ${typeof payload.value}`);
   }
 
   if (errors.length > 0) {
