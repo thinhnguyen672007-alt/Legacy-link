@@ -33,3 +33,10 @@ infrastructure/mosquitto/data/data
 infrastructure/mosquitto/log/mosquitto.log
 infrastructure/mosquitto/config/passwd
 
+
+# Local design review artifacts
+.impeccable/review/
+.impeccable/cache/
+.impeccable/live/
+.impeccable/mocks/
+.impeccable/config.local.json

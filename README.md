@@ -8,12 +8,12 @@ without reflashing the gateway.
 ```text
 Modbus RTU machine / OpenModSim
     -> ESP32 -> Wi-Fi / MQTT -> Node.js backend -> PostgreSQL -> HTTP API
-                                                                    -> frontend (planned)
+                                                                    -> React frontend
 ```
 
 **Status:** firmware, backend and infrastructure are implemented. Physical
-OpenModSim -> ESP32 -> MQTT telemetry and alarms have been tested. Frontend code
-is not yet included; database/API/frontend acceptance and real CNC/RS-485 checks
+OpenModSim -> ESP32 -> MQTT telemetry and alarms have been tested. A React frontend
+is available; live database/API/frontend acceptance and real CNC/RS-485 checks
 remain to be completed. See the [hardware reports](#validation).
 
 ## Components
@@ -21,6 +21,7 @@ remain to be completed. See the [hardware reports](#validation).
 | Path | Contents |
 | --- | --- |
 | [`firmware/legacy-link-core/`](firmware/legacy-link-core/README.md) | PlatformIO ESP32 firmware, configuration examples, host and hardware tests |
+| [`frontend/`](frontend/README.md) | React + TypeScript dashboard, register inspection and configurable backend connection |
 | [`backend/`](backend/) | MQTT consumer, payload validation, PostgreSQL storage and HTTP API |
 | [`infrastructure/`](infrastructure/README.md) | Mosquitto and PostgreSQL Docker Compose services, setup scripts and runbook |
 | [`tests/`](tests/) | Placeholder for cross-component tests |
@@ -115,6 +116,20 @@ Follow [first connection](firmware/legacy-link-core/docs/first-connection.md) fo
 provisioning and [the OpenModSim demo](firmware/legacy-link-core/docs/hackathon-modbus-demo.md)
 for wiring, register values and the alarm demonstration.
 
+### 4. Open the dashboard
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Open http://127.0.0.1:5173 and enter the backend HTTP address in **Connection**.
+The dashboard reads `/machines` and `/catalog`, with explicit offline/error states.
+**Sample** is an opt-in interface preview, never a fallback for failed live data.
+Alarm/history/configuration publishing screens await backend APIs. See the
+[frontend guide](frontend/README.md) for setup, testing and integration boundaries.
+
 ## MQTT and configuration contract
 
 Device topics use `legacy-link/devices/{deviceId}/`:
@@ -167,7 +182,7 @@ Physical evidence:
 - [October 8](firmware/legacy-link-core/docs/hardware-validation-2026-10-08.md):
   OpenModSim telemetry, high/critical alarms, repeat suppression and rearming.
 
-Next milestones: verify database/API delivery, integrate the team's frontend,
+Next milestones: verify live database/API/frontend delivery, expose the remaining APIs,
 and validate the target machine's register map and industrial RS-485 connection.
 
 ## License
