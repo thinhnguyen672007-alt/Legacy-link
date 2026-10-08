@@ -16,11 +16,15 @@
 // chung chia se trang thai, vi hai tien trinh khong chia se bo nho.
 
 import http from 'node:http';
+import { startControlService } from '../control/client.js';
+import { createHttpHandler } from './handler.js';
+const controls = startControlService();
 
 import { closePool } from '../db/pool.js';
 import { getCatalog } from '../db/catalog.js';
 import { listMachines } from '../db/machines.js';
 import { getConfigRequest } from '../db/config-request.js';
+import { listServiceRuns } from '../db/service-run.js';
 import { applyConfig } from '../service/apply-config.js';
 import { startPublisher } from '../mqtt/publisher.js';
 
@@ -160,6 +164,36 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // Lich su cac lan backend chay — de biet KHOANG NAO du lieu bi thieu.
+    //
+    // VI SAO CAN endpoint nay:
+    // Khi backend khong chay, telemetry mat vinh vien. Dashboard ve duong lien
+    // mach va nguoi van hanh tin vao mot bieu do thieu du lieu — do la thong
+    // tin SAI, te hon la khong co thong tin.
+    //
+    // Endpoint nay cho frontend biet phai ve vach "khong co du lieu" o dau.
+    if (url.pathname === '/uptime') {
+      const runs = await listServiceRuns(20);
+      const current = runs.find((run) => !run.stoppedCleanly) ?? null;
+
+      sendJson(res, 200, {
+        currentRunStartedAt: current?.startedAt ?? null,
+        uptimeSeconds: current
+          ? Math.round((Date.now() - new Date(current.startedAt).getTime()) / 1000)
+          : null,
+        runs,
+        note:
+          'Khi backend khong chay, telemetry gui toi bi mat vinh vien: firmware publish o ' +
+          'QoS 0 (broker khong xep hang cho nguoi nghe vang mat) va backend subscribe voi ' +
+          'clean:true nen khong co session cu de nhan lai. ' +
+          'Lan chay co stoppedCleanly=false la lan backend tat dot ngot: du lieu trong ' +
+          'khoang do chac chan da mat, NHUNG khong biet chinh xac bat dau tu luc nao — ' +
+          'nen ve vach trong tu startedAt cua lan do den startedAt cua lan ke tiep. ' +
+          'gapBeforeSeconds = null chinh la y nghia "khong biet", khong phai loi.',
+      });
+      return;
+    }
+
     // ---------------------------------------------------------------------
     // Duong dan CO THAM SO — khac han cac endpoint o tren.
     //
@@ -227,6 +261,8 @@ server.listen(3000, () => {
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     console.log(`\n[HTTP] Nhan ${signal}, dang dung...`);
+    controls.close();
+    publisher.end();
     server.close(async () => {
       await closePool();
       console.log('[HTTP] Da dong server va connection pool.');

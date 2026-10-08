@@ -32,6 +32,7 @@ const ROUTES = {
   'devices/telemetry': 'onTelemetry',
   'devices/status': 'onStatus',
   'devices/alarm': 'onAlarm',
+  'devices/diagnostics': 'onDiagnostics',
   'gateways/config/ack': 'onConfigAck',
 };
 
@@ -54,8 +55,8 @@ function parseTopic(topic) {
   };
 }
 
-export function startMqttClient({ onTelemetry, onStatus, onAlarm, onConfigAck }) {
-  const handlers = { onTelemetry, onStatus, onAlarm, onConfigAck };
+export function startMqttClient({ onTelemetry, onStatus, onAlarm, onConfigAck, onDiagnostics }) {
+  const handlers = { onTelemetry, onStatus, onAlarm, onConfigAck, onDiagnostics };
 
   // mqtt.connect(url, options): tham so thu nhat la URL broker,
   // tham so thu hai la tuy chon. Khong gop URL vao trong options.

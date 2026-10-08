@@ -1,0 +1,47 @@
+{
+  "deviceId": "BENCH-01",
+  "deviceName": "Hackathon legacy PLC simulator",
+  "protocol": "MODBUS_RTU",
+  "baudRate": 9600,
+  "parity": "NONE",
+  "stopBits": 1,
+  "slaveId": 1,
+  "samplingIntervalMs": 2000,
+  "registerMap": [
+    {
+      "key": "temperature",
+      "address": 1,
+      "functionCode": 3,
+      "dataType": "INT16",
+      "scale": 0.1,
+      "unit": "C",
+      "wordOrder": "HIGH_FIRST",
+      "alarm": {
+        "threshold": 90,
+        "hysteresis": 3,
+        "code": "OVERHEAT",
+        "severity": "high",
+        "criticalThreshold": 100
+      }
+    },
+    {
+      "key": "current",
+      "address": 2,
+      "functionCode": 3,
+      "dataType": "UINT16",
+      "scale": 0.01,
+      "unit": "A",
+      "wordOrder": "HIGH_FIRST"
+    },
+    {
+      "key": "rpm",
+      "address": 3,
+      "functionCode": 3,
+      "dataType": "UINT16",
+      "scale": 1,
+      "unit": "rpm",
+      "wordOrder": "HIGH_FIRST"
+    }
+  ],
+  "requestId": "bench-demo-a"
+}
