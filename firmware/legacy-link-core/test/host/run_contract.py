@@ -40,6 +40,7 @@ def main():
         binary = work / 'messages'
         subprocess.run([
             os.environ.get('CXX', 'c++'), '-std=c++11', '-Wall', '-Wextra', '-Werror',
+            '-DLEGACYLINK_HOST_BUILD',
             '-fsanitize=address,undefined', '-fno-omit-frame-pointer',
             '-I', str(host / 'stubs'), '-I', str(project / 'include'), '-I', str(include),
             str(project / 'src/modbus_reader.cpp'), str(project / 'src/alarm_monitor.cpp'),

@@ -24,7 +24,7 @@ Cách dùng nhanh nhất của cẩm nang này: **đọc cột "Bạn thấy gì
 | `relation "telemetry" does not exist` | Chưa nạp schema | Mục 9, Lỗi 8 |
 | Sửa `POSTGRES_*` trong `.env` mà không có gì thay đổi | Biến chỉ đọc lúc volume còn trống | Mục 9, Lỗi 9 |
 
-### ⚠️ Lỗi nguy hiểm nhất: mất database mà không có gì báo đỏ
+### Lỗi nguy hiểm nhất: mất database mà không có gì báo đỏ
 
 Nếu bạn thấy trong log của backend dòng lặp lại mãi:
 ```text
@@ -51,7 +51,7 @@ Trước khi bắt đầu, máy tính của bạn cần cài đặt:
 
 Khi vừa clone repository về máy mới, thực hiện các bước sau. Chỉ cần Docker và Compose; không cần đổi owner hay quyền file thủ công.
 
-> 🚀 **Cách nhanh nhất — một lệnh:** chạy `./scripts/setup.sh` từ thư mục `infrastructure/`. Nó tự làm hết toàn bộ các bước 2.2 → 2.5 ở dưới (copy `.env` nếu chưa có, tạo mật khẩu, bật Docker, nạp schema, test broker). Bảng bên dưới dành cho người muốn làm từng bước để hiểu, hoặc gỡ lỗi từng bước một.
+> **Cách nhanh nhất — một lệnh:** chạy `./scripts/setup.sh` từ thư mục `infrastructure/`. Nó tự làm hết toàn bộ các bước 2.2 đến 2.5 ở dưới (copy `.env` nếu chưa có, tạo mật khẩu, bật Docker, nạp schema, test broker). Bảng bên dưới dành cho người muốn làm từng bước để hiểu, hoặc gỡ lỗi từng bước một.
 
 ```text
 [Clone Repo] ──> [cd infrastructure] ──> [./scripts/setup.sh] ──> Xong
@@ -60,7 +60,7 @@ Khi vừa clone repository về máy mới, thực hiện các bước sau. Ch�
 Các bước tay, dùng khi cần kiểm soát từng bước:
 
 ### Bước 2.1: Di chuyển vào thư mục hạ tầng
-> ⚠️ **LƯU Ý QUAN TRỌNG:** Toàn bộ các lệnh Docker Compose bắt buộc phải được chạy từ bên trong thư mục `infrastructure/`.
+> **LƯU Ý QUAN TRỌNG:** Toàn bộ các lệnh Docker Compose bắt buộc phải được chạy từ bên trong thư mục `infrastructure/`.
 
 ```bash
 cd infrastructure
@@ -156,7 +156,7 @@ docker compose down
 * **Đặc điểm:** Tắt container, **xóa bỏ container và xóa mạng ảo**. 
 * **Dữ liệu có bị mất không?** **KHÔNG!** Dữ liệu tin nhắn (`mosquitto/data/mosquitto.db`), cấu hình (`mosquitto.conf`) và mật khẩu (`passwd`) đều nằm an toàn trên máy thật của bạn. Database Postgres cũng nằm trong named volume `postgres-data` nên **không** bị `down` xóa.
 
-> ⚠️ **Ngoại lệ duy nhất:** `docker compose down -v` (có thêm cờ `-v`) sẽ **xoá cả named volume**, tức là mất toàn bộ dữ liệu database. Không thêm `-v` trừ khi bạn thật sự muốn bắt đầu lại từ đầu — xem Mục 9, Lỗi 7.
+> **Ngoại lệ duy nhất:** `docker compose down -v` (có thêm cờ `-v`) sẽ **xoá cả named volume**, tức là mất toàn bộ dữ liệu database. Không thêm `-v` trừ khi bạn thật sự muốn bắt đầu lại từ đầu — xem Mục 9, Lỗi 7.
 
 ---
 
@@ -259,7 +259,7 @@ Log Docker/lazydocker giữ lịch sử qua các lần restart. Cảnh báo cũ 
    Warning: File /mosquitto/config/passwd has world readable permissions...
    Warning: File /mosquitto/config/passwd owner is not mosquitto...
    ```
-   > 💡 **Giải thích:** Phiên bản hiện tại vẫn chạy nhưng phiên bản sau có thể từ chối file. Compose đã có `mosquitto-init` tự đặt owner/group theo user Mosquitto trong image và quyền `600` trước khi broker chạy. Nếu đang dùng container tạo bằng cấu hình cũ, chạy `docker compose up -d mosquitto` để áp dụng. Cảnh báo cũ vẫn nằm trong lịch sử log; kiểm tra log của lần khởi động mới.
+   > **Giải thích:** Phiên bản hiện tại vẫn chạy nhưng phiên bản sau có thể từ chối file. Compose đã có `mosquitto-init` tự đặt owner/group theo user Mosquitto trong image và quyền `600` trước khi broker chạy. Nếu đang dùng container tạo bằng cấu hình cũ, chạy `docker compose up -d mosquitto` để áp dụng. Cảnh báo cũ vẫn nằm trong lịch sử log; kiểm tra log của lần khởi động mới.
 
 ---
 
@@ -274,7 +274,7 @@ Log Docker/lazydocker giữ lịch sử qua các lần restart. Cảnh báo cũ 
 
 Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệnh `ip a` hoặc `hostname -I`).
 
-> 💡 **Vì sao dùng `legacy-link/test/` chứ không phải `legacy-link/devices/`?**
+> **Vì sao dùng `legacy-link/test/` chứ không phải `legacy-link/devices/`?**
 > Bài test này kiểm tra broker có truyền tin hay không, KHÔNG kiểm tra backend. Topic
 > `legacy-link/devices/+/telemetry` đang được backend subscribe, nên gửi vào đó sẽ
 > bị backend nhận rồi từ chối payload (thiếu `schemaVersion`, `metrics`), và bạn sẽ
@@ -301,7 +301,7 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
 
 ## 9. Sổ tay các lỗi thực tế thường gặp & Cách khắc phục (Troubleshooting)
 
-### 🔴 Lỗi 1: `no configuration file provided: not found`
+### Lỗi 1: `no configuration file provided: not found`
 * **Hiện tượng:** Gõ `docker compose ps` hoặc `docker compose up` thì bị báo lỗi này.
 * **Nguyên nhân:** Bạn đang đứng ở thư mục gốc của project (nơi không có file `docker-compose.yml`).
 * **Cách sửa:** Gõ lệnh chuyển vào đúng thư mục:
@@ -311,7 +311,7 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
 
 ---
 
-### 🔴 Lỗi 2: `Unable to open pwfile "/mosquitto/config/passwd"` & Container tự tắt
+### Lỗi 2: `Unable to open pwfile "/mosquitto/config/passwd"` & Container tự tắt
 * **Hiện tượng:** Broker không khởi động, log có `Unable to open pwfile`, `mosquitto-init` báo `Missing or empty passwd file`, hoặc Compose báo nguồn bind mount `passwd` không tồn tại.
 * **Nguyên nhân:**
   1. Chưa tạo file `passwd`.
@@ -325,7 +325,7 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
 
 ---
 
-### 🔴 Lỗi 3: `service "mosquitto" refers to undefined network ...`
+### Lỗi 3: `service "mosquitto" refers to undefined network ...`
 * **Hiện tượng:** Không thể `up` hoặc `down`, Compose báo lỗi mạng chưa định nghĩa.
 * **Nguyên nhân:** Thiếu 1 trong 2 tầng khai báo Network trong `docker-compose.yml`.
 * **Cách sửa:** Đảm bảo trong `docker-compose.yml` có đủ cả 2 vế:
@@ -343,7 +343,7 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
 
 ---
 
-### 🔴 Lỗi 4: Xung đột cổng 1883 (`bind: address already in use`)
+### Lỗi 4: Xung đột cổng 1883 (`bind: address already in use`)
 * **Hiện tượng:** Báo lỗi cổng 1883 đã bị chiếm dụng khi `docker compose up`.
 * **Nguyên nhân:** Trên máy bạn đang có dịch vụ Mosquitto cài trực tiếp trên OS (Native) hoặc một container khác đang chạy chiếm cổng 1883.
 * **Cách sửa:**
@@ -360,7 +360,7 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
 
 ---
 
-### 🔴 Lỗi 5: Subscriber không nhận được tin nhắn dù không báo lỗi gì
+### Lỗi 5: Subscriber không nhận được tin nhắn dù không báo lỗi gì
 * **Hiện tượng:** Publisher gửi thành công nhưng Subscriber im lìm.
 * **Nguyên nhân:** **Lệch ký tự trong tên Topic** (Ví dụ bên gửi gõ `.../tmp` nhưng bên nhận lại subscribe `.../temp`). Ký tự MQTT phân biệt chính xác từng chữ hoa/thường.
 * **Cách sửa:**
@@ -370,14 +370,14 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
 
 ---
 
-### 🔴 Lỗi 6: `Invalid container name (...)`
+### Lỗi 6: `Invalid container name (...)`
 * **Hiện tượng:** `docker compose up` báo lỗi cú pháp tên container.
 * **Nguyên nhân:** Đặt biến `MQTT_CONTAINER_NAME` trong `.env` có dấu tiếng Việt (ví dụ `Bố_Huy_Sigma`) hoặc ký tự lạ ngoài `[a-zA-Z0-9_.-]`.
 * **Cách sửa:** Mở file `.env` sửa lại tên tiếng Anh không dấu (ví dụ: `legacy-link-mosquitto` hoặc `huy-sigma-container`).
 
 ---
 
-### 🔴 Lỗi 7: Postgres bị `unhealthy` hoặc không kết nối được
+### Lỗi 7: Postgres bị `unhealthy` hoặc không kết nối được
 * **Hiện tượng:** `docker compose ps` hiện `Up ... (unhealthy)`, hoặc backend báo lỗi `ECONNREFUSED 127.0.0.1:5432`.
 * **Nguyên nhân thường gặp:**
   1. Bạn vừa `up -d` và backend khởi động ngay lập tức, chưa đợi Postgres sẵn sàng.
@@ -398,7 +398,7 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
 
 ---
 
-### 🔴 Lỗi 8: Bảng trong database không có (`relation "telemetry" does not exist`)
+### Lỗi 8: Bảng trong database không có (`relation "telemetry" does not exist`)
 * **Hiện tượng:** Backend báo lỗi SQL như `relation "telemetry" does not exist`, hoặc `psql -c '\dt'` không thấy bảng nào.
 * **Nguyên nhân:** Container Postgres tạo database rỗng, chưa nạp schema.
 * **Cách sửa:** Nạp schema rồi khởi động lại backend:
@@ -408,7 +408,7 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
 
 ---
 
-### 🔴 Lỗi 9: Đổi `POSTGRES_USER`/`POSTGRES_PASS`/`POSTGRES_DB` trong `.env` nhưng không có gì thay đổi
+### Lỗi 9: Đổi `POSTGRES_USER`/`POSTGRES_PASS`/`POSTGRES_DB` trong `.env` nhưng không có gì thay đổi
 * **Hiện tượng:** Sửa user hoặc mật khẩu trong `.env`, `docker compose up -d` lại, nhưng đăng nhập bằng giá trị mới vẫn thất bại / giá trị cũ vẫn dùng được.
 * **Nguyên nhân:** Ba biến `POSTGRES_*` **chỉ được đọc một lần duy nhất**, lúc volume còn trống. Volume đã có dữ liệu thì Postgres bỏ qua chúng hoàn toàn. Đây là hành vi cố ý để không lỡ tay đổi mật khẩu làm hỏng dữ liệu đang có.
 * **Cách sửa:** Chỉ khi bạn thật sự muốn xóa sạch và làm lại từ đầu:
@@ -417,11 +417,11 @@ Giả sử IP máy tính chạy Broker là `192.168.1.5` (kiểm tra bằng lệ
   docker compose up -d
   docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
   ```
-  > ⚠️ **Cảnh báo:** `down -v` **xoá toàn bộ dữ liệu telemetry, trạng thái máy và alarm**. Chỉ dùng ở máy cá nhân khi thử nghiệm.
+  > **Cảnh báo:** `down -v` **xoá toàn bộ dữ liệu telemetry, trạng thái máy và alarm**. Chỉ dùng ở máy cá nhân khi thử nghiệm.
 
 ---
 
-### 🔴 Lỗi 10: Không ghi được file log hoặc `mosquitto-init` thất bại
+### Lỗi 10: Không ghi được file log hoặc `mosquitto-init` thất bại
 
 Xem lỗi của bước chuẩn bị quyền:
 
