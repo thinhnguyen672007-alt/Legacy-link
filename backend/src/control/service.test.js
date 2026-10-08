@@ -85,3 +85,15 @@ test('validates bounds, unsupported metrics, duplicated keys and malformed hardw
   assert.throws(() => validateConfig({...config,registerMap:[config.registerMap[0],config.registerMap[0]]}));
   assert.throws(() => validateReadings([{key:'temperature',address:0,success:true,errorCode:0,sampledAt:Date.now(),rawValue:0,value:0,rawWords:[-1]}],valid));
 });
+test('preserves critical escalation in the exact probe/apply command', async t => {
+  const r = rig(t); await r.state();
+  const alarm = {threshold:90,criticalThreshold:100,hysteresis:3,code:'OVERHEAT',severity:'high'};
+  const candidate = {...config,registerMap:[{...config.registerMap[0],alarm}]};
+  const probe = r.service.start(gatewayId,'probe',{config:candidate});
+  assert.deepEqual(r.sent[0].payload.registerMap[0].alarm,alarm);
+  await r.result(probe.id);
+  r.service.start(gatewayId,'apply',{config:candidate,probeRequestId:probe.id});
+  assert.deepEqual(r.sent.at(-1).payload.registerMap[0].alarm,alarm);
+  for (const patch of [{criticalThreshold:90},{criticalThreshold:NaN},{severity:'medium'}])
+    assert.throws(()=>validateConfig({...candidate,registerMap:[{...candidate.registerMap[0],alarm:{...alarm,...patch}}]}),/critical/);
+});
