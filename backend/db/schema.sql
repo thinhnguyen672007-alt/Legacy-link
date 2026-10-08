@@ -238,3 +238,10 @@ CREATE TABLE IF NOT EXISTS config_request (
 CREATE UNIQUE INDEX IF NOT EXISTS config_request_one_pending_per_gateway
   ON config_request (gateway_id)
   WHERE status = 'pending';
+-- Commissioning and measurement freshness. Status heartbeats never modify these clocks.
+
+ALTER TABLE machine_state ADD COLUMN IF NOT EXISTS diagnostics jsonb;
+ALTER TABLE machine_state ADD COLUMN IF NOT EXISTS diagnostics_at bigint;
+ALTER TABLE device ADD COLUMN IF NOT EXISTS applied_config jsonb;
+ALTER TABLE device ADD COLUMN IF NOT EXISTS gateway_id text;
+ALTER TABLE device ADD COLUMN IF NOT EXISTS config_request_id text;

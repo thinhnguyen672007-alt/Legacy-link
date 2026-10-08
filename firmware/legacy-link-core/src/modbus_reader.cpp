@@ -12,7 +12,7 @@ static void end_transmission() { digitalWrite(LEGACYLINK_RS485_DE_RE_PIN, LOW); 
 
 void modbus_set_idle_callback(void (*callback)()) { node.idle(callback); }
 
-static uint8_t read_metric(const register_config_t &reg, double &value) {
+static uint8_t read_metric(const register_config_t &reg, double &value, modbus_result_t *out = nullptr) {
   const bool wide = strcmp(reg.data_type, "UINT32") == 0;
   const uint16_t words = wide ? 2 : 1;
   uint8_t result = reg.function_code == 3
@@ -20,15 +20,19 @@ static uint8_t read_metric(const register_config_t &reg, double &value) {
       : node.readInputRegisters(reg.address, words);
   if (result != node.ku8MBSuccess) return result;
   const uint16_t first = node.getResponseBuffer(0);
+  if (out) { out->raw_words[0] = first; out->word_count = words; }
   if (wide) {
     const uint16_t second = node.getResponseBuffer(1);
     const uint32_t raw = reg.low_word_first
         ? (static_cast<uint32_t>(second) << 16) | first
         : (static_cast<uint32_t>(first) << 16) | second;
+    if (out) { out->raw_words[1] = second; out->raw_value = raw; }
     value = static_cast<double>(raw) * reg.scale;
   } else {
-    value = (strcmp(reg.data_type, "INT16") == 0
-        ? static_cast<double>(static_cast<int16_t>(first)) : first) * reg.scale;
+    const double raw = strcmp(reg.data_type, "INT16") == 0
+        ? static_cast<double>(static_cast<int16_t>(first)) : first;
+    if (out) out->raw_value = raw;
+    value = raw * reg.scale;
   }
   return result;
 }
@@ -51,7 +55,9 @@ bool modbus_read_one(const device_config_t *cfg, uint8_t index, modbus_result_t 
   strlcpy(out->key, reg.key, sizeof(out->key));
   if (reg.function_code != 3 && reg.function_code != 4) return false;
   node.begin(cfg->slave_id, Serial2);
-  const uint8_t status = read_metric(reg, out->scaled_value);
+  const uint8_t status = read_metric(reg, out->scaled_value, out);
+  out->error_code = status;
+  out->completed_at_ms = millis();
   out->success = status == node.ku8MBSuccess;
   if (!out->success) {
     out->scaled_value = 0;

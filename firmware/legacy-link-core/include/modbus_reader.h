@@ -9,6 +9,11 @@ typedef struct {
     char     key[MAX_REG_KEY_LEN];
     double   scaled_value;
     bool     success;
+    double   raw_value;
+    uint16_t raw_words[2];
+    uint8_t  word_count;
+    uint8_t  error_code;
+    uint32_t completed_at_ms;
 } modbus_result_t;
 
 void modbus_init(uint8_t slave_id);

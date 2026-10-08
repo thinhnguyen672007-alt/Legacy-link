@@ -144,6 +144,20 @@ invalid updates preserve the active configuration. Start with the
 [backend alignment](firmware/legacy-link-core/docs/backend-alignment.md) or
 [firmware operation](firmware/legacy-link-core/docs/firmware-operation.md) for details.
 
+## Quick machine commissioning API
+
+The backend and firmware support adding a machine through a test-read before apply:
+`GET /gateways`, `POST /gateways/{id}/probe`, `POST /gateways/{id}/apply`, and
+`GET /operations/{requestId}`. Probe results expose raw and converted values;
+apply requires a recent successful probe of the exact configuration and tracks
+received, applied, flash-saved and restored-after-restart evidence separately.
+
+`/machines` also exposes per-register diagnostics and `lastMeasurementAt` so the
+team frontend can distinguish gateway contact from fresh machine measurements.
+Run the updated schema, firmware, consumer and `npm run start:http`; see the
+[API contract and curl demo](docs/commissioning-demo.md). This contribution does
+not include a frontend. Physical commissioning acceptance remains pending.
+
 ## Validation
 
 After building firmware to install its dependencies, run from the repository root:
@@ -157,7 +171,7 @@ python3 firmware/legacy-link-core/test/host/run_contract.py --backend-ref origin
 Fetch `origin/main` before the contract check. Host tests use address/undefined
 behavior sanitizers; in environments where LeakSanitizer cannot run, set
 `ASAN_OPTIONS=detect_leaks=0`. [GitHub Actions](.github/workflows/build.yml) builds
-ESP32 firmware, runs nine host test executables and checks generated MQTT payloads
+ESP32 firmware, runs ten host test executables and checks generated MQTT payloads
 against backend validators for pushes/PRs to `main` and `dev`.
 
 Physical evidence:
