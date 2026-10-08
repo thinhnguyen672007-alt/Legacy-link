@@ -234,6 +234,7 @@ services:
       MQTT_USERNAME: ${MQTT_DEV_USER:-legacy_admin}
       MQTT_PASSWORD: ${MQTT_DEV_PASS:-legacy_secret_2026}
       MQTT_CLIENT_ID: legacy-link-backend
+      MQTT_QOS: ${MQTT_QOS:-2}
       DATABASE_URL: postgres://${POSTGRES_USER:-legacy_admin}:${POSTGRES_PASS:-change_me}@postgres:5432/${POSTGRES_DB:-legacy_link}
     networks:
       - legacy-link-net
