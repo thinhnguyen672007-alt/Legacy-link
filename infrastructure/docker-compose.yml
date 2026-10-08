@@ -61,6 +61,9 @@ services:
     environment:
       MQTT_USERNAME: ${MQTT_DEV_USER:-legacy_admin}
       MQTT_PASSWORD: ${MQTT_DEV_PASS:-legacy_secret_2026}
+    # Publish QoS1 có xác thực chứng minh broker xử lý được tin, không chỉ process còn sống.
+    # Dùng timeout bên ngoài vì mosquitto_pub trong image đã thử không hỗ trợ -W.
+    # $$ giữ biến cho shell trong container; $ đơn có thể bị Compose nội suy ở máy host.
     healthcheck:
       test: ["CMD-SHELL", 'timeout 4 mosquitto_pub -h 127.0.0.1 -u "$$MQTT_USERNAME" -P "$$MQTT_PASSWORD" -t legacy-link/test/broker-health -m ready -q 1']
       interval: 10s
@@ -228,12 +231,14 @@ services:
   backend-consumer:
     build: ../backend
     container_name: ${CONSUMER_CONTAINER_NAME:-legacy-link-consumer}
+    # Wrapper infra giám sát readiness, sau đó chạy đúng entrypoint consumer của backend.
     command: ["node", "/app/infra-run.cjs", "consumer"]
     restart: unless-stopped
     profiles: ["full"]
     volumes:
       - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z
       - type: bind
+        # Mount script kiểm tra từ infra; không đưa code kiểm tra vào source backend.
         source: ./scripts/check-backend.cjs
         target: /app/infra-check.cjs
         read_only: true
@@ -263,6 +268,8 @@ services:
     networks:
       - legacy-link-net
 
+  # API là tiến trình Node riêng; thiếu service này thì consumer nhận tin nhưng HTTP không chạy.
+  # Không publish cổng API trực tiếp ra host để request ghi luôn đi qua gateway có token.
   backend-api:
     build: ../backend
     container_name: ${API_CONTAINER_NAME:-legacy-link-api}
@@ -294,6 +301,8 @@ services:
     networks:
       - legacy-link-net
 
+  # Gateway là cửa vào từ trình duyệt. API có thể đang lỗi dependency nhưng process đã bật,
+  # nên chỉ đợi service_started để vẫn truy cập được live/ready và thấy lỗi thực tế.
   api-gateway:
     image: nginx:1.28-alpine
     profiles: ["full"]
@@ -303,11 +312,14 @@ services:
         condition: service_started
     environment:
       API_WRITE_TOKEN: ${API_WRITE_TOKEN:-}
+      # Chỉ thay biến token trong template; giữ nguyên các biến $request_method/$api của Nginx.
       NGINX_ENVSUBST_FILTER: API_WRITE_TOKEN
     volumes:
       - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro,z
       - ./nginx/05-token-check.sh:/docker-entrypoint.d/05-token-check.sh:ro,z
     ports:
+      # Cổng bên ngoài có thể đổi mà Node vẫn nghe 3000 trong mạng Docker.
+      # IP bind do .env quyết định; PostgreSQL vẫn chỉ publish trên loopback.
       - "${HTTP_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-3000}:80"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/health/ready"]
