@@ -114,14 +114,14 @@ The script reads credentials from `.env` and also supports updating existing acc
 docker compose up -d
 ```
 Compose runs `mosquitto-init` before the broker to set password, data and log ownership using the image's Mosquitto UID/GID. No manual `chown` or `chmod` is needed. The helper exits successfully after preparation; an `Exited (0)` status for it is expected. Credentials still need to be generated in Step 2. File logs remain at `mosquitto/log/mosquitto.log` (read with `sudo tail -f mosquitto/log/mosquitto.log` on Linux).
-> 💡 `docker compose` reads `docker-compose.yml` from this directory and brings up every service in it. The `-d` (detached) flag runs them in the background so your terminal stays usable. Without `-d` the terminal is held until you press `Ctrl+C`.
+> `docker compose` reads `docker-compose.yml` from this directory and brings up every service in it. The `-d` (detached) flag runs them in the background so your terminal stays usable. Without `-d` the terminal is held until you press `Ctrl+C`.
 
 #### Step 4: Verify Status and Logs
 ```bash
 docker compose ps -a
 docker compose logs -f mosquitto
 ```
-> 💡 `docker compose ps` is the fastest way to answer "is everything alive?". Read the `STATUS` column:
+> `docker compose ps` is the fastest way to answer "is everything alive?". Read the `STATUS` column:
 > - Mosquitto showing `Up ...` is enough — the broker has no health check of its own.
 > - `mosquitto-init` showing `Exited (0)` means preparation completed successfully.
 > - Postgres must show **`Up ... (healthy)`**. The word `healthy` appears only after a few seconds, because the database needs time to initialise before it accepts queries.
@@ -142,7 +142,7 @@ docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend
 ```
 The credentials above must match `DATABASE_URL` in `backend/.env`. If you changed `POSTGRES_USER`, `POSTGRES_PASS`, or `POSTGRES_DB` in `.env`, update `DATABASE_URL` to match.
 
-> 💡 **Reading the command**: `docker compose exec` runs a command inside the running container. `-T` disables pseudo-terminal allocation, which is what lets `<` redirection from the host work. `psql -U <user> -d <database>` are the username and database name, matching `POSTGRES_USER` and `POSTGRES_DB` in `.env`. `\dt` is a psql built-in that lists all tables.
+> **Reading the command**: `docker compose exec` runs a command inside the running container. `-T` disables pseudo-terminal allocation, which is what lets `<` redirection from the host work. `psql -U <user> -d <database>` are the username and database name, matching `POSTGRES_USER` and `POSTGRES_DB` in `.env`. `\dt` is a psql built-in that lists all tables.
 
 Verify the tables exist:
 ```bash
@@ -154,7 +154,7 @@ You should see six rows: `telemetry`, `machine_state`, `alarms`, `device`, `regi
 ```bash
 docker compose down
 ```
-> 💡 `down` removes the containers and the virtual network, but **not** the named volumes. Postgres data and the Mosquitto message store both survive. On the next `up -d` everything comes back with its data intact.
+> `down` removes the containers and the virtual network, but **not** the named volumes. Postgres data and the Mosquitto message store both survive. On the next `up -d` everything comes back with its data intact.
 
 Data in the Postgres named volume and the Mosquitto store survives `down`. Remove them only when you intend to start from scratch — see the runbook.
 
@@ -280,14 +280,14 @@ Script đọc tài khoản từ `.env`, băm mật khẩu và tự đặt owner/
 docker compose up -d
 ```
 Compose chạy `mosquitto-init` trước broker để tự đặt owner/group và quyền cho mật khẩu, data và log theo UID/GID Mosquitto trong image. Không cần chạy `chown`/`chmod` thủ công. Container khởi tạo kết thúc với `Exited (0)` là bình thường. Vẫn cần tạo mật khẩu ở Bước 2. Log riêng nằm tại `mosquitto/log/mosquitto.log` (trên Linux xem bằng `sudo tail -f mosquitto/log/mosquitto.log`).
-> 💡 `docker compose` đọc file `docker-compose.yml` ngay cửa sổ này và dựng mọi service trong đó lên. Cờ `-d` (detached) nghĩa là chạy nền, terminal trả lại quyền điều khiển ngay. Bỏ `-d` thì terminal bị chiếm cho tới khi bấm `Ctrl+C`.
+> `docker compose` đọc file `docker-compose.yml` ngay cửa sổ này và dựng mọi service trong đó lên. Cờ `-d` (detached) nghĩa là chạy nền, terminal trả lại quyền điều khiển ngay. Bỏ `-d` thì terminal bị chiếm cho tới khi bấm `Ctrl+C`.
 
 #### Bước 4: Kiểm tra trạng thái và log
 ```bash
 docker compose ps -a
 docker compose logs -f mosquitto
 ```
-> 💡 `docker compose ps` là cách nhanh nhất xem "mọi thứ có sống không". Nhìn cột `STATUS`:
+> `docker compose ps` là cách nhanh nhất xem "mọi thứ có sống không". Nhìn cột `STATUS`:
 > - Mosquitto hiện `Up ...` là được — broker không cần kiểm tra sức khoẻ riêng.
 > - `mosquitto-init` hiện `Exited (0)` nghĩa là đã chuẩn bị quyền xong, không phải lỗi.
 > - Postgres phải hiện **`Up ... (healthy)`**. Chữ `healthy` mới xuất hiện sau vài giây, vì database cần thời gian tạo nội dung trước khi nhận truy vấn.
@@ -308,7 +308,7 @@ docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend
 ```
 Tài khoản trong lệnh phải khớp với `DATABASE_URL` trong `backend/.env`. Nếu bạn đã đổi `POSTGRES_USER`, `POSTGRES_PASS` hoặc `POSTGRES_DB` trong `.env` thì sửa `DATABASE_URL` cho khớp.
 
-> 💡 **Đọc câu lệnh**: `docker compose exec` chạy một lệnh bên trong container đang chạy. `-T` tắt cấp pseudo-terminal, nhờ đó mới dùng được chuyển hướng `<` từ máy host. `psql -U <user> -d <database>` là tên tài khoản và tên database, khớp với `POSTGRES_USER` và `POSTGRES_DB` trong `.env`. `\dt` là lệnh sẵn có của psql, dùng để liệt kê toàn bộ bảng.
+> **Đọc câu lệnh**: `docker compose exec` chạy một lệnh bên trong container đang chạy. `-T` tắt cấp pseudo-terminal, nhờ đó mới dùng được chuyển hướng `<` từ máy host. `psql -U <user> -d <database>` là tên tài khoản và tên database, khớp với `POSTGRES_USER` và `POSTGRES_DB` trong `.env`. `\dt` là lệnh sẵn có của psql, dùng để liệt kê toàn bộ bảng.
 
 Kiểm tra các bảng đã tạo:
 ```bash
@@ -320,7 +320,7 @@ Bạn sẽ thấy 6 dòng: `telemetry`, `machine_state`, `alarms`, `device`, `re
 ```bash
 docker compose down
 ```
-> 💡 `down` xoá container và mạng ảo, nhưng **không** xoá named volume. Dữ liệu Postgres và kho tin Mosquitto đều còn nguyên. Chạy lại `up -d` là mọi thứ quay lại kèm dữ liệu cũ.
+> `down` xoá container và mạng ảo, nhưng **không** xoá named volume. Dữ liệu Postgres và kho tin Mosquitto đều còn nguyên. Chạy lại `up -d` là mọi thứ quay lại kèm dữ liệu cũ.
 
 Dữ liệu trong named volume của Postgres và kho lưu Mosquitto vẫn còn sau `down`. Chỉ xóa chúng khi bạn có ý định bắt đầu lại từ đầu — xem runbook.
 
