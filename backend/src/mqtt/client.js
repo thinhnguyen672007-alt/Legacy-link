@@ -16,18 +16,46 @@ export function getStats() {
   return { errorsCount };
 }
 
-// Bang tra: phan cuoi cua topic -> ham xu ly tuong ung.
+// Bang dinh tuyen: "<ho topic>/<loai message>" -> ten handler.
 //
-// Dat o pham vi module vi no khong doi giua cac message. Khai bao trong ham
-// nghia la tao lai object nay moi lan co message.
-const KIND_TO_HANDLER = {
-  telemetry: 'onTelemetry',
-  status: 'onStatus',
-  alarm: 'onAlarm',
+// CO HAI HO TOPIC, khac nhau o tu thu hai:
+//
+//   legacy-link/devices/{deviceId}/{kind}       <- firmware bao cao ve MAY
+//   legacy-link/gateways/{gatewayId}/config/ack <- firmware bao cao ve CHINH NO
+//
+// Nen khong the chi lay parts[3] lam kind nhu truoc. Phai lay CA ho lan loai.
+//
+// Vi du:
+//   legacy-link/devices/esp32-01/telemetry        -> ho "devices",  loai "telemetry"
+//   legacy-link/gateways/ABC123/config/ack        -> ho "gateways", loai "config/ack"
+const ROUTES = {
+  'devices/telemetry': 'onTelemetry',
+  'devices/status': 'onStatus',
+  'devices/alarm': 'onAlarm',
+  'gateways/config/ack': 'onConfigAck',
 };
 
-export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
-  const handlers = { onTelemetry, onStatus, onAlarm };
+// Tach topic thanh ba phan.
+//
+// Tra ve null neu topic khong du 3 tang — vi du "legacy-link/abc" — de ben goi
+// bo qua thay vi doc parts[3] cua mot mang ngan (se ra undefined roi di tiep
+// trong im lang).
+function parseTopic(topic) {
+  const parts = topic.split('/');
+
+  if (parts.length < 4) {
+    return null;
+  }
+
+  return {
+    family: parts[1], // 'devices' hoac 'gateways'
+    id: parts[2], // deviceId hoac gatewayId
+    kind: parts.slice(3).join('/'), // 'telemetry' | 'config/ack' | ...
+  };
+}
+
+export function startMqttClient({ onTelemetry, onStatus, onAlarm, onConfigAck }) {
+  const handlers = { onTelemetry, onStatus, onAlarm, onConfigAck };
 
   // mqtt.connect(url, options): tham so thu nhat la URL broker,
   // tham so thu hai la tuy chon. Khong gop URL vao trong options.
@@ -44,7 +72,7 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
     console.log(`[MQTT] Da ket noi: ${config.mqtt.url}`);
 
     // Subscribe TRONG su kien 'connect': luc nay ket noi moi that su san sang.
-    const topics = [config.topics.telemetry, config.topics.status, config.topics.alarm];
+    const topics = Object.values(config.topics);
 
     client.subscribe(topics, { qos: config.mqtt.qos }, (err, granted) => {
       if (err) {
@@ -56,11 +84,12 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
   });
 
   client.on('message', (topic, rawPayload, packet) => {
-    // Topic dang: legacy-link/devices/{deviceId}/{kind}
-    // -> part 0: 'legacy-link', 1: 'devices', 2: deviceId, 3: kind
-    const parts = topic.split('/');
-    const deviceId = parts[2];
-    const kind = parts[3];
+    const parsed = parseTopic(topic);
+
+    if (parsed === null) {
+      console.warn(`[MQTT] Topic khong dung dinh dang, bo qua: ${topic}`);
+      return;
+    }
 
     let payload;
     try {
@@ -75,7 +104,7 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
       `[MQTT] Nhan topic=${topic} qos=${packet.qos} retain=${packet.retain} byte=${rawPayload.length}`,
     );
 
-    const handlerName = KIND_TO_HANDLER[kind];
+    const handlerName = ROUTES[`${parsed.family}/${parsed.kind}`];
     const handler = handlerName ? handlers[handlerName] : undefined;
 
     if (!handler) {
@@ -95,20 +124,17 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm }) {
     //
     // Luoi nay KHONG thay the viec sua loi goc trong validator. No chi dam bao:
     // du mot handler co loi, cac thiet bi khac van duoc phuc vu binh thuong.
-    //
-    // Cach viet `Promise.resolve().then(...)` de bat ca hai loai loi:
-    //   - ham nem loi dong bo (throw truoc khi tra ve Promise)
-    //   - Promise bi tu choi sau do
+    // Tham so thu nhat la deviceId (ho devices) hoac gatewayId (ho gateways).
     Promise.resolve()
-      .then(() => handler(deviceId, payload, packet))
+      .then(() => handler(parsed.id, payload, packet))
       .catch((err) => {
-        console.error(`[MQTT] Handler "${kind}" loi:`, err.message);
+        console.error(`[MQTT] Handler "${handlerName}" loi:`, err.message);
       });
   });
 
   client.on('reconnect', () => console.log('[MQTT] Dang thu ket noi lai...'));
   client.on('offline', () => console.warn('[MQTT] Mat ket noi toi broker'));
-  client.on('close', () => console.warn('[MQTT] Ket noi da dong'));
+  client.on('close', () => console.log('[MQTT] Ket noi da dong'));
   client.on('error', (err) => console.error('[MQTT] Loi:', err.message));
 
   return client;

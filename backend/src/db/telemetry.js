@@ -65,11 +65,12 @@ export async function saveTelemetry({ deviceId, timestamp, metrics }) {
     // COALESCE(x, 0) doi NULL thanh 0. Moi timestamp that deu lon hon 0, nen
     // message dau tien luon duoc chap nhan.
     await client.query(
-      `INSERT INTO machine_state (device_id, last_metrics, last_telemetry_ts, last_seen_at, updated_at)
-       VALUES ($1, $2, $3, now(), now())
+      `INSERT INTO machine_state (device_id, last_metrics, last_telemetry_ts, last_telemetry_at, last_seen_at, updated_at)
+       VALUES ($1, $2, $3, now(), now(), now())
        ON CONFLICT (device_id) DO UPDATE
          SET last_metrics      = EXCLUDED.last_metrics,
              last_telemetry_ts = EXCLUDED.last_telemetry_ts,
+             last_telemetry_at = EXCLUDED.last_telemetry_at,
              last_seen_at      = EXCLUDED.last_seen_at,
              updated_at        = EXCLUDED.updated_at
          WHERE EXCLUDED.last_telemetry_ts > COALESCE(machine_state.last_telemetry_ts, 0)`,

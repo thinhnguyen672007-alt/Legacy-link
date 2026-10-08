@@ -136,3 +136,37 @@ export async function getCatalog(deviceId) {
 
   return catalog;
 }
+
+// Lay moi thu can thiet de GUI cau hinh xuong mot thiet bi:
+//   - config    = JSON gui cho ESP32
+//   - gatewayId = de biet cho ACK o topic nao
+//
+// VI SAO CAN CA HAI:
+// config di XUONG o topic theo deviceId, nhung ACK di LEN o topic theo gatewayId.
+// Thieu gatewayId thi gui duoc ma khong bao gio biet ket qua.
+//
+// Tra ve null neu khong biet thiet bi. Nem loi neu thiet bi co nhung chua gan
+// gateway — do la du lieu thieu, khong phai "khong tim thay".
+export async function getConfigTarget(deviceId) {
+  const config = await getCatalog(deviceId);
+
+  if (config === null) {
+    return null;
+  }
+
+  const result = await pool.query(
+    'SELECT gateway_id FROM device WHERE device_id = $1',
+    [deviceId],
+  );
+
+  const gatewayId = result.rows[0].gateway_id;
+
+  if (!gatewayId) {
+    throw new Error(
+      `Thiet bi "${deviceId}" chua co gateway_id trong bang device. ` +
+        `Khong biet cho ACK o topic nao, nen khong the gui cau hinh.`,
+    );
+  }
+
+  return { config, gatewayId };
+}

@@ -80,6 +80,15 @@ CREATE TABLE IF NOT EXISTS device (
   created_at           timestamptz NOT NULL DEFAULT now()
 );
 
+-- gateway_id = dinh danh phan cung cua ESP32 (vi du MAC hoac chip ID).
+--
+-- VI SAO CAN: config di XUONG o topic theo deviceId, nhung ACK di LEN o topic
+-- theo gatewayId. Backend can biet ca hai moi gui va nhan duoc.
+--
+-- Ly do ACK dung gatewayId: luc moi khoi dong, ESP32 chua duoc cau hinh nen no
+-- CHUA BIET deviceId cua minh. Nhung no luon biet gatewayId.
+ALTER TABLE device ADD COLUMN IF NOT EXISTS gateway_id text;
+
 -- Cac dong duoi day danh cho database DA TON TAI tu truoc, khi bang device
 -- chua co sau cot cau hinh. Tren database moi tao thi chung khong lam gi.
 -- Nho vay file nay chay lai bao nhieu lan cung duoc.
@@ -176,3 +185,56 @@ ALTER TABLE register_override ADD COLUMN IF NOT EXISTS alarm_code       text;
 ALTER TABLE register_override ADD COLUMN IF NOT EXISTS alarm_critical   double precision;
 ALTER TABLE register_override ADD COLUMN IF NOT EXISTS alarm_hysteresis double precision;
 ALTER TABLE register_override ADD COLUMN IF NOT EXISTS alarm_severity   text;
+
+-- ---------------------------------------------------------------------------
+-- Yeu cau gui cau hinh xuong thiet bi.
+--
+-- VI SAO PHAI LUU TRONG DATABASE, KHONG DUOC LUU TRONG RAM:
+--
+-- Hai tien trinh HTTP va MQTT chay RIENG BIET nhau:
+--   - Tien trinh HTTP TAO yeu cau (khi frontend bam "Ap dung")
+--   - Tien trinh MQTT NHAN ACK (vi no dang giu ket noi toi broker)
+--
+-- Hai tien trinh KHONG chia se bo nho. Bien trong RAM cua tien trinh nay khong
+-- ton tai voi tien trinh kia. Nen trang thai BAT BUOC phai di qua database.
+--
+-- Day khong phai chuyen "thich luu tru" — ma la rang buoc cua kien truc.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS config_request (
+  request_id text        PRIMARY KEY,
+
+  -- Topic di xuong theo device, ACK di len theo gateway. Can ca hai.
+  device_id  text        NOT NULL,
+  gateway_id text        NOT NULL,
+
+  -- pending  = da gui, dang cho ACK
+  -- applied  = ESP32 bao da ap dung
+  -- unchanged= ESP32 bao cau hinh giong het cai dang chay, khong can doi
+  -- rejected = ESP32 tu choi
+  -- timeout  = qua han ma khong nghe gi. CHUA BIET ket qua — xem ghi chu duoi.
+  status     text        NOT NULL DEFAULT 'pending',
+
+  -- Noi dung da gui. Luu lai de co the gui lai y nguyen khi retry, va de biet
+  -- chinh xac minh da gui cai gi.
+  payload    jsonb       NOT NULL,
+
+  -- Thong tin lay tu ACK. Tat ca deu co the NULL vi ACK co the thieu truong.
+  result     text,
+  reason     text,
+  persisted  boolean,
+
+  sent_at    timestamptz NOT NULL DEFAULT now(),
+  ack_at     timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- MOI GATEWAY CHI MOT YEU CAU DANG CHO.
+--
+-- Day la partial unique index: no chi ap dung cho cac dong co status='pending'.
+-- Cac dong da xong (applied/rejected/timeout) khong bi rang buoc.
+--
+-- Nho vay database TU CHAN viec gui hai cau hinh cung luc cho mot thiet bi —
+-- khong can kiem tra trong code, va khong so race condition.
+CREATE UNIQUE INDEX IF NOT EXISTS config_request_one_pending_per_gateway
+  ON config_request (gateway_id)
+  WHERE status = 'pending';
