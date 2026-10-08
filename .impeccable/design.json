@@ -1,0 +1,626 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-08T08:10:05.075624Z",
+  "title": "Design System: Legacy-link",
+  "extensions": {
+    "colorMeta": {
+      "blue": {
+        "role": "primary",
+        "displayName": "Blue",
+        "tonalRamp": [
+          "oklch(15.00% 0.20269 264.02)",
+          "oklch(26.43% 0.20269 264.02)",
+          "oklch(37.86% 0.20269 264.02)",
+          "oklch(49.29% 0.20269 264.02)",
+          "oklch(60.71% 0.20269 264.02)",
+          "oklch(72.14% 0.20269 264.02)",
+          "oklch(83.57% 0.20269 264.02)",
+          "oklch(95.00% 0.20269 264.02)"
+        ]
+      },
+      "blue-soft": {
+        "role": "primary",
+        "displayName": "Blue Soft",
+        "tonalRamp": [
+          "oklch(15.00% 0.01824 269.09)",
+          "oklch(26.43% 0.01824 269.09)",
+          "oklch(37.86% 0.01824 269.09)",
+          "oklch(49.29% 0.01824 269.09)",
+          "oklch(60.71% 0.01824 269.09)",
+          "oklch(72.14% 0.01824 269.09)",
+          "oklch(83.57% 0.01824 269.09)",
+          "oklch(95.00% 0.01824 269.09)"
+        ]
+      },
+      "blue-hover": {
+        "role": "primary",
+        "displayName": "Blue Hover",
+        "tonalRamp": [
+          "oklch(15.00% 0.18664 263.94)",
+          "oklch(26.43% 0.18664 263.94)",
+          "oklch(37.86% 0.18664 263.94)",
+          "oklch(49.29% 0.18664 263.94)",
+          "oklch(60.71% 0.18664 263.94)",
+          "oklch(72.14% 0.18664 263.94)",
+          "oklch(83.57% 0.18664 263.94)",
+          "oklch(95.00% 0.18664 263.94)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "tonalRamp": [
+          "oklch(15.00% 0.00000 89.88)",
+          "oklch(26.43% 0.00000 89.88)",
+          "oklch(37.86% 0.00000 89.88)",
+          "oklch(49.29% 0.00000 89.88)",
+          "oklch(60.71% 0.00000 89.88)",
+          "oklch(72.14% 0.00000 89.88)",
+          "oklch(83.57% 0.00000 89.88)",
+          "oklch(95.00% 0.00000 89.88)"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Ground",
+        "tonalRamp": [
+          "oklch(15.00% 0.00287 264.54)",
+          "oklch(26.43% 0.00287 264.54)",
+          "oklch(37.86% 0.00287 264.54)",
+          "oklch(49.29% 0.00287 264.54)",
+          "oklch(60.71% 0.00287 264.54)",
+          "oklch(72.14% 0.00287 264.54)",
+          "oklch(83.57% 0.00287 264.54)",
+          "oklch(95.00% 0.00287 264.54)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.03753 261.12)",
+          "oklch(26.43% 0.03753 261.12)",
+          "oklch(37.86% 0.03753 261.12)",
+          "oklch(49.29% 0.03753 261.12)",
+          "oklch(60.71% 0.03753 261.12)",
+          "oklch(72.14% 0.03753 261.12)",
+          "oklch(83.57% 0.03753 261.12)",
+          "oklch(95.00% 0.03753 261.12)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "tonalRamp": [
+          "oklch(15.00% 0.03567 257.27)",
+          "oklch(26.43% 0.03567 257.27)",
+          "oklch(37.86% 0.03567 257.27)",
+          "oklch(49.29% 0.03567 257.27)",
+          "oklch(60.71% 0.03567 257.27)",
+          "oklch(72.14% 0.03567 257.27)",
+          "oklch(83.57% 0.03567 257.27)",
+          "oklch(95.00% 0.03567 257.27)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Line",
+        "tonalRamp": [
+          "oklch(15.00% 0.01041 261.79)",
+          "oklch(26.43% 0.01041 261.79)",
+          "oklch(37.86% 0.01041 261.79)",
+          "oklch(49.29% 0.01041 261.79)",
+          "oklch(60.71% 0.01041 261.79)",
+          "oklch(72.14% 0.01041 261.79)",
+          "oklch(83.57% 0.01041 261.79)",
+          "oklch(95.00% 0.01041 261.79)"
+        ]
+      },
+      "green": {
+        "displayName": "Green",
+        "tonalRamp": [
+          "oklch(15.00% 0.10267 162.19)",
+          "oklch(26.43% 0.10267 162.19)",
+          "oklch(37.86% 0.10267 162.19)",
+          "oklch(49.29% 0.10267 162.19)",
+          "oklch(60.71% 0.10267 162.19)",
+          "oklch(72.14% 0.10267 162.19)",
+          "oklch(83.57% 0.10267 162.19)",
+          "oklch(95.00% 0.10267 162.19)"
+        ]
+      },
+      "amber": {
+        "displayName": "Amber",
+        "tonalRamp": [
+          "oklch(15.00% 0.10710 60.80)",
+          "oklch(26.43% 0.10710 60.80)",
+          "oklch(37.86% 0.10710 60.80)",
+          "oklch(49.29% 0.10710 60.80)",
+          "oklch(60.71% 0.10710 60.80)",
+          "oklch(72.14% 0.10710 60.80)",
+          "oklch(83.57% 0.10710 60.80)",
+          "oklch(95.00% 0.10710 60.80)"
+        ]
+      },
+      "red": {
+        "displayName": "Red",
+        "tonalRamp": [
+          "oklch(15.00% 0.15942 24.61)",
+          "oklch(26.43% 0.15942 24.61)",
+          "oklch(37.86% 0.15942 24.61)",
+          "oklch(49.29% 0.15942 24.61)",
+          "oklch(60.71% 0.15942 24.61)",
+          "oklch(72.14% 0.15942 24.61)",
+          "oklch(83.57% 0.15942 24.61)",
+          "oklch(95.00% 0.15942 24.61)"
+        ]
+      },
+      "focus": {
+        "role": "neutral",
+        "displayName": "Focus",
+        "tonalRamp": [
+          "oklch(15.00% 0.13676 267.37)",
+          "oklch(26.43% 0.13676 267.37)",
+          "oklch(37.86% 0.13676 267.37)",
+          "oklch(49.29% 0.13676 267.37)",
+          "oklch(60.71% 0.13676 267.37)",
+          "oklch(72.14% 0.13676 267.37)",
+          "oklch(83.57% 0.13676 267.37)",
+          "oklch(95.00% 0.13676 267.37)"
+        ]
+      },
+      "button-border": {
+        "role": "neutral",
+        "displayName": "Button Border",
+        "tonalRamp": [
+          "oklch(15.00% 0.01516 260.73)",
+          "oklch(26.43% 0.01516 260.73)",
+          "oklch(37.86% 0.01516 260.73)",
+          "oklch(49.29% 0.01516 260.73)",
+          "oklch(60.71% 0.01516 260.73)",
+          "oklch(72.14% 0.01516 260.73)",
+          "oklch(83.57% 0.01516 260.73)",
+          "oklch(95.00% 0.01516 260.73)"
+        ]
+      },
+      "button-hover": {
+        "role": "neutral",
+        "displayName": "Button Hover",
+        "tonalRamp": [
+          "oklch(15.00% 0.00742 260.73)",
+          "oklch(26.43% 0.00742 260.73)",
+          "oklch(37.86% 0.00742 260.73)",
+          "oklch(49.29% 0.00742 260.73)",
+          "oklch(60.71% 0.00742 260.73)",
+          "oklch(72.14% 0.00742 260.73)",
+          "oklch(83.57% 0.00742 260.73)",
+          "oklch(95.00% 0.00742 260.73)"
+        ]
+      },
+      "field": {
+        "role": "neutral",
+        "displayName": "Field",
+        "tonalRamp": [
+          "oklch(15.00% 0.00132 286.38)",
+          "oklch(26.43% 0.00132 286.38)",
+          "oklch(37.86% 0.00132 286.38)",
+          "oklch(49.29% 0.00132 286.38)",
+          "oklch(60.71% 0.00132 286.38)",
+          "oklch(72.14% 0.00132 286.38)",
+          "oklch(83.57% 0.00132 286.38)",
+          "oklch(95.00% 0.00132 286.38)"
+        ]
+      },
+      "field-border": {
+        "role": "neutral",
+        "displayName": "Field Border",
+        "tonalRamp": [
+          "oklch(15.00% 0.01991 260.17)",
+          "oklch(26.43% 0.01991 260.17)",
+          "oklch(37.86% 0.01991 260.17)",
+          "oklch(49.29% 0.01991 260.17)",
+          "oklch(60.71% 0.01991 260.17)",
+          "oklch(72.14% 0.01991 260.17)",
+          "oklch(83.57% 0.01991 260.17)",
+          "oklch(95.00% 0.01991 260.17)"
+        ]
+      },
+      "table-head": {
+        "role": "neutral",
+        "displayName": "Table Head",
+        "tonalRamp": [
+          "oklch(15.00% 0.00286 264.54)",
+          "oklch(26.43% 0.00286 264.54)",
+          "oklch(37.86% 0.00286 264.54)",
+          "oklch(49.29% 0.00286 264.54)",
+          "oklch(60.71% 0.00286 264.54)",
+          "oklch(72.14% 0.00286 264.54)",
+          "oklch(83.57% 0.00286 264.54)",
+          "oklch(95.00% 0.00286 264.54)"
+        ]
+      },
+      "table-rule": {
+        "role": "neutral",
+        "displayName": "Table Rule",
+        "tonalRamp": [
+          "oklch(15.00% 0.00744 260.73)",
+          "oklch(26.43% 0.00744 260.73)",
+          "oklch(37.86% 0.00744 260.73)",
+          "oklch(49.29% 0.00744 260.73)",
+          "oklch(60.71% 0.00744 260.73)",
+          "oklch(72.14% 0.00744 260.73)",
+          "oklch(83.57% 0.00744 260.73)",
+          "oklch(95.00% 0.00744 260.73)"
+        ]
+      },
+      "selected-row": {
+        "role": "neutral",
+        "displayName": "Selected Row",
+        "tonalRamp": [
+          "oklch(15.00% 0.00986 267.36)",
+          "oklch(26.43% 0.00986 267.36)",
+          "oklch(37.86% 0.00986 267.36)",
+          "oklch(49.29% 0.00986 267.36)",
+          "oklch(60.71% 0.00986 267.36)",
+          "oklch(72.14% 0.00986 267.36)",
+          "oklch(83.57% 0.00986 267.36)",
+          "oklch(95.00% 0.00986 267.36)"
+        ]
+      },
+      "badge-neutral-bg": {
+        "displayName": "Badge Neutral Bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.00626 255.48)",
+          "oklch(26.43% 0.00626 255.48)",
+          "oklch(37.86% 0.00626 255.48)",
+          "oklch(49.29% 0.00626 255.48)",
+          "oklch(60.71% 0.00626 255.48)",
+          "oklch(72.14% 0.00626 255.48)",
+          "oklch(83.57% 0.00626 255.48)",
+          "oklch(95.00% 0.00626 255.48)"
+        ]
+      },
+      "badge-neutral-text": {
+        "displayName": "Badge Neutral Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.03398 257.79)",
+          "oklch(26.43% 0.03398 257.79)",
+          "oklch(37.86% 0.03398 257.79)",
+          "oklch(49.29% 0.03398 257.79)",
+          "oklch(60.71% 0.03398 257.79)",
+          "oklch(72.14% 0.03398 257.79)",
+          "oklch(83.57% 0.03398 257.79)",
+          "oklch(95.00% 0.03398 257.79)"
+        ]
+      },
+      "badge-online-bg": {
+        "displayName": "Badge Online Bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.01568 160.62)",
+          "oklch(26.43% 0.01568 160.62)",
+          "oklch(37.86% 0.01568 160.62)",
+          "oklch(49.29% 0.01568 160.62)",
+          "oklch(60.71% 0.01568 160.62)",
+          "oklch(72.14% 0.01568 160.62)",
+          "oklch(83.57% 0.01568 160.62)",
+          "oklch(95.00% 0.01568 160.62)"
+        ]
+      },
+      "badge-online-text": {
+        "displayName": "Badge Online Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.09508 161.97)",
+          "oklch(26.43% 0.09508 161.97)",
+          "oklch(37.86% 0.09508 161.97)",
+          "oklch(49.29% 0.09508 161.97)",
+          "oklch(60.71% 0.09508 161.97)",
+          "oklch(72.14% 0.09508 161.97)",
+          "oklch(83.57% 0.09508 161.97)",
+          "oklch(95.00% 0.09508 161.97)"
+        ]
+      },
+      "badge-caution-bg": {
+        "displayName": "Badge Caution Bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.02367 79.75)",
+          "oklch(26.43% 0.02367 79.75)",
+          "oklch(37.86% 0.02367 79.75)",
+          "oklch(49.29% 0.02367 79.75)",
+          "oklch(60.71% 0.02367 79.75)",
+          "oklch(72.14% 0.02367 79.75)",
+          "oklch(83.57% 0.02367 79.75)",
+          "oklch(95.00% 0.02367 79.75)"
+        ]
+      },
+      "badge-caution-text": {
+        "displayName": "Badge Caution Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.10365 62.57)",
+          "oklch(26.43% 0.10365 62.57)",
+          "oklch(37.86% 0.10365 62.57)",
+          "oklch(49.29% 0.10365 62.57)",
+          "oklch(60.71% 0.10365 62.57)",
+          "oklch(72.14% 0.10365 62.57)",
+          "oklch(83.57% 0.10365 62.57)",
+          "oklch(95.00% 0.10365 62.57)"
+        ]
+      },
+      "inactive-value": {
+        "role": "neutral",
+        "displayName": "Inactive Value",
+        "tonalRamp": [
+          "oklch(15.00% 0.03701 260.96)",
+          "oklch(26.43% 0.03701 260.96)",
+          "oklch(37.86% 0.03701 260.96)",
+          "oklch(49.29% 0.03701 260.96)",
+          "oklch(60.71% 0.03701 260.96)",
+          "oklch(72.14% 0.03701 260.96)",
+          "oklch(83.57% 0.03701 260.96)",
+          "oklch(95.00% 0.03701 260.96)"
+        ]
+      },
+      "notice-bg": {
+        "displayName": "Notice Bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.01695 267.79)",
+          "oklch(26.43% 0.01695 267.79)",
+          "oklch(37.86% 0.01695 267.79)",
+          "oklch(49.29% 0.01695 267.79)",
+          "oklch(60.71% 0.01695 267.79)",
+          "oklch(72.14% 0.01695 267.79)",
+          "oklch(83.57% 0.01695 267.79)",
+          "oklch(95.00% 0.01695 267.79)"
+        ]
+      },
+      "notice-text": {
+        "displayName": "Notice Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.07885 258.72)",
+          "oklch(26.43% 0.07885 258.72)",
+          "oklch(37.86% 0.07885 258.72)",
+          "oklch(49.29% 0.07885 258.72)",
+          "oklch(60.71% 0.07885 258.72)",
+          "oklch(72.14% 0.07885 258.72)",
+          "oklch(83.57% 0.07885 258.72)",
+          "oklch(95.00% 0.07885 258.72)"
+        ]
+      },
+      "danger-bg": {
+        "displayName": "Danger Bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.01359 34.30)",
+          "oklch(26.43% 0.01359 34.30)",
+          "oklch(37.86% 0.01359 34.30)",
+          "oklch(49.29% 0.01359 34.30)",
+          "oklch(60.71% 0.01359 34.30)",
+          "oklch(72.14% 0.01359 34.30)",
+          "oklch(83.57% 0.01359 34.30)",
+          "oklch(95.00% 0.01359 34.30)"
+        ]
+      },
+      "danger-text": {
+        "displayName": "Danger Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.11574 33.33)",
+          "oklch(26.43% 0.11574 33.33)",
+          "oklch(37.86% 0.11574 33.33)",
+          "oklch(49.29% 0.11574 33.33)",
+          "oklch(60.71% 0.11574 33.33)",
+          "oklch(72.14% 0.11574 33.33)",
+          "oklch(83.57% 0.11574 33.33)",
+          "oklch(95.00% 0.11574 33.33)"
+        ]
+      },
+      "sample-bg": {
+        "displayName": "Sample Bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.02110 85.94)",
+          "oklch(26.43% 0.02110 85.94)",
+          "oklch(37.86% 0.02110 85.94)",
+          "oklch(49.29% 0.02110 85.94)",
+          "oklch(60.71% 0.02110 85.94)",
+          "oklch(72.14% 0.02110 85.94)",
+          "oklch(83.57% 0.02110 85.94)",
+          "oklch(95.00% 0.02110 85.94)"
+        ]
+      },
+      "sample-text": {
+        "displayName": "Sample Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.08726 79.85)",
+          "oklch(26.43% 0.08726 79.85)",
+          "oklch(37.86% 0.08726 79.85)",
+          "oklch(49.29% 0.08726 79.85)",
+          "oklch(60.71% 0.08726 79.85)",
+          "oklch(72.14% 0.08726 79.85)",
+          "oklch(83.57% 0.08726 79.85)",
+          "oklch(95.00% 0.08726 79.85)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Measurements",
+        "purpose": "Large reported values; tabular numerals in the interface family."
+      },
+      "headline": {
+        "displayName": "Page title",
+        "purpose": "Primary page heading."
+      },
+      "title": {
+        "displayName": "Panel title",
+        "purpose": "Working-region headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Readable explanatory paragraphs."
+      },
+      "label": {
+        "displayName": "Control label",
+        "purpose": "Standard compact buttons."
+      },
+      "numeric": {
+        "displayName": "Technical data",
+        "purpose": "Identifiers, addresses, and numeric table columns."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "control-state",
+        "value": "background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease",
+        "purpose": "Shared interactive control transitions; disabled for reduced motion."
+      },
+      {
+        "name": "loading-spin",
+        "value": "1s linear infinite",
+        "purpose": "Refresh loading rotation; disabled for reduced motion."
+      },
+      {
+        "name": "skeleton-opacity",
+        "value": "1.6s ease-in-out infinite alternate",
+        "purpose": "Skeleton opacity alternates to 0.5; disabled for reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide-min",
+        "value": "1650px"
+      },
+      {
+        "name": "compact-max",
+        "value": "1200px"
+      },
+      {
+        "name": "rail-max",
+        "value": "900px"
+      },
+      {
+        "name": "mobile-max",
+        "value": "600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Compact action with visible keyboard focus.",
+      "html": "<button class=\"ds-button-primary\">Save &amp; connect</button>",
+      "css": ".ds-button-primary{font-family:\"Manrope Variable\",sans-serif;font-size:11.62px;font-weight:650;display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:9px 14px;border:1px solid var(--blue,#2456d5);border-radius:7px;background:var(--blue,#2456d5);color:var(--paper,#fff);cursor:pointer;transition:background-color .16s ease,color .16s ease,border-color .16s ease;}.ds-button-primary:hover{background:#1743b5}.ds-button-primary:focus-visible{outline:3px solid var(--focus,#7596ef);outline-offset:3px;}.ds-button-primary:disabled{opacity:.55;cursor:not-allowed} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Secondary button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Compact action with visible keyboard focus.",
+      "html": "<button class=\"ds-button-secondary\">Reload map</button>",
+      "css": ".ds-button-secondary{font-family:\"Manrope Variable\",sans-serif;font-size:11.62px;font-weight:650;display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:9px 14px;border:1px solid #d6dce6;border-radius:7px;background:var(--paper,#fff);color:var(--ink,#263144);cursor:pointer;transition:background-color .16s ease,color .16s ease,border-color .16s ease;}.ds-button-secondary:hover{background:#f1f4f9}.ds-button-secondary:focus-visible{outline:3px solid var(--focus,#7596ef);outline-offset:3px;}.ds-button-secondary:disabled{opacity:.55;cursor:not-allowed} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Text button",
+      "kind": "button",
+      "refersTo": "button-text",
+      "description": "Inline secondary action; underline appears on hover.",
+      "html": "<button class=\"ds-text-button\">Inspect register map</button>",
+      "css": ".ds-text-button{font-family:\"Manrope Variable\",sans-serif;display:inline-flex;align-items:center;gap:6px;min-height:32px;background:none;border:0;padding:6px 0;color:var(--blue,#2456d5);font-size:11.76px;font-weight:700;cursor:pointer;transition:background-color .16s ease,color .16s ease,border-color .16s ease;}.ds-text-button:hover{text-decoration:underline;text-underline-offset:4px}.ds-text-button:focus-visible{outline:3px solid var(--focus,#7596ef);outline-offset:3px;} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Icon button",
+      "kind": "button",
+      "refersTo": "button-icon",
+      "description": "Compact icon control with an accessible name.",
+      "html": "<button class=\"ds-icon-button\" aria-label=\"Refresh\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/></svg></button>",
+      "css": ".ds-icon-button{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid var(--line,#e3e7ee);border-radius:6px;background:var(--paper,#fff);color:var(--muted,#627084);cursor:pointer;transition:background-color .16s ease,color .16s ease,border-color .16s ease;}.ds-icon-button:hover{background:var(--blue-soft,#edf2ff);color:var(--blue,#2456d5)}.ds-icon-button:focus-visible{outline:3px solid var(--focus,#7596ef);outline-offset:3px;} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Backend address",
+      "kind": "input",
+      "refersTo": "input-address",
+      "description": "Monospaced address field with a visible label.",
+      "html": "<label class=\"ds-address-label\" for=\"ds-address\">HTTP API URL</label><input class=\"ds-address\" id=\"ds-address\" type=\"url\" value=\"http://192.168.1.20:3000\" spellcheck=\"false\">",
+      "css": ".ds-address-label{font-family:\"Manrope Variable\",sans-serif;display:block;font-size:12.32px;font-weight:650;margin-bottom:8px;color:var(--ink,#263144)}.ds-address{font-family:var(--mono,\"IBM Plex Mono\",monospace);font-size:11.62px;width:calc(100% - 26px);padding:12px;border:1px solid #cfd7e4;border-radius:6px;color:var(--ink,#263144);background:var(--paper,#fff);caret-color:var(--blue,#2456d5);transition:background-color .16s ease,color .16s ease,border-color .16s ease;}.ds-address:focus-visible{outline:3px solid var(--focus,#7596ef);outline-offset:3px;} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Navigation item",
+      "kind": "nav",
+      "refersTo": "nav-active",
+      "description": "Current destination uses cobalt text and a pale selected surface.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Preview navigation\"><a class=\"ds-nav-link\" href=\"#overview\" aria-current=\"page\">Machine overview</a><a class=\"ds-nav-link\" href=\"#registers\">Register maps</a></nav>",
+      "css": ".ds-nav{display:flex;flex-direction:column;gap:7px}.ds-nav-link{font-family:\"Manrope Variable\",sans-serif;display:flex;align-items:center;height:45px;padding:0 13px;border-radius:7px;text-decoration:none;font-size:12.88px;font-weight:650;color:var(--muted,#627084);transition:background-color .16s ease,color .16s ease,border-color .16s ease;}.ds-nav-link:hover{background:var(--ground,#f7f8fa);color:var(--ink,#263144)}.ds-nav-link[aria-current]{background:var(--blue-soft,#edf2ff);color:var(--blue,#2456d5)}.ds-nav-link:focus-visible{outline:3px solid var(--focus,#7596ef);outline-offset:3px;} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Gateway status",
+      "kind": "chip",
+      "refersTo": "badge-online",
+      "description": "Status is communicated by words and color.",
+      "html": "<span class=\"ds-badge\"><span class=\"ds-dot\"></span>Online</span><span class=\"ds-badge ds-caution\"><span class=\"ds-dot\"></span>Unverified</span>",
+      "css": ".ds-badge{font-family:\"Manrope Variable\",sans-serif;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:5px 9px;border-radius:5px;font-size:10.08px;font-weight:650;background:#eaf6ef;color:#176c4b}.ds-caution{background:#fff5e5;color:#8a5214}.ds-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Working panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Flat working surface with a compact header.",
+      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-heading\"><h2 class=\"ds-panel-title\">Data context</h2></div><p class=\"ds-panel-note\">Individual measurement timestamps are not available.</p></section>",
+      "css": ".ds-panel{font-family:\"Manrope Variable\",sans-serif;background:var(--paper,#fff);color:var(--ink,#263144);border:1px solid var(--line,#e3e7ee);border-radius:var(--radius,12px);overflow:hidden;min-width:0}.ds-panel-heading{padding:22px 24px}.ds-panel-title{margin:0;font-size:15.4px;letter-spacing:-.015em;font-weight:750}.ds-panel-note{margin:0;padding:13px 24px;background:#fcfcfd;border-top:1px solid var(--line,#e3e7ee);color:var(--muted,#627084);font-size:10.5px;line-height:1.65} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Measurement",
+      "kind": "card",
+      "refersTo": "reading",
+      "description": "Large reported value, quiet unit, and register source; illustrative preview.",
+      "html": "<article class=\"ds-reading\"><div class=\"ds-reading-label\">Temperature</div><div class=\"ds-reading-value\">120<span class=\"ds-reading-unit\">\u00b0C</span></div><div class=\"ds-reading-source\">Register 0 \u00b7 UINT16 \u00b7 Sample</div></article>",
+      "css": ".ds-reading{font-family:\"Manrope Variable\",sans-serif;background:var(--paper,#fff);color:var(--ink,#263144);border:1px solid var(--line,#e3e7ee);border-radius:12px;padding:22px 24px}.ds-reading-label{font-size:12.18px;color:var(--muted,#627084)}.ds-reading-value{display:flex;align-items:baseline;gap:9px;margin:15px 0 20px;font-size:37.1px;line-height:1.3;letter-spacing:-.04em;font-weight:650;font-variant-numeric:tabular-nums;flex-wrap:wrap}.ds-reading-unit{font-size:13.16px;letter-spacing:0;font-weight:500;color:var(--muted,#627084)}.ds-reading-source{font-size:10.08px;color:var(--muted,#627084)} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Register reference",
+      "kind": "custom",
+      "refersTo": "register-table",
+      "description": "Technical columns stay inspectable in a focusable scroll region; illustrative preview.",
+      "html": "<div class=\"ds-table-scroll\" tabindex=\"0\" role=\"region\" aria-label=\"Sample register reference\"><table class=\"ds-table\"><thead><tr><th>Metric</th><th>Raw address</th><th>Data type</th><th>Scale</th><th>Reported value</th></tr></thead><tbody><tr><th scope=\"row\">Temperature</th><td>0</td><td>UINT16</td><td>\u00d7 0.1</td><td>120 \u00b0C</td></tr></tbody></table></div>",
+      "css": ".ds-table-scroll{overflow:auto}.ds-table-scroll:focus-visible{outline:3px solid var(--focus,#7596ef);outline-offset:3px;}.ds-table{font-family:\"Manrope Variable\",sans-serif;border-collapse:collapse;width:100%;min-width:620px;text-align:left;color:var(--ink,#263144)}.ds-table thead th{background:#f8f9fb;border-top:1px solid var(--line,#e3e7ee);border-bottom:1px solid var(--line,#e3e7ee);padding:12px 18px;font-size:10.64px;font-weight:600;color:var(--muted,#627084);white-space:nowrap}.ds-table tbody th,.ds-table td{padding:17px 18px;border-bottom:1px solid #edf0f5;font-size:11.76px}.ds-table td{font-family:var(--mono,\"IBM Plex Mono\",monospace);font-variant-numeric:tabular-nums} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Maintenance Reference Sheet",
+    "overview": "Legacy-link uses a light, concise, readable operations workspace. Cool gray surrounds white working surfaces; restrained cobalt identifies navigation and actions. Fine table rules, readable measurements, and monospaced identifiers connect an overview to its underlying register data.\n\nThe implemented world is code-first: no image composition or decorative imagery is required. Manrope supplies the interface voice, while IBM Plex Mono separates addresses, types, and machine identifiers. The interface and repository artifacts use English.",
+    "keyCharacteristics": [
+      "Flat white surfaces on a cool gray workspace.",
+      "Cobalt actions and explicit semantic status labels.",
+      "Compact tables with inspectable identifiers and numeric columns.",
+      "Responsive navigation and stacked mobile measurements."
+    ],
+    "rules": [
+      {
+        "name": "The State Has Words Rule",
+        "body": "Pair semantic color with a visible state label or explanatory message. A colored dot alone does not establish gateway health or measurement freshness.",
+        "section": "colors"
+      },
+      {
+        "name": "The Numeric Trace Rule",
+        "body": "Use monospaced, tabular numerals for technical identifiers and table values; keep large measurement values in the interface family with tabular numerals.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Surface Rule",
+        "body": "Separate working regions with tone, fine borders, and spacing. The implemented system has no box shadows.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do reuse cobalt for actions and selected navigation, and pair status colors with text.",
+      "Do retain source, stale-data, and sample-mode context wherever readings appear.",
+      "Do preserve visible keyboard focus, native button semantics, labeled fields, and reduced-motion support.",
+      "Do keep register columns within a keyboard-focusable horizontal scroll region on small screens.",
+      "Do display gateway-reported values without applying the catalog scale again."
+    ],
+    "donts": [
+      "Don't present backend contact time as an individual measurement timestamp.",
+      "Don't present a catalog, signal-path diagram, or successful HTTP response as proof of hardware state.",
+      "Don't imply alarm history, historical charts, device creation, or configuration publishing is available through the current read-only interface.",
+      "Don't infer active alarms from configured thresholds or silently replace live data with sample data."
+    ]
+  }
+}
