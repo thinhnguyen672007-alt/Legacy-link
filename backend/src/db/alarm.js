@@ -1,11 +1,12 @@
+// C9: mỗi cảnh báo có ID riêng; cùng thời điểm không có nghĩa là cùng sự kiện.
 import { storeEvent } from './ingestion.js';
 import { fingerprint } from '../ingestion/identity.js';
 
 export async function saveAlarm(event) {
   const { deviceId, timestamp, code, severity, value, metricKey } = event;
   return storeEvent('alarm', event, async (client, storageId) => {
-    // Legacy firmware has no event ID: identical content is the best available
-    // identity. Distinct same-content occurrences require firmware eventId.
+    // Firmware cũ chưa có eventId: dùng dấu vân tay toàn bộ nội dung để nhận biết bản gửi lại.
+    // Hai sự kiện khác nhau nhưng có nội dung giống hệt chỉ phân biệt được khi firmware thêm eventId.
     const eventId = storageId ?? `legacy:${fingerprint({ deviceId, timestamp, code, severity,
       value: value ?? null, metricKey: metricKey ?? null })}`;
     const old = await client.query(`SELECT id FROM alarms WHERE event_id IS NULL

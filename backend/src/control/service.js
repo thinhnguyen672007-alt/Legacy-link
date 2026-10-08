@@ -88,8 +88,8 @@ export class ControlService {
         });
     };
     if (kind === 'apply') {
-      // Remove older retained desired configs before identity-change reconnect.
-      // Otherwise a legacy retained message can immediately undo this apply.
+      // Xóa cấu hình retained cũ trước khi ESP32 kết nối lại với danh tính mới.
+      // Nếu giữ lại, broker có thể gửi cấu hình cũ và làm mất cấu hình vừa áp dụng.
       this.client.publish(`legacy-link/gateways/${gatewayId}/config`, '', { qos: 1, retain: true }, err => {
         if (failPublish(err) || TERMINAL.has(op.phase)) return;
         this.client.publish(`legacy-link/devices/${config.deviceId}/config`, '', { qos: 1, retain: true }, publishCommand);
@@ -117,7 +117,7 @@ export class ControlService {
         timestamp: data.timestamp, receivedAt: this.now() });
       return;
     }
-    // Retained or unrelated replies never complete a new operation.
+    // Phản hồi retained hoặc không khớp request không được dùng để xác nhận một thao tác mới.
     if (packet.retain || typeof data.requestId !== 'string') return;
     const op = this.operations.get(data.requestId);
     if (!op || op.gatewayId !== data.gatewayId || op.bootId !== data.bootId ||
