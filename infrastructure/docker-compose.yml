@@ -4,17 +4,46 @@
 # Role: Central definition file for starting, stopping, and networking all
 # infrastructure services.
 #
-# Common commands:
-#   - Start services:      docker compose up -d
-#   - Stop services:       docker compose down
-#   - Check running status: docker compose ps
-#   - View service logs:   docker compose logs -f mosquitto
-#   - Load DB schema:      docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
+# ROLES BY PROFILE:
+#
+#   broker — broker and database only. Brought up when you pass --profile broker.
+#            This is what fits a developer who just needs the messaging hop on
+#            their machine, runs the Node apps manually next, and skips the rest.
+#
+#   full   — full stack: broker + database + any project services you add later
+#            (backend, API, frontend). Same as --profile broker today, because
+#            every service currently bears both tags, but ready to diverge the
+#            moment a service is tagged "full" only.
+#
+#          Existing services (mosquitto-init, mosquitto, postgres) carry both
+#          tags, so either profile brings them up. New services you add for
+#          the containerized stack should carry only "full" to keep this file
+#          from silently running them in a broker-only session.
+#
+#          Docker Compose's own name is "profiles". Reason it exists: if every
+#          service MUST run every time, you don't need profiles — you use the
+#          file as-is. If only SOME run at once, you must attach
+#          `profiles:` to ALL services. Tags accept a list; every service
+#          tagged "broker" runs when you pass --profile broker, every service
+#          tagged "full" runs when you pass --profile full.
+#
+# Common commands (service name is required for -v because `docker compose`
+# wraps the message instead of passing it through):
+#   - Start broker only:     docker compose --profile broker up -d
+#   - Start full stack:      docker compose --profile full up -d
+#   - Stop everything:       docker compose down
+#   - Check status:          docker compose ps
+#   - View broker logs:      docker compose logs -f mosquitto
+#   - Load DB schema:        docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
 # ==============================================================================
 services:
   # One-shot preparation: derive UID/GID from the image, not the host user.
+  # Profile: both "broker" and "full", so the database never sees a request
+  # from a misconfigured broker and the broker never writes to a missing
+  # directory.
   mosquitto-init:
     image: eclipse-mosquitto:2
+    profiles: ["broker", "full"]
     user: "0:0"
     network_mode: none
     entrypoint: ["/bin/sh", "/init-mosquitto.sh"]
@@ -26,6 +55,7 @@ services:
 
   mosquitto:
     image: eclipse-mosquitto:2
+    profiles: ["broker", "full"]
     depends_on:
       mosquitto-init:
         condition: service_completed_successfully
@@ -87,6 +117,7 @@ services:
   # ------------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
+    profiles: ["broker", "full"]
     # Tên container này KHÔNG tùy ý đặt. `backend/scripts/test-messages.sh`
     # (nhánh feature/backend-base) hardcode biến `POSTGRES=legacy-link-postgres`
     # và dùng nó để `docker ps | grep`, đồng thời `backend/db/schema.sql` ghi
