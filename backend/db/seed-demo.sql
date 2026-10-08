@@ -3,12 +3,21 @@
 --   docker exec -i legacy-link-postgres psql -U legacy_admin -d legacy_link < backend/db/seed-demo.sql
 
 -- Hai may CNC CUNG LOAI. Chung dung chung ban do thanh ghi.
+--
+-- gateway_id = dinh danh phan cung cua ESP32. Trong thuc te no la MAC hoac chip
+-- ID, dang chuoi hex 12 ky tu. O day dung gia tri gia de thu nghiem.
+--
+-- ON CONFLICT ... DO UPDATE (khong phai DO NOTHING): de chay lai file nay thi
+-- cac dong CU cung duoc cap nhat gateway_id. Voi DO NOTHING, dong cu giu
+-- gateway_id = NULL va se khong gui duoc cau hinh.
 INSERT INTO device
-  (device_id, machine_type, name, protocol, baud_rate, parity, stop_bits, slave_id, sampling_interval_ms)
+  (device_id, machine_type, name, protocol, baud_rate, parity, stop_bits, slave_id,
+   sampling_interval_ms, gateway_id)
 VALUES
-  ('esp32-01', 'FANUC-30i', 'CNC so 1', 'MODBUS_RTU', 9600, 'NONE', 1, 1, 1000),
-  ('esp32-03', 'FANUC-30i', 'CNC so 3', 'MODBUS_RTU', 9600, 'NONE', 1, 1, 1000)
-ON CONFLICT (device_id) DO NOTHING;
+  ('esp32-01', 'FANUC-30i', 'CNC so 1', 'MODBUS_RTU', 9600, 'NONE', 1, 1, 1000, 'A1B2C3D4E5F6'),
+  ('esp32-03', 'FANUC-30i', 'CNC so 3', 'MODBUS_RTU', 9600, 'NONE', 1, 1, 1000, 'F6E5D4C3B2A1')
+ON CONFLICT (device_id) DO UPDATE
+  SET gateway_id = EXCLUDED.gateway_id;
 
 -- Ban chung cua loai FANUC-30i.
 --
