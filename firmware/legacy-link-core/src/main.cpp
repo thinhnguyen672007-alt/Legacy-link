@@ -1,3 +1,4 @@
+#include "telemetry_queue.h"
 #include "config_parser.h"
 #include "modbus_reader.h"
 #include "alarm_monitor.h"
@@ -137,10 +138,34 @@ static bool read_request_id(const char *payload, char (&id)[65]) {
 // --- HÀM PUBLISH TELEMETRY LÊN MQTT ---
 // Payload format khớp với backend/src/validation/telemetry.js:
 // { "deviceId": "CNC-001", "timestamp": 1690000000000, "schemaVersion": 1, "metrics": {"temp": 65.4} }
-void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uint8_t count) {
-  if (!mqttClient.connected() || count == 0) return;
+static TelemetryQueue telemetry_queue;
+static uint64_t telemetry_sequence = 0;
+static AlarmQueue alarm_queue;
 
-  StaticJsonDocument<1024> doc;
+// A bounded exponential backoff prevents retry storms; unsigned subtraction
+// preserves retry timing when millis wraps. Queues use independent head samples.
+template<size_t N>
+void flush_queue(DeliveryQueue<N> &queue, const char *kind) {
+  if (!mqttClient.connected()) return;
+  auto *sample = queue.front();
+  if (!sample) return;
+  const uint32_t delay_ms = sample->rejection[0] ? 30000 :
+    (1000UL << (sample->attempts > 5 ? 5 : sample->attempts ? sample->attempts - 1 : 0));
+  if (sample->attempts && static_cast<uint32_t>(millis() - sample->lastAttempt) < delay_ms) return;
+  char topic[120];
+  snprintf(topic, sizeof(topic), "legacy-link/devices/%s/%s", sample->device, kind);
+  sample->lastAttempt = millis();
+  if (sample->attempts < UINT32_MAX) ++sample->attempts;
+  // Replay byte-for-byte: identity and original capture time never change.
+  mqttClient.publish(topic, sample->payload, false);
+}
+void flush_telemetry() { flush_queue(telemetry_queue, "telemetry"); }
+
+
+void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uint8_t count) {
+  if (count == 0) return;
+
+  StaticJsonDocument<2048> doc;
   doc["deviceId"] = cfg->device_id;
 
   unsigned long long ts = current_epoch_ms();
@@ -148,6 +173,11 @@ void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uin
     Serial.println("[MQTT] Skip telemetry: NTP time not synchronized yet");
     return;
   }
+  char message_id[80];
+  snprintf(message_id, sizeof(message_id), "%s-%s-%llu", gateway_id, boot_id,
+           static_cast<unsigned long long>(++telemetry_sequence));
+  doc["messageId"] = message_id;
+  doc["gatewayId"] = gateway_id;
   doc["timestamp"] = ts;
   doc["schemaVersion"] = 1;  // Backend bắt buộc field này
 
@@ -165,30 +195,44 @@ void publish_telemetry(const device_config_t *cfg, modbus_result_t *results, uin
   if (metrics.size() == 0 || doc.overflowed()) return;
   char payload[1024];
   if (measureJson(doc) >= sizeof(payload)) return;
-  size_t len = serializeJson(doc, payload, sizeof(payload));
-
-  if (mqttClient.publish(topic, payload)) {
-    Serial.printf("[MQTT] Published %u bytes to %s\r\n", len, topic);
-  } else {
-    Serial.println("[MQTT] Publish FAILED");
-  }
+  serializeJson(doc, payload, sizeof(payload));
+  if (!telemetry_queue.push(cfg->device_id, message_id, payload, !mqttClient.connected()))
+    Serial.printf("[OUTBOX] Full or oversized; dropped newest. Total dropped: %u\r\n", telemetry_queue.dropped());
+  flush_telemetry();
 }
 
 bool publish_alarm(const device_config_t *cfg, const alarm_config_t *alarm,
                    double value, uint64_t timestamp) {
-  if (!mqttClient.connected() || timestamp == 0 || !isfinite(value)) return false;
-  StaticJsonDocument<384> doc;
+  if (timestamp == 0 || !isfinite(value)) return false;
+  const char *metric_key = nullptr;
+  for (uint8_t i = 0; i < cfg->register_count; ++i) {
+    const auto &reg = cfg->registers[i];
+    if (alarm == &reg.alarm || alarm == &reg.critical_alarm || alarm == &reg.low_alarm) {
+      metric_key = reg.key; break;
+    }
+  }
+  if (!metric_key) return false;
+  char event_id[80];
+  snprintf(event_id, sizeof(event_id), "%s-%s-%llu", gateway_id, boot_id,
+           static_cast<unsigned long long>(++telemetry_sequence));
+  StaticJsonDocument<768> doc;
+  doc["gatewayId"] = gateway_id;
+  doc["eventId"] = event_id;
+  doc["metricKey"] = metric_key;
   doc["deviceId"] = cfg->device_id;
   doc["timestamp"] = timestamp;
   doc["schemaVersion"] = 1;
   doc["code"] = alarm->code;
   doc["severity"] = alarm->severity;
   doc["value"] = value;
-  char topic[80], payload[384];
+  char topic[80], payload[768];
   snprintf(topic, sizeof(topic), "legacy-link/devices/%s/alarm", cfg->device_id);
   if (doc.overflowed() || measureJson(doc) >= sizeof(payload)) return false;
   serializeJson(doc, payload, sizeof(payload));
-  return mqttClient.publish(topic, payload, false);
+  const bool queued = alarm_queue.push(cfg->device_id, event_id, payload, !mqttClient.connected());
+  if (!queued) Serial.printf("[OUTBOX] Alarm queue full; failed enqueue attempts: %u\r\n", alarm_queue.dropped());
+  flush_queue(alarm_queue, "alarm");
+  return queued;
 }
 
 // --- HÀM PUBLISH DEVICE STATUS ---
@@ -291,7 +335,9 @@ void reconnect_mqtt() {
   if (connected) {
     Serial.println("connected!");
 
-    if (!mqttClient.subscribe(probe_topic, 1) || !mqttClient.subscribe(config_topic, 1) ||
+    char ingestion_topic[96];
+    snprintf(ingestion_topic, sizeof(ingestion_topic), "legacy-link/gateways/%s/ingestion/ack", gateway_id);
+    if (!mqttClient.subscribe(ingestion_topic, 1) || !mqttClient.subscribe(probe_topic, 1) || !mqttClient.subscribe(config_topic, 1) ||
         (is_config_valid && !mqttClient.subscribe(device_config_topic, 1))) {
       Serial.println("[MQTT] Config subscription failed; reconnecting on next retry");
       mqttClient.disconnect();
@@ -307,8 +353,33 @@ void reconnect_mqtt() {
   }
 }
 
+template<size_t N>
+void accept_ingestion_ack(DeliveryQueue<N> &queue, const JsonDocument &ack) {
+  auto *sample = queue.front();
+  const char *device = ack["deviceId"] | "";
+  const char *id = ack["messageId"] | "";
+  if (!sample || strcmp(sample->device, device) || strcmp(sample->id, id)) return;
+  const char *status = ack["status"] | "";
+  if (!strcmp(status, "committed")) queue.acknowledge(device, id);
+  else if (!strcmp(status, "rejected")) {
+    const char *reason = ack["reason"] | "rejected";
+    if (strcmp(reason, sample->rejection)) Serial.printf("[OUTBOX] Rejected %s: %s; retained for retry\r\n", id, reason);
+    strlcpy(sample->rejection, reason, sizeof(sample->rejection));
+  }
+}
+
 // Copy the MQTT-owned bytes before returning; apply outside the callback.
 void mqtt_callback(char *topic, byte *payload, unsigned int length) {
+  char ack_topic[96];
+  snprintf(ack_topic, sizeof(ack_topic), "legacy-link/gateways/%s/ingestion/ack", gateway_id);
+  if (!strcmp(topic, ack_topic)) {
+    StaticJsonDocument<768> ack;
+    if (length >= 768 || deserializeJson(ack, payload, length) || ack["schemaVersion"] != 1) return;
+    const char *kind = ack["kind"] | "";
+    if (!strcmp(kind, "telemetry")) accept_ingestion_ack(telemetry_queue, ack);
+    else if (!strcmp(kind, "alarm")) accept_ingestion_ack(alarm_queue, ack);
+    return;
+  }
   const bool device_topic = device_config_topic[0] && !strcmp(topic, device_config_topic);
   const bool is_probe = !strcmp(topic, probe_topic);
   if (strcmp(topic, config_topic) != 0 && !device_topic && !is_probe) return;
@@ -497,6 +568,49 @@ void poll_modbus_step() {
   send_read_report(global_device_config, poll_results);
 }
 
+// Read-only bench diagnostics. No credentials or payload values are exposed.
+template<size_t N>
+void describe_outbox(JsonObject target, const DeliveryQueue<N> &queue) {
+  target["pending"] = queue.size();
+  target["capacity"] = N;
+  target["highWater"] = queue.highWater();
+  target["committed"] = queue.committed();
+  target["failedEnqueues"] = queue.dropped();
+  const auto *head = queue.front();
+  if (head) {
+    target["headId"] = head->id;
+    target["deviceId"] = head->device;
+    target["attempts"] = head->attempts;
+    target["rejection"] = head->rejection;
+  }
+}
+size_t delivery_health_json(char *output, size_t capacity) {
+  StaticJsonDocument<2048> doc;
+  doc["gatewayId"] = gateway_id;
+  doc["bootId"] = boot_id;
+  doc["wifiConnected"] = WiFi.status() == WL_CONNECTED;
+  doc["mqttConnected"] = mqttClient.connected();
+  doc["clockReady"] = current_epoch_ms() != 0;
+  doc["freeHeapBytes"] = ESP.getFreeHeap();
+  doc["storage"] = "RAM; cleared on reset";
+  describe_outbox(doc.createNestedObject("telemetry"), telemetry_queue);
+  describe_outbox(doc.createNestedObject("alarm"), alarm_queue);
+  if (doc.overflowed() || measureJson(doc) >= capacity) return 0;
+  return serializeJson(doc, output, capacity);
+}
+bool handle_serial_diagnostic(const char *line) {
+  if (!strcmp(line, ":health")) {
+    char output[2048];
+    if (delivery_health_json(output, sizeof(output))) Serial.println(output);
+    return true;
+  }
+  if (!strcmp(line, ":help")) {
+    Serial.println(":health - read-only delivery health JSON; :help - commands. JSON config remains supported.");
+    return true;
+  }
+  return false;
+}
+
 // ============================================================
 // HÀM SETUP CHÍNH
 // ============================================================
@@ -587,7 +701,7 @@ void loop() {
 
       if (inputLength > 0) {
         Serial.printf("\n[RECV] %u bytes received\r\n", inputLength);
-        apply_runtime_config(inputBuffer);
+        if (!handle_serial_diagnostic(inputBuffer)) apply_runtime_config(inputBuffer);
       }
 
       inputLength = 0;
@@ -607,6 +721,8 @@ void loop() {
   }
 
   flush_config_ack();
+  flush_queue(alarm_queue, "alarm");
+  flush_telemetry();
   static uint32_t last_gateway_report = 0;
   if (mqttClient.connected() && millis() - last_gateway_report >= 10000) {
     last_gateway_report = millis();
