@@ -38,6 +38,7 @@ inline size_t strlcpy(char *dest, const char *src, size_t size) {
 }
 struct TestSerial {
   unsigned begin_count = 0;
+  uint32_t last_baud_rate = 0;
   std::string input;
   size_t cursor = 0;
   void feed(const std::string &text) { input = text; cursor = 0; }
@@ -45,7 +46,7 @@ struct TestSerial {
   int read() { return input[cursor++]; }
   void begin(uint32_t) { ++begin_count; }
   size_t setRxBufferSize(size_t size) { return size; }
-  void begin(uint32_t, uint32_t, int, int) { ++begin_count; }
+  void begin(uint32_t baud, uint32_t, int, int) { ++begin_count; last_baud_rate = baud; }
   void println() {}
   void println(int) {}
   void print(const char *) {}

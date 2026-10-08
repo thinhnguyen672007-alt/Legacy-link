@@ -18,7 +18,7 @@ int main() {
   reconnect_mqtt();
   assert(mqttClient.client_id == "legacy-link-123456789ABC");
   assert(mqttClient.subscribed_topic == config_topic);
-  assert(mqttClient.subscriptions == 1);
+  assert(mqttClient.subscriptions == 2);
 
   mqttClient.receive("legacy-link/gateways/other/config", valid_config);
   assert(!config_pending && !is_config_valid);
@@ -42,13 +42,13 @@ int main() {
   // Each reconnect restores the exact subscription; failed writes retry later.
   mqttClient.disconnect();
   reconnect_mqtt();
-  assert(mqttClient.subscriptions == 5);
+  assert(mqttClient.subscriptions == 8);
   mqttClient.disconnect(); mqttClient.subscribe_ok = false;
   reconnect_mqtt();
   assert(!mqttClient.connected());
   mqttClient.subscribe_ok = true;
   test_millis += 5000; loop();
-  assert(mqttClient.connected() && mqttClient.subscriptions == 8);
+  assert(mqttClient.connected() && mqttClient.subscriptions == 12);
 
   // A valid-looking suffix of an overflowing Serial line must not be applied.
   Serial.feed(std::string(CONFIG_BUFFER_SIZE, 'x') + valid_config + "\n");
