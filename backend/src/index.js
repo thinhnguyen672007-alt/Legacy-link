@@ -14,6 +14,7 @@ import { saveStatus } from './db/status.js';
 import { saveAlarm } from './db/alarm.js';
 import { closePool } from './db/pool.js';
 import { expireStaleRequests } from './db/config-request.js';
+import { recordServiceStart, recordServiceStop } from './db/service-run.js';
 import { handleConfigAck } from './service/apply-config.js';
 
 
@@ -27,6 +28,38 @@ try {
   await checkCatalogMetrics();
 } catch (err) {
   console.warn('[CATALOG] Khong kiem tra duoc catalog:', err.message);
+}
+
+// Ghi lai lan khoi dong nay, VA phat hien lan chay truoc ket thuc bat thuong.
+//
+// VI SAO:
+// Khi backend khong chay, telemetry gui toi mat vinh vien — khong the lay lai
+// (firmware publish QoS 0, broker khong xep hang cho nguoi nghe vang mat).
+//
+// Khong sua duoc dieu do. Nhung neu lan chay truoc ket thuc BAT THUONG, thi
+// chac chan co mot khoang du lieu da mat — va phai noi ra.
+//
+// Day la tieng noi duy nhat con lai ve khoang du lieu bi thieu.
+let currentRunId = null;
+
+try {
+  const { runId, staleRuns } = await recordServiceStart();
+  currentRunId = runId;
+
+  for (const run of staleRuns) {
+    console.warn(
+      `[UPTIME] Lan chay truoc (bat dau ${new Date(run.started_at).toISOString()})` +
+        ` ket thuc BAT THUONG — khong ghi duoc gio dung.`,
+    );
+    console.warn(
+      `[UPTIME] Telemetry trong khoang do DA MAT VINH VIEN va khong the lay lai.` +
+        ` Dashboard se hien khoang trang nay (xem GET /uptime).`,
+    );
+  }
+} catch (err) {
+  // Khong ghi duoc lich su chay KHONG duoc lam backend khong khoi dong duoc.
+  // Thu tu uu tien: nhan du lieu > ghi chep ve viec nhan du lieu.
+  console.warn('[UPTIME] Khong ghi duoc lich su khoi dong:', err.message);
 }
 
 let countSigint = 0
@@ -215,6 +248,21 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 
     client.end(false, {}, async () => {
       console.log('[BACKEND] Da dong ket noi MQTT.');
+
+      // Ghi gio dung TRUOC khi dong pool.
+      //
+      // Phai goi truoc closePool — sau khi pool dong thi khong con ket noi nao
+      // de ghi nua. Va phai truyen currentRunId, de chI dong DUNG dong cua lan
+      // chay nay — khong dung toi cac dong cua lan da crash truoc do.
+      //
+      // Neu ham nay khong chay duoc (crash, mat dien), dong service_run se giu
+      // stopped_at = NULL. Do chinh la dau hieu ta dung de phat hien lan sau.
+      try {
+        await recordServiceStop(currentRunId);
+      } catch (err) {
+        console.error('[UPTIME] Khong ghi duoc gio dung:', err.message);
+      }
+
       await closePool();
       console.log('[BACKEND] Da dong connection pool.');
       process.exit(0);
