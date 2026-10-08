@@ -17,21 +17,24 @@ class DeliveryQueue {
     Sample &s = samples_[(head_ + size_) % capacity];
     strcpy(s.device, device); strcpy(s.id, id); strcpy(s.payload, payload);
     s.lastAttempt = 0; s.rejection[0] = 0; s.attempts = 0; s.buffered = offline || size_ > 0;
-    ++size_; return true;
+    ++size_; if (size_ > high_water_) high_water_ = size_; return true;
   }
   Sample *front() { return size_ ? &samples_[head_] : nullptr; }
   const Sample *front() const { return size_ ? &samples_[head_] : nullptr; }
   bool acknowledge(const char *device, const char *id) {
     const Sample *s = front();
     if (!s || strcmp(s->device, device) || strcmp(s->id, id)) return false;
-    head_ = (head_ + 1) % capacity; --size_; return true;
+    head_ = (head_ + 1) % capacity; --size_; ++committed_; return true;
   }
   size_t size() const { return size_; }
+  uint32_t committed() const { return committed_; }
+  size_t highWater() const { return high_water_; }
   uint32_t dropped() const { return dropped_; }
  private:
   Sample samples_[capacity]{};
   size_t head_ = 0, size_ = 0;
-  uint32_t dropped_ = 0;
+  uint32_t dropped_ = 0, committed_ = 0;
+  size_t high_water_ = 0;
 };
 
 using TelemetryQueue = DeliveryQueue<32>;

@@ -568,6 +568,49 @@ void poll_modbus_step() {
   send_read_report(global_device_config, poll_results);
 }
 
+// Read-only bench diagnostics. No credentials or payload values are exposed.
+template<size_t N>
+void describe_outbox(JsonObject target, const DeliveryQueue<N> &queue) {
+  target["pending"] = queue.size();
+  target["capacity"] = N;
+  target["highWater"] = queue.highWater();
+  target["committed"] = queue.committed();
+  target["failedEnqueues"] = queue.dropped();
+  const auto *head = queue.front();
+  if (head) {
+    target["headId"] = head->id;
+    target["deviceId"] = head->device;
+    target["attempts"] = head->attempts;
+    target["rejection"] = head->rejection;
+  }
+}
+size_t delivery_health_json(char *output, size_t capacity) {
+  StaticJsonDocument<2048> doc;
+  doc["gatewayId"] = gateway_id;
+  doc["bootId"] = boot_id;
+  doc["wifiConnected"] = WiFi.status() == WL_CONNECTED;
+  doc["mqttConnected"] = mqttClient.connected();
+  doc["clockReady"] = current_epoch_ms() != 0;
+  doc["freeHeapBytes"] = ESP.getFreeHeap();
+  doc["storage"] = "RAM; cleared on reset";
+  describe_outbox(doc.createNestedObject("telemetry"), telemetry_queue);
+  describe_outbox(doc.createNestedObject("alarm"), alarm_queue);
+  if (doc.overflowed() || measureJson(doc) >= capacity) return 0;
+  return serializeJson(doc, output, capacity);
+}
+bool handle_serial_diagnostic(const char *line) {
+  if (!strcmp(line, ":health")) {
+    char output[2048];
+    if (delivery_health_json(output, sizeof(output))) Serial.println(output);
+    return true;
+  }
+  if (!strcmp(line, ":help")) {
+    Serial.println(":health - read-only delivery health JSON; :help - commands. JSON config remains supported.");
+    return true;
+  }
+  return false;
+}
+
 // ============================================================
 // HÀM SETUP CHÍNH
 // ============================================================
@@ -658,7 +701,7 @@ void loop() {
 
       if (inputLength > 0) {
         Serial.printf("\n[RECV] %u bytes received\r\n", inputLength);
-        apply_runtime_config(inputBuffer);
+        if (!handle_serial_diagnostic(inputBuffer)) apply_runtime_config(inputBuffer);
       }
 
       inputLength = 0;
