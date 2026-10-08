@@ -154,7 +154,9 @@ from gateway connectivity.
 The [2026-10-06 hardware report](hardware-validation-2026-10-06.md) records a passing
 CH340 -> ESP32 -> MQTT run, including signed temperature decoding. That run did
 not test PostgreSQL insertion, physical alarm crossings or this OpenModSim setup.
-Record the actual simulator version and end-to-end results during rehearsal.
+The [2026-10-08 OpenModSim report](hardware-validation-2026-10-08.md) records
+physical telemetry, signed decoding and high/critical alarm acceptance with
+OpenModSim 2.0.1. Database and frontend delivery still need separate verification.
 
 For DENSO D1, present the simulator as a PLC substitute and the ESP32 as the physical
 gateway. Use actual component prices and measured setup times for cost/time
