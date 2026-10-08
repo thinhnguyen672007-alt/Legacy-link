@@ -18,7 +18,7 @@ int main() {
   reconnect_mqtt();
   assert(mqttClient.client_id == "legacy-link-123456789ABC");
   assert(mqttClient.subscribed_topic == config_topic);
-  assert(mqttClient.subscriptions == 2);
+  assert(mqttClient.subscriptions == 3);
 
   mqttClient.receive("legacy-link/gateways/other/config", valid_config);
   assert(!config_pending && !is_config_valid);
@@ -42,13 +42,13 @@ int main() {
   // Each reconnect restores the exact subscription; failed writes retry later.
   mqttClient.disconnect();
   reconnect_mqtt();
-  assert(mqttClient.subscriptions == 8);
+  assert(mqttClient.subscriptions == 11);
   mqttClient.disconnect(); mqttClient.subscribe_ok = false;
   reconnect_mqtt();
   assert(!mqttClient.connected());
   mqttClient.subscribe_ok = true;
   test_millis += 5000; loop();
-  assert(mqttClient.connected() && mqttClient.subscriptions == 12);
+  assert(mqttClient.connected() && mqttClient.subscriptions == 16);
 
   // A valid-looking suffix of an overflowing Serial line must not be applied.
   Serial.feed(std::string(CONFIG_BUFFER_SIZE, 'x') + valid_config + "\n");
@@ -69,6 +69,7 @@ int main() {
     readings[i].success = true;
     readings[i].scaled_value = 123456.75f;
   }
+  telemetry_queue = TelemetryQueue{};
   mqttClient.published.clear();
   publish_telemetry(&global_device_config, readings, MAX_REGISTERS);
   assert(mqttClient.published.size() == 1);
@@ -96,7 +97,7 @@ int main() {
       ++count;
       assert(!sent.retained);
       assert(!deserializeJson(doc, sent.payload));
-      assert(doc.size() == 6);
+      assert(doc.size() == 9);
       assert(doc["deviceId"] == "CNC-01" && doc["schemaVersion"] == 1);
       assert(doc["timestamp"].as<uint64_t>() > 1577836800000ULL);
       assert(doc["code"] == "OVERHEAT" && doc["severity"] == "high");
@@ -105,6 +106,9 @@ int main() {
     return count;
   };
   assert(alarm_count() == 1);
+  const auto *alarm_head = alarm_queue.front();
+  assert(alarm_head);
+  assert(alarm_queue.acknowledge(alarm_head->device, alarm_head->id));
   test_millis += 1000; loop(); assert(alarm_count() == 1);
   mqttClient.receive(config_topic, "{}");
   test_millis += 1000; loop(); assert(alarm_count() == 1);
