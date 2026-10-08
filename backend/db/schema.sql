@@ -21,13 +21,22 @@ CREATE TABLE IF NOT EXISTS telemetry (
 
 -- Trang thai hien tai cua tung thiet bi. Luon chi mot dong moi thiet bi,
 -- nen dashboard doc trong vai mili-giay thay vi phai quet ca bang lich su.
+--
+-- last_telemetry_ts = timestamp cua message telemetry MOI NHAT da nhan.
+-- No khac last_seen_at: last_seen_at la thoi diem backend nhan (gio may chu),
+-- con last_telemetry_ts la thoi diem thiet bi do (gio thiet bi).
+-- Dung last_telemetry_ts de chan message cu ghi de du lieu moi.
 CREATE TABLE IF NOT EXISTS machine_state (
-  device_id    text        PRIMARY KEY,
-  online       boolean     NOT NULL DEFAULT false,
-  last_metrics jsonb,
-  last_seen_at timestamptz,
-  updated_at   timestamptz NOT NULL DEFAULT now()
+  device_id         text        PRIMARY KEY,
+  online            boolean     NOT NULL DEFAULT false,
+  last_metrics      jsonb,
+  last_telemetry_ts bigint,
+  last_seen_at      timestamptz,
+  updated_at        timestamptz NOT NULL DEFAULT now()
 );
+
+-- Cho database da ton tai tu truoc khi bang chua co cot nay.
+ALTER TABLE machine_state ADD COLUMN IF NOT EXISTS last_telemetry_ts bigint;
 
 -- Su kien alarm. acknowledged_at NULL nghia la chua ai xu ly.
 CREATE TABLE IF NOT EXISTS alarms (
