@@ -33,9 +33,9 @@ async function check() {
   }
   if (stopping) return;
   unhealthy = ok ? 0 : unhealthy + 1;
-  if (unhealthy >= 6) {
-    console.error('[INFRA] Readiness failed six times; exiting for Docker to restart');
+  if (unhealthy >= 3) {
+    console.error('[INFRA] Readiness failed three times; exiting for Docker to restart');
     stop(1);
   }
 }
-grace = setTimeout(() => { void check(); interval = setInterval(() => void check(), 10000); }, 30000);
+grace = setTimeout(() => { void check(); interval = setInterval(() => void check(), 5000); }, 15000);

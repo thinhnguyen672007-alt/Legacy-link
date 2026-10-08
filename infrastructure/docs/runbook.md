@@ -35,8 +35,8 @@ curl -i http://127.0.0.1:3000/health/ready
 - `mosquitto-init` kết thúc `Exited (0)` là bình thường.
 - `unless-stopped` tự bật lại khi tiến trình chết hoặc Docker khởi động lại, trừ dịch vụ
   đã bị người dùng chủ động stop. Docker phải được bật khi khởi động máy.
-- Watchdog Node đợi 30 giây lúc khởi động, kiểm tra mỗi 10 giây; sáu lần readiness lỗi
-  liên tiếp thì thoát để Docker restart. Một vòng lỗi liên tục mất khoảng 80–95 giây.
+- Watchdog Node đợi 15 giây lúc khởi động, kiểm tra mỗi 5 giây; ba lần readiness lỗi
+  liên tiếp thì thoát để Docker restart. Lần restart đầu khi lỗi liên tục từ khởi động thường khoảng 25–40 giây.
   Đây là biện pháp phục hồi infra; không thay thế sửa lỗi reconnect của backend.
 
 **Lỗi quan sát với backend PR54:** sau broker restart, consumer ghi được dữ liệu nhưng
@@ -48,6 +48,10 @@ Infra không sửa source backend và không biến lỗi readiness thành OK gi
 `unknown_device`: kiểm tra đăng ký BENCH-01/gateway ID. `relation ... does not exist`:
 chạy lại setup và đọc lỗi SQL. Cổng đã dùng: đổi cổng host trong `.env`.
 Không in `.env` hay `docker compose config` đầy đủ vào log chia sẻ vì có credential.
+
+Setup và bài thử phục hồi dùng chung `.operation-lock` để tránh chạy chồng nhau.
+Nếu máy bị tắt đột ngột, kiểm tra PID trong `.operation-lock/owner` đã ngừng trước khi
+xóa lock cũ và chạy lại. Không xóa lock khi một thao tác vẫn đang chạy.
 
 ## Hướng dẫn theo việc
 
