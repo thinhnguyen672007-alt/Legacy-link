@@ -1,5 +1,10 @@
 # ESP32 gateway firmware
 
+For the hackathon demonstration, use OpenModSim as the PLC simulator and
+show measurements on the team's frontend. Follow the
+[OpenModSim demo guide](docs/hackathon-modbus-demo.md) for wiring, register values,
+MQTT configuration and the presentation sequence on Linux or Windows.
+
 See [firmware operation](docs/firmware-operation.md) for local network settings,
 flash recovery, configuration acknowledgements, polling timing and RS-485 direction.
 
