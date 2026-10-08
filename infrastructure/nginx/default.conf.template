@@ -1,0 +1,38 @@
+map_hash_bucket_size 128;
+# Public reads; all application mutations require the shared demo token.
+map $http_authorization $authorized {
+    default 0;
+    "Bearer ${API_WRITE_TOKEN}" 1;
+}
+map $request_method $mutation {
+    default 1;
+    GET 0;
+    HEAD 0;
+    OPTIONS 0;
+}
+map "$mutation:$authorized" $deny_write {
+    default 0;
+    "1:0" 1;
+}
+server {
+    listen 80;
+    server_tokens off;
+    client_max_body_size 128k;
+    location / {
+        default_type application/json;
+        proxy_hide_header Access-Control-Allow-Headers;
+        proxy_hide_header Access-Control-Allow-Origin;
+        add_header Access-Control-Allow-Headers "Content-Type, Authorization" always;
+        add_header Access-Control-Allow-Origin "*" always;
+        if ($deny_write) { return 401 '{"error":"Bearer token required","code":"unauthorized"}'; }
+        # Docker DNS is resolved again after an API container replacement.
+        resolver 127.0.0.11 valid=10s ipv6=off;
+        set $api http://backend-api:3000;
+        proxy_pass $api;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Authorization "";
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 20s;
+    }
+}

@@ -13,8 +13,9 @@
 # Script này làm hết, và dừng lại ngay khi bước nào thất bại.
 #
 # Usage:
-#   ./scripts/setup.sh          # broker + database + schema
+#   ./scripts/setup.sh          # broker + database + consumer + API
 #   ./scripts/setup.sh --seed   # kèm dữ liệu mẫu (demo)
+#   ./scripts/setup.sh --seed-bench  # BENCH-01 voi gateway ID that
 #   ./scripts/setup.sh --help
 #
 # Runbook: docs/runbook.md Mục 2
@@ -37,17 +38,19 @@ set -euo pipefail
 # - `-h|--help`: hai dấu gạch ngang cách nhau nghĩa là "hoặc".
 # ------------------------------------------------------------------------------
 WANT_SEED=false
+WANT_BENCH=false
 
 for arg in "$@"; do
   case "$arg" in
     --seed) WANT_SEED=true ;;
+    --seed-bench) WANT_BENCH=true ;;
     -h|--help)
-      sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
       echo "[ERROR] Khong hieu tham so: '$arg'" >&2
-      echo "        Dung: $0 [--seed] | $0 --help" >&2
+      echo "        Dung: $0 [--seed] [--seed-bench] | $0 --help" >&2
       exit 2
       ;;
   esac
@@ -67,6 +70,11 @@ INFRA_DIR="$(dirname "$SCRIPT_DIR")"
 # docker-compose.yml. `cd` một lần ở đây thay vì lặp `cd` mỗi lệnh — và cũng
 # là lý do `set -e` không làm hỏng script khi lệnh sau thất bại.
 cd "$INFRA_DIR"
+# Serialize operations that stop workers or migrate the shared database.
+source ./scripts/operation-lock.sh
+acquire_operation_lock setup
+trap release_operation_lock EXIT
+trap 'exit 130' INT TERM
 
 # ------------------------------------------------------------------------------
 # 3. Biến môi trường (.env)
@@ -91,8 +99,43 @@ fi
 #
 # Vì sao `-u` KHÔNG làm hỏng `source`: file .env tự gán giá trị cho chính nó
 # (`FOO=bar` là gán, không phải đọc), nên không biến nào bị đọc trước khi gán.
+requested_profiles="${COMPOSE_PROFILES:-}"
 # shellcheck disable=SC1091
 source .env
+export COMPOSE_PROFILES="${requested_profiles:-${COMPOSE_PROFILES:-full}}"
+# Generate the API write token locally; never print it or commit the real .env.
+if [[ ",$COMPOSE_PROFILES," == *,full,* ]] && [ -z "${API_WRITE_TOKEN:-}" ]; then
+  umask 077
+  API_WRITE_TOKEN="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+  if grep -q '^API_WRITE_TOKEN=' .env; then
+    sed -i "s/^API_WRITE_TOKEN=.*/API_WRITE_TOKEN=$API_WRITE_TOKEN/" .env
+  else
+    printf '\nAPI_WRITE_TOKEN=%s\n' "$API_WRITE_TOKEN" >> .env
+  fi
+  chmod 600 .env
+  echo "[INFO] Da tao API_WRITE_TOKEN trong .env."
+fi
+if [ "$WANT_BENCH" = true ] && ! [[ "${BENCH_GATEWAY_ID:-}" =~ ^[A-F0-9]{12}$ ]]; then
+  echo "[ERROR] --seed-bench can BENCH_GATEWAY_ID (12 ky tu HEX hoa doc tu USB)." >&2
+  exit 1
+fi
+if [[ ",$COMPOSE_PROFILES," == *,full,* ]] && [ ! -s ../backend/db/schema.sql ]; then
+  echo "[ERROR] Profile full can backend/db/schema.sql." >&2
+  exit 1
+fi
+
+# DATABASE_URL is interpolated in Compose; refuse unescaped URL delimiters.
+for key in POSTGRES_USER POSTGRES_PASS POSTGRES_DB; do
+  value="${!key:-}"
+  if [ -n "$value" ] && ! [[ "$value" =~ ^[a-zA-Z0-9_.~-]+$ ]]; then
+    echo "[ERROR] $key chi ho tro chu/so va _ . ~ - trong cau hinh hien tai." >&2
+    exit 1
+  fi
+done
+if [[ ",$COMPOSE_PROFILES," == *,full,* ]] && ! [[ "$API_WRITE_TOKEN" =~ ^[a-fA-F0-9]{32,128}$ ]]; then
+  echo "[ERROR] API_WRITE_TOKEN can 32-128 ky tu hex; de rong de tu tao." >&2
+  exit 1
+fi
 
 MQTT_CONTAINER_NAME="${MQTT_CONTAINER_NAME:-legacy-link-mosquitto}"
 POSTGRES_USER="${POSTGRES_USER:-legacy_admin}"
@@ -188,8 +231,17 @@ fi
 # và mosquitto chết với "Unable to open pwfile". Kiểm tra sau khi up để chặn
 # trường hợp đó sớm.
 # ------------------------------------------------------------------------------
+# Build before stopping workers, so a failed build does not interrupt ingestion.
+docker compose config --quiet
+if [[ ",$COMPOSE_PROFILES," == *,full,* ]]; then
+  docker compose build backend-consumer backend-api
+fi
+# C7-C10 replaces uniqueness keys: old workers must not write during migration.
+docker compose stop backend-consumer backend-api api-gateway
 echo "[INFO] Khoi dong ha tang..."
-docker compose up -d || {
+docker compose up -d --wait --wait-timeout 90 postgres
+# Password generator can replace the mounted file inode: recreate broker to reload.
+docker compose up -d --force-recreate --wait --wait-timeout 90 mosquitto || {
   echo "[ERROR] 'docker compose up -d' that bai." >&2
   echo "        Doc log: docker compose logs" >&2
   exit 1
@@ -242,25 +294,15 @@ if [ "$ready" != true ]; then
 fi
 
 echo "[INFO]        Postgres OK."
+# Keep a recoverable copy before any SQL upgrade; backups/ is gitignored.
+./scripts/backup-db.sh
+
 
 # ------------------------------------------------------------------------------
 # 8. Nạp schema
 # ------------------------------------------------------------------------------
-# FILE NÀY THUỘC MODULE KHÁC.
-#
-# `../backend/db/schema.sql` nằm ở nhánh `feature/backend-base`, KHÔNG nằm
-# trong `feature/infra-base`. Người checkout riêng nhánh infra sẽ KHÔNG có
-# thư mục backend/. Script này vì vậy phải kiểm tra trước, không mount file
-# này vào compose.
-#
-# VÌ SAO KHÔNG MOUNT `../backend/db/schema.sql` vao container:
-# Docker co quy tac: khi bind mount mot FILE ma duong dan do CHUA TON TAI, no
-# tao mot THU MUC rong tai dung duong dan do (mac dinh `create_host_path`).
-# Neu thu muc do lai thuoc module khac, thi script lay nhầm file, khong bao
-# gio chay duoc. Da kiem tra truc tiep tren may: `psql ... Is a directory`,
-# container `Exited (1)`. Giai phap duy nhat la kiem tra tren HOST truoc,
-# roi day du lieu qua stdin — dung cach o buoc duoi day.
-# ------------------------------------------------------------------------------
+# Schema belongs to backend; apply via stdin with ON_ERROR_STOP.
+# Full profile requires the backend directory from the same repo revision.
 BACKEND_DIR="$(cd .. 2>/dev/null && pwd || echo "")"
 SCHEMA="$BACKEND_DIR/backend/db/schema.sql"
 SEED="$BACKEND_DIR/backend/db/seed-demo.sql"
@@ -300,16 +342,15 @@ else
     }
 
   # Xac nhan bang cach dem bang thuc te, khong tin log.
-  # `\.` la lenh cua rieng psql (doc bang dau cham) in ra danh sach quan he.
   table_count="$(docker compose exec -T postgres \
     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
-    "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" \
+    "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('telemetry','machine_state','alarms','device','register_map','register_override','config_request','service_run','ingestion_receipt','consumer_health')" \
     2>/dev/null | tr -d '[:space:]' || echo 0)"
 
   echo "[INFO]        Da nap schema. So bang trong database: ${table_count:-0}"
 
-  if [ "${table_count:-0}" -lt 1 ]; then
-    echo "[ERROR]       Schema co vay nhung database khong co bang nao." >&2
+  if [ "${table_count:-0}" -ne 10 ]; then
+    echo "[ERROR]       Schema chua du 10 bang can cho backend hien tai." >&2
     exit 1
   fi
 fi
@@ -343,13 +384,17 @@ if [ "$WANT_SEED" = true ]; then
   echo "[INFO]        Da nap du lieu mau."
 fi
 
+if [ "$WANT_BENCH" = true ]; then
+  docker compose exec -T postgres sh -c 'exec psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v gateway_id="$1"' sh "$BENCH_GATEWAY_ID" < ../backend/db/seed-bench.sql
+fi
+
+# Chỉ bật/rebuild consumer sau khi schema và seed đã nạp thành công.
+# Profile broker giữ Node chạy ngoài Docker; profile full bật consumer.
+echo "[INFO] Build va khoi dong cac dich vu da chon..."
+docker compose up -d --wait --wait-timeout 120
+
 # ------------------------------------------------------------------------------
 # 10. Kiểm tra broker
-# ------------------------------------------------------------------------------
-# `|| true` o cuoi: test-mqtt.sh exit 1 khi broker chua chay la MOT TIN HIEU
-# PHAI BAO NGUOI DUNG, khong phai loi cua chinh script nay. Neu de no lan
-# tiep, `set -e` se lam setup.sh exit 1 ngay khi moi sap xong — bao loi sai
-# nguyen nhan va che mat ket qua cua 9 buoc da thanh cong.
 # ------------------------------------------------------------------------------
 echo "[INFO] Kiem tra broker..."
 if ! ./scripts/test-mqtt.sh; then
@@ -372,6 +417,11 @@ else
   echo "  Bang     : chua nap schema (checkout nay khong co backend/)"
 fi
 echo ""
+if [[ ",$COMPOSE_PROFILES," == *,full,* ]]; then
+  echo "  API      : http://${HTTP_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-3000}"
+  echo "  Write auth: Bearer API_WRITE_TOKEN (trong .env, khong in ra log)"
+fi
+echo "  Kiem tra : ./scripts/status.sh"
 echo "  Xem trang thai : docker compose ps"
 echo "  Xem log broker : docker compose logs -f mosquitto"
 echo "  Doc log Postgres: docker compose logs -f postgres"

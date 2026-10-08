@@ -21,3 +21,10 @@ mosquitto/data/*
 mosquitto/log/*
 !mosquitto/log/.gitkeep
 *.log
+
+# Private backups and generated acceptance reports.
+backups/
+reports/
+
+# Local lock shared by setup and recovery drills.
+.operation-lock/
