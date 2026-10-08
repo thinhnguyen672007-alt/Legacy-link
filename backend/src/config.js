@@ -30,8 +30,8 @@ if (![0, 1, 2].includes(qos)) {
   process.exit(1);
 }
 
-// Moi tien trinh mot clientId rieng: them PID de hai instance khong gianh nhau
-// tren broker. Xem .env.example de biet danh doi khi dung clean: false.
+// Stable consumer identity across restarts. Each concurrent consumer MUST use
+// its own MQTT_CLIENT_ID; publisher-only clients use a separate suffix.
 const clientIdBase = process.env.MQTT_CLIENT_ID ?? 'legacy-link-backend';
 
 export const config = Object.freeze({
@@ -39,7 +39,7 @@ export const config = Object.freeze({
     url: process.env.MQTT_URL,
     username: process.env.MQTT_USERNAME,
     password: process.env.MQTT_PASSWORD,
-    clientId: `${clientIdBase}-${process.pid}`,
+    clientId: clientIdBase,
     qos,
   },
 

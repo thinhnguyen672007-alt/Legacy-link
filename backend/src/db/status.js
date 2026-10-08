@@ -1,3 +1,4 @@
+import { requireDevice } from './ingestion.js';
 // db/status.js
 // Nhiem vu: cap nhat trang thai song/chet cua thiet bi.
 //
@@ -24,6 +25,7 @@
 import { pool } from './pool.js';
 
 export async function saveStatus({ deviceId, status, retained }) {
+  await requireDevice(pool, deviceId);
   if (retained) {
     // Message retained: chi cap nhat GIA TRI.
     // Khong dung toi last_seen_at — vi "vua nghe duoc" la chuyen cua su kien song.

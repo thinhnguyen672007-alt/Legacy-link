@@ -242,38 +242,55 @@ CREATE UNIQUE INDEX IF NOT EXISTS config_request_one_pending_per_gateway
 -- ---------------------------------------------------------------------------
 -- Lich su cac lan tien trinh MQTT khoi dong.
 --
--- VAN DE NO GIAI QUYET:
---
--- Khi backend khong chay, telemetry gui toi se MAT VINH VIEN. Khong lay lai duoc.
--- Ly do co hai, doc lap nhau:
---
---   1. Firmware publish o QoS 0 (PubSubClient khong co tham so QoS). QoS 0 nghia
---      la broker nhan roi vut — no KHONG xep hang cho nguoi nghe vang mat.
---
---   2. Backend subscribe voi clean:true va clientId co PID. Nen moi lan chay lai
---      la mot client hoan toan moi — khong co session cu de broker tra message.
---
--- Sua duoc ly do 2 (clean:false + clientId co dinh) NHUNG KHONG DU: QoS 0 van
--- khong duoc xep hang. Cach sua that su la store-and-forward tren firmware —
--- thiet bi tu giu du lieu trong RAM. Do la viec lon, de sau.
---
--- VI VAY bang nay chi giai quyet mot nua — nhung la nua QUAN TRONG HON:
---
---   Khong sua duoc viec mat du lieu.
---   NHUNG khong the de no dien ra trong im lang.
---
--- Neu backend chet 5 phut ma khong ai biet, dashboard van ve mot duong lien mach
--- va nguoi van hanh se TIN vao mot bieu do thieu du lieu. Do la thong tin SAI —
--- te hon la khong co thong tin.
---
--- stopped_at = NULL co hai nghia, va ca hai deu quan trong:
---   - day la lan chay DANG dien ra, hoac
---   - lan chay do ket thuc BAT THUONG (crash, mat dien) — khong biet luc nao
---
--- Phan biet hai truong hop nay bang cach so id voi lan chay moi nhat.
--- ---------------------------------------------------------------------------
+-- Diagnostic process history only: a gap does not prove samples were lost.
+-- Firmware outbox + post-COMMIT ingestion ACK enables replay even over QoS0.
+-- A NULL stopped_at means either running or an unclean exit; uptime alone
+-- cannot determine the exact crash time, missing samples, or MQTT/DB outages.
 CREATE TABLE IF NOT EXISTS service_run (
   id         bigserial   PRIMARY KEY,
   started_at timestamptz NOT NULL DEFAULT now(),
   stopped_at timestamptz
 );
+
+
+-- C7-C9 additive upgrade; safe to re-run on existing installations.
+BEGIN;
+-- Columns already used by commissioning and dashboard code, missing in the old schema.
+ALTER TABLE device ADD COLUMN IF NOT EXISTS applied_config jsonb;
+ALTER TABLE device ADD COLUMN IF NOT EXISTS config_request_id text;
+ALTER TABLE machine_state ADD COLUMN IF NOT EXISTS diagnostics jsonb;
+ALTER TABLE machine_state ADD COLUMN IF NOT EXISTS diagnostics_at bigint;
+ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS message_id text;
+ALTER TABLE telemetry DROP CONSTRAINT IF EXISTS telemetry_device_id_ts_key;
+CREATE UNIQUE INDEX IF NOT EXISTS telemetry_legacy_identity ON telemetry(device_id, ts) WHERE message_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS telemetry_message_identity ON telemetry(device_id, message_id) WHERE message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS telemetry_device_time ON telemetry(device_id, ts);
+
+ALTER TABLE alarms ADD COLUMN IF NOT EXISTS event_id text;
+ALTER TABLE alarms ADD COLUMN IF NOT EXISTS metric_key text;
+ALTER TABLE alarms DROP CONSTRAINT IF EXISTS alarms_device_id_ts_code_key;
+CREATE UNIQUE INDEX IF NOT EXISTS alarms_event_identity ON alarms(device_id, event_id);
+CREATE INDEX IF NOT EXISTS alarms_device_time ON alarms(device_id, ts);
+
+CREATE TABLE IF NOT EXISTS ingestion_receipt (
+  device_id text NOT NULL REFERENCES device(device_id),
+  kind text NOT NULL CHECK (kind IN ('telemetry', 'alarm')),
+  message_id text NOT NULL,
+  payload_hash text NOT NULL,
+  committed_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(device_id, kind, message_id)
+);
+
+COMMIT;
+
+-- HTTP readiness observes the separate MQTT consumer through a short-lived heartbeat.
+BEGIN;
+CREATE TABLE IF NOT EXISTS consumer_health (
+  client_id text PRIMARY KEY,
+  ready boolean NOT NULL,
+  heartbeat_at timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS alarms_time_id ON alarms(ts DESC,id DESC);
+CREATE INDEX IF NOT EXISTS alarms_device_time_id ON alarms(device_id,ts DESC,id DESC);
+CREATE INDEX IF NOT EXISTS telemetry_device_time_id ON telemetry(device_id,ts DESC,id DESC);
+COMMIT;

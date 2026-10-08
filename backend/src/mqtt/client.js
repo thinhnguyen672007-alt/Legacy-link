@@ -11,9 +11,10 @@ import { config } from '../config.js';
 
 // Dem so lan parse JSON that bai, de in ra luc tat.
 let errorsCount = 0;
+let subscribed = false;
 
 export function getStats() {
-  return { errorsCount };
+  return { errorsCount, subscribed };
 }
 
 // Bang dinh tuyen: "<ho topic>/<loai message>" -> ten handler.
@@ -62,6 +63,7 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm, onConfigAck, o
   // tham so thu hai la tuy chon. Khong gop URL vao trong options.
   const client = mqtt.connect(config.mqtt.url, {
     clientId: config.mqtt.clientId,
+    clean: false,
     username: config.mqtt.username,
     password: config.mqtt.password,
     reconnectPeriod: 5000,
@@ -73,6 +75,7 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm, onConfigAck, o
     console.log(`[MQTT] Da ket noi: ${config.mqtt.url}`);
 
     // Subscribe TRONG su kien 'connect': luc nay ket noi moi that su san sang.
+    subscribed = false;
     const topics = Object.values(config.topics);
 
     client.subscribe(topics, { qos: config.mqtt.qos }, (err, granted) => {
@@ -80,6 +83,7 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm, onConfigAck, o
         console.error('[MQTT] Subscribe that bai:', err.message);
         return;
       }
+      subscribed = granted.length === topics.length && granted.every(g => g.qos !== 128);
       console.log('[MQTT] Da subscribe:', granted.map((g) => g.topic).join(', '));
     });
   });
@@ -135,7 +139,7 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm, onConfigAck, o
 
   client.on('reconnect', () => console.log('[MQTT] Dang thu ket noi lai...'));
   client.on('offline', () => console.warn('[MQTT] Mat ket noi toi broker'));
-  client.on('close', () => console.log('[MQTT] Ket noi da dong'));
+  client.on('close', () => { subscribed = false; console.log('[MQTT] Ket noi da dong'); });
   client.on('error', (err) => console.error('[MQTT] Loi:', err.message));
 
   return client;

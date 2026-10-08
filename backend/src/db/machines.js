@@ -23,7 +23,7 @@ const GATEWAY_TTL_SECONDS = 90;
 //
 //   INNER JOIN  -> no bien mat khoi danh sach            (sai — may van ton tai!)
 //   LEFT JOIN   -> no van hien, gatewayOnline = false    (dung)
-export async function listMachines() {
+async function readMachines(deviceId = null) {
   const result = await pool.query(`
     SELECT
       d.device_id,
@@ -35,8 +35,9 @@ export async function listMachines() {
       d.sampling_interval_ms, d.gateway_id, d.config_request_id
     FROM device d
     LEFT JOIN machine_state s ON s.device_id = d.device_id
+    WHERE ($1::text IS NULL OR d.device_id=$1)
     ORDER BY d.device_id
-  `);
+  `, [deviceId]);
 
   return result.rows.map(toMachine);
 }
@@ -49,9 +50,7 @@ function toMachine(row) {
   const now = Date.now();
 
   const lastSeenMs = row.last_seen_at ? new Date(row.last_seen_at).getTime() : null;
-  const lastDataMs = row.last_telemetry_at
-    ? new Date(row.last_telemetry_at).getTime()
-    : null;
+  const lastDataMs = row.last_telemetry_ts == null ? null : Number(row.last_telemetry_ts);
 
   // gatewayOnline la gia tri SUY RA, khong phai doc thang tu cot `online`.
   //
@@ -79,10 +78,13 @@ function toMachine(row) {
     metrics: row.last_metrics,
     lastTelemetryAt: row.last_telemetry_at,
     lastMeasurementAt: row.last_telemetry_ts == null ? null : new Date(Number(row.last_telemetry_ts)).toISOString(),
-    dataAgeSeconds: lastDataMs === null ? null : Math.round((now - lastDataMs) / 1000),
+    dataAgeSeconds: lastDataMs === null ? null : Math.max(0, Math.round((now - lastDataMs) / 1000)),
     diagnostics: row.diagnostics,
     samplingIntervalMs: row.sampling_interval_ms,
     gatewayId: row.gateway_id,
     configRequestId: row.config_request_id,
   };
 }
+
+export const listMachines = () => readMachines();
+export async function getMachine(deviceId) { return (await readMachines(deviceId))[0] ?? null; }

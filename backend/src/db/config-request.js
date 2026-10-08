@@ -66,11 +66,12 @@ export async function applyConfigAck({ requestId, result, reason, persisted }) {
 
 // Danh dau mot yeu cau that bai ngay tu dau — vi du khong publish duoc.
 //
-// Khac voi 'timeout': day la biet chac chan chua gui di duoc.
+// Transport errors cannot prove the device did not receive the command.
+// Keep the outcome unknown; inspect device state before retrying.
 export async function failConfigRequest({ requestId, reason }) {
   await pool.query(
     `UPDATE config_request
-     SET status = 'rejected', reason = $2, ack_at = now()
+     SET status = 'timeout', reason = $2
      WHERE request_id = $1 AND status = 'pending'`,
     [requestId, reason],
   );
