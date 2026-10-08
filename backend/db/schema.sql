@@ -21,13 +21,33 @@ CREATE TABLE IF NOT EXISTS telemetry (
 
 -- Trang thai hien tai cua tung thiet bi. Luon chi mot dong moi thiet bi,
 -- nen dashboard doc trong vai mili-giay thay vi phai quet ca bang lich su.
+--
+-- BA MOC THOI GIAN KHAC NHAU, phuc vu ba cau hoi khac nhau:
+--
+--   last_seen_at       = lan cuoi nghe duoc BAT KY message NAO (gio may chu)
+--                        -> thiet bi con song khong?
+--
+--   last_telemetry_at  = lan cuoi nghe duoc telemetry (gio may chu)
+--                        -> so do con moi khong?
+--
+--   last_telemetry_ts  = timestamp moi nhat cua thiet bi (gio THIET BI)
+--                        -> dung de chan message cu ghi de du lieu moi (C3)
+--
+-- Vi sao phai tach: mot thiet bi co the con song (dang gui heartbeat) nhung so
+-- do da cu (cap Modbus dut). Gop ba thu vao mot cot thi khong the phan biet.
 CREATE TABLE IF NOT EXISTS machine_state (
-  device_id    text        PRIMARY KEY,
-  online       boolean     NOT NULL DEFAULT false,
-  last_metrics jsonb,
-  last_seen_at timestamptz,
-  updated_at   timestamptz NOT NULL DEFAULT now()
+  device_id         text        PRIMARY KEY,
+  online            boolean     NOT NULL DEFAULT false,
+  last_metrics      jsonb,
+  last_telemetry_ts bigint,
+  last_telemetry_at timestamptz,
+  last_seen_at      timestamptz,
+  updated_at        timestamptz NOT NULL DEFAULT now()
 );
+
+-- Cho database da ton tai tu truoc khi bang chua co cac cot nay.
+ALTER TABLE machine_state ADD COLUMN IF NOT EXISTS last_telemetry_ts bigint;
+ALTER TABLE machine_state ADD COLUMN IF NOT EXISTS last_telemetry_at timestamptz;
 
 -- Su kien alarm. acknowledged_at NULL nghia la chua ai xu ly.
 CREATE TABLE IF NOT EXISTS alarms (
@@ -60,6 +80,15 @@ CREATE TABLE IF NOT EXISTS device (
   created_at           timestamptz NOT NULL DEFAULT now()
 );
 
+-- gateway_id = dinh danh phan cung cua ESP32 (vi du MAC hoac chip ID).
+--
+-- VI SAO CAN: config di XUONG o topic theo deviceId, nhung ACK di LEN o topic
+-- theo gatewayId. Backend can biet ca hai moi gui va nhan duoc.
+--
+-- Ly do ACK dung gatewayId: luc moi khoi dong, ESP32 chua duoc cau hinh nen no
+-- CHUA BIET deviceId cua minh. Nhung no luon biet gatewayId.
+ALTER TABLE device ADD COLUMN IF NOT EXISTS gateway_id text;
+
 -- Cac dong duoi day danh cho database DA TON TAI tu truoc, khi bang device
 -- chua co sau cot cau hinh. Tren database moi tao thi chung khong lam gi.
 -- Nho vay file nay chay lai bao nhieu lan cung duoc.
@@ -89,11 +118,36 @@ CREATE TABLE IF NOT EXISTS register_map (
   data_type        text     NOT NULL DEFAULT 'UINT16',
   scale            real     NOT NULL DEFAULT 1.0,
   unit             text,
+
+  -- Cau hinh alarm. alarm_code BAT BUOC khi co alarm_high — xem rang buoc ben duoi.
+  -- Ma alarm KHONG duoc doan tu ten chi so: cung mot chi so co the ung voi nhieu
+  -- ma tuy theo may.
   alarm_high       double precision,
+  alarm_code       text,
+  alarm_critical   double precision,
+  alarm_hysteresis double precision NOT NULL DEFAULT 0,
+  alarm_severity   text     NOT NULL DEFAULT 'high',
   alarm_low        double precision,
 
   PRIMARY KEY (machine_type, metric_key)
 );
+
+-- Cho database da ton tai tu truoc.
+ALTER TABLE register_map ADD COLUMN IF NOT EXISTS alarm_code       text;
+ALTER TABLE register_map ADD COLUMN IF NOT EXISTS alarm_critical   double precision;
+ALTER TABLE register_map ADD COLUMN IF NOT EXISTS alarm_hysteresis double precision NOT NULL DEFAULT 0;
+ALTER TABLE register_map ADD COLUMN IF NOT EXISTS alarm_severity   text     NOT NULL DEFAULT 'high';
+
+-- RANG BUOC: co nguong thi PHAI co ma.
+--
+-- Firmware TU CHOI TOAN BO config neu mot register co alarm_high ma thieu
+-- alarm_code — khong phai bo qua rieng register do. Rang buoc nay bat du lieu sai
+-- ngay luc nhap, thay vi de no lam hong ca cau hinh cua ESP32 sau nay.
+--
+-- DROP truoc ADD de file nay chay lai duoc nhieu lan.
+ALTER TABLE register_map DROP CONSTRAINT IF EXISTS register_map_alarm_needs_code;
+ALTER TABLE register_map ADD CONSTRAINT register_map_alarm_needs_code
+  CHECK (alarm_high IS NULL OR alarm_code IS NOT NULL);
 
 -- Phan KHAC BIET cua tung may so voi ban chung.
 --
@@ -110,7 +164,77 @@ CREATE TABLE IF NOT EXISTS register_override (
   scale            real,
   unit             text,
   alarm_high       double precision,
+  alarm_code       text,
+  alarm_critical   double precision,
+  alarm_hysteresis double precision,
+  alarm_severity   text,
   alarm_low        double precision,
 
   PRIMARY KEY (device_id, metric_key)
 );
+
+-- Cho database da ton tai tu truoc.
+--
+-- KHONG dat rang buoc "co nguong thi phai co ma" o bang nay. Ly do: mot override
+-- co the chi doi nguong (vi du ha tu 90 xuong 85) ma khong nhac lai ma alarm —
+-- ma do thua huong tu ban chung. Rang buoc o day se chan nham truong hop do.
+--
+-- Sau khi ghep, ben doc (db/catalog.js) se kiem tra lai: chi gui alarm khi co
+-- du ca nguong lan ma.
+ALTER TABLE register_override ADD COLUMN IF NOT EXISTS alarm_code       text;
+ALTER TABLE register_override ADD COLUMN IF NOT EXISTS alarm_critical   double precision;
+ALTER TABLE register_override ADD COLUMN IF NOT EXISTS alarm_hysteresis double precision;
+ALTER TABLE register_override ADD COLUMN IF NOT EXISTS alarm_severity   text;
+
+-- ---------------------------------------------------------------------------
+-- Yeu cau gui cau hinh xuong thiet bi.
+--
+-- VI SAO PHAI LUU TRONG DATABASE, KHONG DUOC LUU TRONG RAM:
+--
+-- Hai tien trinh HTTP va MQTT chay RIENG BIET nhau:
+--   - Tien trinh HTTP TAO yeu cau (khi frontend bam "Ap dung")
+--   - Tien trinh MQTT NHAN ACK (vi no dang giu ket noi toi broker)
+--
+-- Hai tien trinh KHONG chia se bo nho. Bien trong RAM cua tien trinh nay khong
+-- ton tai voi tien trinh kia. Nen trang thai BAT BUOC phai di qua database.
+--
+-- Day khong phai chuyen "thich luu tru" — ma la rang buoc cua kien truc.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS config_request (
+  request_id text        PRIMARY KEY,
+
+  -- Topic di xuong theo device, ACK di len theo gateway. Can ca hai.
+  device_id  text        NOT NULL,
+  gateway_id text        NOT NULL,
+
+  -- pending  = da gui, dang cho ACK
+  -- applied  = ESP32 bao da ap dung
+  -- unchanged= ESP32 bao cau hinh giong het cai dang chay, khong can doi
+  -- rejected = ESP32 tu choi
+  -- timeout  = qua han ma khong nghe gi. CHUA BIET ket qua — xem ghi chu duoi.
+  status     text        NOT NULL DEFAULT 'pending',
+
+  -- Noi dung da gui. Luu lai de co the gui lai y nguyen khi retry, va de biet
+  -- chinh xac minh da gui cai gi.
+  payload    jsonb       NOT NULL,
+
+  -- Thong tin lay tu ACK. Tat ca deu co the NULL vi ACK co the thieu truong.
+  result     text,
+  reason     text,
+  persisted  boolean,
+
+  sent_at    timestamptz NOT NULL DEFAULT now(),
+  ack_at     timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- MOI GATEWAY CHI MOT YEU CAU DANG CHO.
+--
+-- Day la partial unique index: no chi ap dung cho cac dong co status='pending'.
+-- Cac dong da xong (applied/rejected/timeout) khong bi rang buoc.
+--
+-- Nho vay database TU CHAN viec gui hai cau hinh cung luc cho mot thiet bi —
+-- khong can kiem tra trong code, va khong so race condition.
+CREATE UNIQUE INDEX IF NOT EXISTS config_request_one_pending_per_gateway
+  ON config_request (gateway_id)
+  WHERE status = 'pending';

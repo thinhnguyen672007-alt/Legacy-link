@@ -42,12 +42,34 @@ export const config = Object.freeze({
     clientId: `${clientIdBase}-${process.pid}`,
     qos,
   },
+
+  // Topic de SUBSCRIBE — dung wildcard `+`, vi ta khong biet truoc co bao nhieu
+  // thiet bi va chung ten gi.
   topics: {
     telemetry: 'legacy-link/devices/+/telemetry',
     status: 'legacy-link/devices/+/status',
     alarm: 'legacy-link/devices/+/alarm',
+    configAck: 'legacy-link/gateways/+/config/ack',
   },
+
   database: {
     url: process.env.DATABASE_URL,
   },
 });
+
+// Topic de PUBLISH — KHONG dung wildcard, ma dung tu id cu the.
+//
+// VI SAO KHAC NHAU:
+//   Subscribe: "cho toi nghe moi thiet bi"  -> wildcard
+//   Publish:   "gui cho DUNG thiet bi nay"  -> phai co id that
+//
+// Wildcard `+` chi co nghia khi dang ky nghe. Publish len mot topic chua dau `+`
+// la gui vao mot dia chi khong ai dang ky — broker nhan, roi khong chuyen cho ai.
+
+export function gatewayConfigTopic(gatewayId) {
+  return `legacy-link/gateways/${gatewayId}/config`;
+}
+
+export function deviceConfigTopic(deviceId) {
+  return `legacy-link/devices/${deviceId}/config`;
+}
