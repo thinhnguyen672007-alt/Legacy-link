@@ -66,8 +66,8 @@ export async function applyConfigAck({ requestId, result, reason, persisted }) {
 
 // Danh dau mot yeu cau that bai ngay tu dau — vi du khong publish duoc.
 //
-// Transport errors cannot prove the device did not receive the command.
-// Keep the outcome unknown; inspect device state before retrying.
+// Gửi lệnh lỗi không chứng minh ESP32 chưa nhận lệnh: có thể chỉ mất xác nhận.
+// Giữ trạng thái chưa rõ kết quả và kiểm tra gateway trước khi gửi lại.
 export async function failConfigRequest({ requestId, reason }) {
   await pool.query(
     `UPDATE config_request

@@ -2,9 +2,9 @@
 // Nhiem vu: ghi lai lich su cac lan tien trinh MQTT chay, de biet duoc
 // KHOANG NAO backend khong hoat dong.
 //
-// Process uptime indicates possible gaps, not confirmed sample loss.
-// Firmware with an outbox and ingestion ACK can replay after recovery.
-// MQTT/DB connection outages need separate monitoring even if this process runs.
+// Lịch sử tiến trình cho biết khả năng có khoảng gián đoạn, không khẳng định mất mẫu.
+// Firmware giữ mẫu trong hàng đợi và chờ ingestion ACK có thể gửi bù sau phục hồi.
+// Tiến trình còn chạy vẫn có thể mất MQTT/database, nên health phải theo dõi riêng.
 
 import { pool } from './pool.js';
 

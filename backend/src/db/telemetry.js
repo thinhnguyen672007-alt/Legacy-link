@@ -1,5 +1,6 @@
 import { storeEvent } from './ingestion.js';
 
+// Lưu lịch sử trước; mẫu cũ gửi bù vẫn vào lịch sử nhưng không ghi đè số mới trên dashboard.
 export async function saveTelemetry(event) {
   const { deviceId, timestamp, metrics } = event;
   return storeEvent('telemetry', event, async (client, storageId) => {
