@@ -56,3 +56,17 @@ test('merged catalog apply and database request routes remain available alongsid
   assert.equal((await request('GET','/config-requests/missing')).statusCode,404);
   assert.equal((await request('POST','/config-requests/db-request')).statusCode,405);
 });
+
+test('C10 malformed URL returns JSON 400 and ignores untrusted Host', async () => {
+  assert.equal((await request('GET','/%ZZ')).statusCode,400);
+  assert.equal((await request('GET','http://evil/machines')).statusCode,400);
+  assert.equal((await request('GET','/machines',undefined,{host:'[invalid'})).statusCode,200);
+});
+test('C10 route-specific methods and JSON liveness', async () => {
+  const wrong=await request('POST','/machines');
+  assert.equal(wrong.statusCode,405); assert.equal(wrong.headers.Allow,'GET, OPTIONS');
+  assert.equal((await request('GET','/health/live')).data.status,'alive');
+  assert.equal((await request('GET','/health')).headers['Content-Type'],'application/json; charset=utf-8');
+  assert.equal((await request('POST','/not-a-route')).statusCode,404);
+  assert.equal((await request('POST','/gateways/643C60A7DBCC/probe','{}',{'content-type':'application/jsonx'})).statusCode,415);
+});

@@ -2,12 +2,9 @@
 // Nhiem vu: ghi lai lich su cac lan tien trinh MQTT chay, de biet duoc
 // KHOANG NAO backend khong hoat dong.
 //
-// VI SAO CAN — xem giai thich day du trong db/schema.sql:
-//
-// Khi backend khong chay, telemetry gui toi mat vinh vien. Khong the sua dieu do
-// voi firmware hien tai (PubSubClient chi publish duoc QoS 0). Nhung khong the
-// de no dien ra ma khong ai biet — vi dashboard se ve mot duong lien mach va
-// nguoi van hanh se tin vao mot bieu do thieu du lieu.
+// Process uptime indicates possible gaps, not confirmed sample loss.
+// Firmware with an outbox and ingestion ACK can replay after recovery.
+// MQTT/DB connection outages need separate monitoring even if this process runs.
 
 import { pool } from './pool.js';
 

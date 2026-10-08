@@ -24,6 +24,8 @@ import { publishJson } from '../mqtt/publisher.js';
 // Ket qua tra ve dung dang { ok, code } giong cac validator — de ben goi phan
 // biet duoc ma loi nao ma xu ly (tra 404, 409, 503...), khong phai doan tu chuoi.
 export async function applyConfig({ deviceId, publishClient }) {
+  if (!publishClient.connected) return { ok: false, code: 'publish_failed' };
+
   // BUOC 1: thiet bi co ton tai khong, va gateway cua no la gi?
   const target = await getConfigTarget(deviceId);
 
@@ -61,12 +63,11 @@ export async function applyConfig({ deviceId, publishClient }) {
   // BUOC 4: gui.
   try {
     await publishJson(publishClient, deviceConfigTopic(deviceId), {
-      requestId,
       ...target.config,
+      requestId,
     });
   } catch (err) {
-    // Khong gui duoc ngay tu dau thi biet chac chan that bai — danh dau luon,
-    // dung de no nam 'pending' cho den khi het timeout moi bao.
+    // Publication failed or timed out. Device outcome remains unknown.
     await failConfigRequest({ requestId, reason: `publish_failed: ${err.message}` });
     return { ok: false, code: 'publish_failed', requestId };
   }

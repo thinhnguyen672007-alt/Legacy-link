@@ -1,31 +1,17 @@
-// db/telemetry.js
-// Nhiem vu: ghi mot ban ghi telemetry DA QUA VALIDATION vao database.
-//
-// Diem quan trong nhat: ham nay IDEMPOTENT. Goi hai lan voi cung du lieu thi ket
-// qua giong het goi mot lan. Nho vay khi QoS 1 gui lai cung mot message, ta
-// khong sinh ra dong trung lap.
-//
-// Cach lam: de DATABASE tu chan bang rang buoc UNIQUE (device_id, ts), chu
-// khong kiem tra trong code. Kiem tra trong code se sai khi co hai tien trinh
-// cung ghi, hoac khi co race condition.
+import { storeEvent } from './ingestion.js';
 
-import { pool } from './pool.js';
-
-export async function saveTelemetry({ deviceId, timestamp, metrics }) {
-  const client = await pool.connect();
-
-  try {
-    // Hai lenh phai cung thanh cong hoac cung that bai. Neu ghi duoc lich su
-    // ma khong cap nhat duoc trang thai thi dashboard se hien so cu.
-    await client.query('BEGIN');
-
+export async function saveTelemetry(event) {
+  const { deviceId, timestamp, metrics } = event;
+  return storeEvent('telemetry', event, async (client, storageId) => {
     const inserted = await client.query(
-      `INSERT INTO telemetry (device_id, ts, metrics)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (device_id, ts) DO NOTHING
+      `INSERT INTO telemetry (device_id, ts, metrics, message_id)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT DO NOTHING
        RETURNING id`,
-      [deviceId, timestamp, JSON.stringify(metrics)],
+      [deviceId, timestamp, JSON.stringify(metrics), storageId],
     );
+
+    if (!inserted.rowCount) return { inserted: false };
 
     // Trang thai hien tai CHI cap nhat khi du lieu MOI HON du lieu dang luu.
     //
@@ -77,15 +63,6 @@ export async function saveTelemetry({ deviceId, timestamp, metrics }) {
       [deviceId, JSON.stringify(metrics), timestamp],
     );
 
-    await client.query('COMMIT');
-
-    return { inserted: inserted.rowCount > 0 };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    // Luon tra ket noi ve pool, du thanh cong hay that bai. Quen buoc nay thi
-    // pool can ket noi sau vai chuc lan loi.
-    client.release();
-  }
+    return { inserted: true };
+  });
 }

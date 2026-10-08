@@ -1,3 +1,5 @@
+import { recordConsumerHealth } from './db/health.js';
+import { createIngestionHandler } from './ingestion/handler.js';
 // index.js
 // Nhiem vu: entrypoint cua backend. Noi cac manh lai voi nhau va quan ly
 // vong doi tien trinh (bat SIGINT/SIGTERM de tat dung cach).
@@ -6,7 +8,7 @@ import { config } from './config.js';
 import { startMqttClient, getStats } from './mqtt/client.js';
 import { validateTelemetry } from './validation/telemetry.js';
 import { validateStatus } from './validation/status.js';
-import { validateAlarm, ALARM_HINTS, SEVERITY_HINTS } from './validation/alarm.js';
+import { validateAlarm } from './validation/alarm.js';
 import { validateConfigAck } from './validation/config-ack.js';
 import { checkCatalogMetrics } from './validation/catalog-check.js';
 import { saveTelemetry } from './db/telemetry.js';
@@ -31,16 +33,8 @@ try {
   console.warn('[CATALOG] Khong kiem tra duoc catalog:', err.message);
 }
 
-// Ghi lai lan khoi dong nay, VA phat hien lan chay truoc ket thuc bat thuong.
-//
-// VI SAO:
-// Khi backend khong chay, telemetry gui toi mat vinh vien — khong the lay lai
-// (firmware publish QoS 0, broker khong xep hang cho nguoi nghe vang mat).
-//
-// Khong sua duoc dieu do. Nhung neu lan chay truoc ket thuc BAT THUONG, thi
-// chac chan co mot khoang du lieu da mat — va phai noi ra.
-//
-// Day la tieng noi duy nhat con lai ve khoang du lieu bi thieu.
+// Process uptime is diagnostic evidence only. It cannot prove how many
+// samples were lost. Identified firmware samples can be replayed after recovery.
 let currentRunId = null;
 
 try {
@@ -53,7 +47,7 @@ try {
         ` ket thuc BAT THUONG — khong ghi duoc gio dung.`,
     );
     console.warn(
-      `[UPTIME] Telemetry trong khoang do DA MAT VINH VIEN va khong the lay lai.` +
+      `[UPTIME] Co nguy co gian doan du lieu; can doi chieu hang doi va sequence cua firmware.` +
         ` Dashboard se hien khoang trang nay (xem GET /uptime).`,
     );
   }
@@ -76,34 +70,15 @@ function logTiming(payload){
     }
 }
 
+function publishIngestionAck(topic, payload) {
+  // Do not accumulate ACKs while disconnected: firmware will retry the event.
+  if (!client.connected) return Promise.reject(new Error('MQTT disconnected before ACK'));
+  return client.publishAsync(topic, JSON.stringify(payload), { qos: 1, retain: false });
+}
+
 const client = startMqttClient({
   onDiagnostics: (deviceId, payload) => saveDiagnostics(deviceId, payload),
-  onTelemetry: async (deviceId, payload) => {
-    const result = validateTelemetry(deviceId, payload);
-
-    if (!result.ok) {
-      console.error(`[TELEMETRY] Bo qua ${deviceId}:`, result.errors.join('; '));
-      return;
-    }
-
-    const telemetry = result.value;
-
-    try {
-      const { inserted } = await saveTelemetry(telemetry);
-
-      if (inserted) {
-        console.log(`[TELEMETRY] ${telemetry.deviceId}:`, JSON.stringify(telemetry.metrics));
-      } else {
-        console.log(`[TELEMETRY] ${telemetry.deviceId}: ban ghi trung lap, da bo qua`);
-      }
-    } catch (err) {
-      // Database loi thi ghi log roi di tiep. Khong de mot loi ha tang lam
-      // sap ca tien trinh dang phuc vu cac thiet bi khac.
-      console.error(`[TELEMETRY] Loi ghi database:`, err.message);
-    }
-
-    logTiming(telemetry);
-  },
+  onTelemetry: createIngestionHandler({ kind: 'telemetry', validate: validateTelemetry, save: saveTelemetry, publish: publishIngestionAck }),
   onStatus: async (deviceId, payload, packet) => {
     const result = validateStatus(deviceId, payload);
 
@@ -130,31 +105,7 @@ const client = startMqttClient({
 
     logTiming(status);
   },
-  onAlarm: async (deviceId, payload) => {
-    const result = validateAlarm(deviceId, payload);
-
-    if (!result.ok) {
-      console.error(`[ALARM] Bo qua ${deviceId}:`, result.errors.join('; '));
-      return;
-    }
-
-    const alarm = result.value;
-
-    try {
-      const { inserted } = await saveAlarm(alarm);
-
-      if (inserted) {
-        console.log(
-          `[ALARM] ${alarm.deviceId}: ${alarm.code} [${alarm.severity}] -> ${ALARM_HINTS[alarm.code]}; ${SEVERITY_HINTS[alarm.severity]}`,
-        );
-      } else {
-        console.log(`[ALARM] ${alarm.deviceId}: ban ghi trung lap, da bo qua`);
-      }
-    } catch (err) {
-      console.error(`[ALARM] Loi ghi database:`, err.message);
-    }
-    logTiming(alarm);
-  },
+  onAlarm: createIngestionHandler({ kind: 'alarm', validate: validateAlarm, save: saveAlarm, publish: publishIngestionAck }),
   onConfigAck: async (gatewayId, payload) => {
     const result = validateConfigAck(gatewayId, payload);
 
@@ -203,6 +154,18 @@ const client = startMqttClient({
   }
 });
 
+// HTTP is a separate process: publish readiness via PostgreSQL with a TTL.
+let healthBusy = false;
+async function heartbeatConsumer() {
+  if (healthBusy) return;
+  healthBusy = true;
+  try { await recordConsumerHealth(config.mqtt.clientId, client.connected && getStats().subscribed); }
+  catch (err) { console.warn('[HEALTH] Consumer heartbeat failed:', err.message); }
+  finally { healthBusy = false; }
+}
+const healthTimer = setInterval(heartbeatConsumer, 5000);
+void heartbeatConsumer();
+
 // ---------------------------------------------------------------------------
 // Bo dem don dep cac yeu cau cau hinh da qua han.
 //
@@ -239,6 +202,7 @@ setInterval(async () => {
 // Dong ket noi gon gang khi Ctrl+C (SIGINT) hoac khi container bi stop (SIGTERM).
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
+    clearInterval(healthTimer);
     console.log(`[BACKEND] Nhan ${signal}, dang dung...`);
 
     if (signal === 'SIGINT') {
@@ -260,6 +224,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
       // Neu ham nay khong chay duoc (crash, mat dien), dong service_run se giu
       // stopped_at = NULL. Do chinh la dau hieu ta dung de phat hien lan sau.
       try {
+        await recordConsumerHealth(config.mqtt.clientId, false);
         await recordServiceStop(currentRunId);
       } catch (err) {
         console.error('[UPTIME] Khong ghi duoc gio dung:', err.message);
