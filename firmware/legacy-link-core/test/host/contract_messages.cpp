@@ -20,6 +20,7 @@ int main(int argc, char **argv) {
   mqttClient.receive(config_topic, json);
   loop();
   assert(is_config_valid);
+  telemetry_queue = TelemetryQueue{};
   mqttClient.published.clear();
 
   modbus_result_t readings[MAX_REGISTERS] = {};
@@ -32,9 +33,11 @@ int main(int argc, char **argv) {
   const char *severities[] = {"low", "medium", "high", "critical"};
   for (const char *code : codes) {
     for (const char *severity : severities) {
-      alarm_config_t alarm = {};
+      auto &alarm = global_device_config.registers[0].alarm;
+      alarm = {};
       strcpy(alarm.code, code);
       strcpy(alarm.severity, severity);
+      alarm_queue = AlarmQueue{};
       assert(publish_alarm(&global_device_config, &alarm, 81.5f, current_epoch_ms()));
     }
   }

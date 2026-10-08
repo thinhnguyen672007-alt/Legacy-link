@@ -4,12 +4,17 @@ import { ControlError, validGatewayId, validateConfig, validateReadings } from '
 const TERMINAL = new Set(['completed', 'applied', 'rejected', 'timed_out', 'publish_failed', 'catalog_error']);
 export class ControlService {
   constructor(client, { saveConfig, now = Date.now, timeoutMs = 45000 } = {}) {
+    this.subscribed = false;
+    client.on('close', () => { this.subscribed = false; });
     this.client = client; this.saveConfig = saveConfig; this.now = now; this.timeoutMs = timeoutMs;
     this.gateways = new Map(); this.operations = new Map();
     client.on('connect', () => client.subscribe([
       'legacy-link/gateways/+/state', 'legacy-link/gateways/+/config/ack',
       'legacy-link/gateways/+/probe/result',
-    ], { qos: 1 }, err => { if (err) console.error('[CONTROL] Subscribe failed:', err.message); }));
+    ], { qos: 1 }, (err, granted) => {
+      this.subscribed = !err && granted?.length === 3 && granted.every(g => g.qos !== 128);
+      if (err) console.error('[CONTROL] Subscribe failed:', err.message);
+    }));
     client.on('message', (topic, bytes, packet) => {
       void this.receive(topic, bytes, packet).catch(err => console.warn('[CONTROL]', err.message));
     });

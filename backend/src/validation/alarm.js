@@ -1,3 +1,4 @@
+import { checkIdentity } from '../ingestion/identity.js';
 // validation/alarm.js
 // Nhiem vu: kiem tra mot payload alarm co hop le khong.
 //
@@ -40,6 +41,7 @@ export function validateAlarm(topicDeviceId, payload) {
   }
 
   const errors = [];
+  const identity = checkIdentity(payload, errors, 'alarm');
 
   checkDeviceId(topicDeviceId, payload.deviceId, errors);
   checkTimestamp(payload.timestamp, errors);
@@ -83,12 +85,14 @@ export function validateAlarm(topicDeviceId, payload) {
   return {
     ok: true,
     value: {
+      ...identity,
       deviceId: payload.deviceId,
       timestamp: payload.timestamp,
       schemaVersion: payload.schemaVersion,
       code: payload.code,
       severity: payload.severity,
       value: payload.value,
+      ...(payload.metricKey !== undefined ? { metricKey: payload.metricKey } : {}),
     },
   };
 }

@@ -1,3 +1,4 @@
+import { checkIdentity } from '../ingestion/identity.js';
 // validation/telemetry.js
 // Nhiem vu: kiem tra mot payload telemetry co hop le khong.
 //
@@ -33,11 +34,13 @@ const MAX_METRIC_COUNT = 32
 export const ALLOWED_METRICS = new Set(['temperature', 'current', 'rpm', 'speed', 'pressure', 'torque']);
 
 export function validateTelemetry(topicDeviceId, payload) {
-  const errors = []; // khai báo biến errors để hứng tất cả các lỗi thay vì throw 1 lỗi và phải sửa đi sửa lại nhiều lần 
+  const errors = [];
 
   if (!isPlainObject(payload)) {
     return { ok: false, errors: ['payload must be an object'] };
   }
+
+  const identity = checkIdentity(payload, errors, 'telemetry');
 
   // 1. deviceId: chuoi khong rong, va phai KHOP voi deviceId tren topic.
   //    Lech nhau nghia la firmware gui sai hoac co nguoi gia mao.
@@ -102,6 +105,7 @@ export function validateTelemetry(topicDeviceId, payload) {
   return {
     ok: true,
     value: {
+      ...identity,
       deviceId: payload.deviceId,
       timestamp: payload.timestamp,
       metrics: { ...payload.metrics },

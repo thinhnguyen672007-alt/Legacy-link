@@ -158,6 +158,14 @@ Run the updated schema, firmware, consumer and `npm run start:http`; see the
 [API contract and curl demo](docs/commissioning-demo.md). This contribution does
 not include a frontend. Physical commissioning acceptance remains pending.
 
+## Firmware delivery recovery
+
+Telemetry (32 samples) and alarms (8 events) have independent RAM outboxes. Firmware
+retries unchanged IDs until the C7–C10 backend confirms database COMMIT. The USB
+`:health` command reports pending/committed counts, overflow attempts and rejected
+head samples. ESP32 reset clears RAM queues; capacity bounds recovery time.
+See the [delivery contract and acceptance runbook](docs/telemetry-delivery.md).
+
 ## Validation
 
 After building firmware to install its dependencies, run from the repository root:
@@ -171,7 +179,7 @@ python3 firmware/legacy-link-core/test/host/run_contract.py --backend-ref origin
 Fetch `origin/main` before the contract check. Host tests use address/undefined
 behavior sanitizers; in environments where LeakSanitizer cannot run, set
 `ASAN_OPTIONS=detect_leaks=0`. [GitHub Actions](.github/workflows/build.yml) builds
-ESP32 firmware, runs ten host test executables and checks generated MQTT payloads
+ESP32 firmware, runs thirteen host test executables and checks generated MQTT payloads
 against backend validators for pushes/PRs to `main` and `dev`.
 
 Physical evidence:

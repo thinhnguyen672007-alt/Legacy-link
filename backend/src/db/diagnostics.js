@@ -1,3 +1,4 @@
+import { requireDevice } from './ingestion.js';
 import { pool } from './pool.js';
 import { validGatewayId, validateReadings } from '../control/validation.js';
 
@@ -12,6 +13,7 @@ export function parseDiagnostics(deviceId, data) {
 }
 export async function saveDiagnostics(deviceId, data) {
   const diagnostics = parseDiagnostics(deviceId, data);
+  await requireDevice(pool, deviceId, diagnostics.gatewayId);
   await pool.query(`INSERT INTO machine_state (device_id, diagnostics, diagnostics_at, last_seen_at, updated_at)
     VALUES ($1,$2,$3,now(),now()) ON CONFLICT (device_id) DO UPDATE
     SET diagnostics=EXCLUDED.diagnostics, diagnostics_at=EXCLUDED.diagnostics_at,

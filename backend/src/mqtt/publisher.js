@@ -17,7 +17,7 @@ import { config } from '../config.js';
 export function startPublisher() {
   const client = mqtt.connect(config.mqtt.url, {
     // Them hau to '-pub' de khong trung clientId voi tien trinh MQTT chinh.
-    clientId: `${config.mqtt.clientId}-pub`,
+    clientId: `${config.mqtt.clientId}-pub-${process.pid}`,
     username: config.mqtt.username,
     password: config.mqtt.password,
     reconnectPeriod: 5000,
@@ -40,13 +40,14 @@ export function startPublisher() {
 // Do la hai chuyen hoan toan khac nhau. Muon biet ESP32 da ap dung chua thi
 // phai cho ACK tren topic config/ack. Xem src/db/config-request.js.
 export function publishJson(client, topic, payload) {
+  if (!client.connected) return Promise.reject(new Error('MQTT publisher disconnected'));
   return new Promise((resolve, reject) => {
-    client.publish(topic, JSON.stringify(payload), { qos: 1 }, (err) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      resolve();
-    });
+    const timer = setTimeout(() => reject(new Error('MQTT publish confirmation timed out; outcome unknown')), 5000);
+    try {
+      client.publish(topic, JSON.stringify(payload), { qos: 1, retain: false }, (err) => {
+        clearTimeout(timer);
+        if (err) reject(err); else resolve();
+      });
+    } catch (error) { clearTimeout(timer); reject(error); }
   });
 }

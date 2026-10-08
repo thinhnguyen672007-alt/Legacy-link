@@ -30,7 +30,7 @@ int main() {
   WiFi.connection_status = WL_CONNECTED;
   test_millis = 26000; loop();
   assert(time_sync_calls() == 1);
-  assert(mqttClient.connected() && mqttClient.subscriptions == 3);
+  assert(mqttClient.connected() && mqttClient.subscriptions == 4);
   test_millis = 27000; loop();
   assert(time_sync_calls() == 1 && WiFi.reconnects == 2);
 
@@ -49,7 +49,7 @@ int main() {
   WiFi.connection_status = WL_CONNECTED;
   test_millis = 43000; loop();
   assert(time_sync_calls() == 2);
-  assert(mqttClient.connected() && mqttClient.subscriptions == 6);
+  assert(mqttClient.connected() && mqttClient.subscriptions == 8);
   assert(mqttClient.subscribed_topic == device_config_topic);
 
   // Retry timing stays correct when ESP32 millis() wraps after ~49 days.
