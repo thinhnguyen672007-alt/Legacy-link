@@ -50,6 +50,12 @@ export function validateConfig(value) {
           !['OVERHEAT', 'OVERCURRENT', 'OVERSPEED', 'VIBRATION'].includes(alarm.code) ||
           !['low', 'medium', 'high', 'critical'].includes(alarm.severity)) fail(`${reg.key}: invalid alarm`);
       reg.alarm = { threshold: alarm.threshold, hysteresis: alarm.hysteresis ?? 0, code: alarm.code, severity: alarm.severity };
+      if (alarm.criticalThreshold != null) {
+        if (!finite(alarm.criticalThreshold) || Math.abs(alarm.criticalThreshold) > 3.4028234e38 ||
+            alarm.severity !== 'high' || alarm.criticalThreshold <= alarm.threshold)
+          fail(`${reg.key}: invalid critical alarm threshold`);
+        reg.alarm.criticalThreshold = alarm.criticalThreshold;
+      }
     }
     return reg;
   });

@@ -143,7 +143,7 @@ the normal scan, restore UART settings and leave active config/NVS/alarms intact
 Modbus serial settings and `registerMap`. Each register accepts raw `address`,
 `functionCode` 3/4, `dataType` INT16/UINT16/UINT32, `wordOrder`, `scale`, `unit`,
 optional `expectedMin`/`expectedMax` (converted units) and an optional high `alarm`
-object (`threshold`, `hysteresis`, `code`, `severity`). Expected ranges are checked
+object (`threshold`, optional `criticalThreshold`, `hysteresis`, `code`, `severity`). Expected ranges are checked
 by the backend and are separate from firmware alarm thresholds.
 
 Apply requires a complete successful probe of the exact normalized draft on the
