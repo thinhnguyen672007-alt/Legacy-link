@@ -11,6 +11,7 @@ import { validateConfigAck } from './validation/config-ack.js';
 import { checkCatalogMetrics } from './validation/catalog-check.js';
 import { saveTelemetry } from './db/telemetry.js';
 import { saveStatus } from './db/status.js';
+import { saveDiagnostics } from './db/diagnostics.js';
 import { saveAlarm } from './db/alarm.js';
 import { closePool } from './db/pool.js';
 import { expireStaleRequests } from './db/config-request.js';
@@ -76,6 +77,7 @@ function logTiming(payload){
 }
 
 const client = startMqttClient({
+  onDiagnostics: (deviceId, payload) => saveDiagnostics(deviceId, payload),
   onTelemetry: async (deviceId, payload) => {
     const result = validateTelemetry(deviceId, payload);
 

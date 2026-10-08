@@ -182,6 +182,63 @@ services:
     networks:
       - legacy-link-net
 
+  # ------------------------------------------------------------------------------
+  # backend-consumer — consumer MQTT của backend (Node.js) đọc log và lệnh.
+  #
+  # VÌ SAO CẦN THÊM KHỐI NÀY:
+  # Trước đây broker + postgres chạy trong Docker, còn bản thân Node backend
+  # chạy tay từ terminal (`npm start`). Nghĩa là mỗi lần deploy phải mở thêm
+  # terminal, quên thì không ai biết. Đóng gói consumer vào image riêng giúp
+  # toàn hệ thống chỉ cần `docker compose up -d` là lên đủ.
+  #
+  #   build: ../backend
+  #     Đường dẫn tới thư mục có backend/Dockerfile. Compose chạy `docker build`
+  #     lần đầu, lần sau dùng lại image trừ khi sửa Dockerfile hoặc package.json.
+  #
+  #   depends_on với condition:
+  #     postgres phải healthy (pg_isready OK) rồi mới start backend, tránh
+  #     crash vì backend cố kết nối trước khi Postgres sẵn sàng.
+  #     mosquitto-init chạy một lần (service_completed_successfully) để tạo
+  #     xong config/passwd của broker.
+  #
+  #   environment:
+  #     MQTT_URL phải trỏ `mqtt://mosquitto:1883` chứ KHÔNG phải localhost,
+  #     vì consumer chạy trong container — `localhost` ở đây là chính nó,
+  #     không phải broker. Giống `postgres:5432` cho DATABASE_URL.
+  #     MQTT_USERNAME / MQTT_PASSWORD dùng cùng tài khoản broker đã khai báo
+  #     trong infrastructure/.env (MQTT_DEV_USER / MQTT_DEV_PASS) để khớp với
+  #     hash trong mosquitto/config/passwd.
+  #
+  #   restart: on-failure:5
+  #     Nếu process crash thì restart tối đa 5 lần. Lỗi thật (sai credential)
+  #     thì 5 lần là đủ để log bị spam, không restart vô hạn.
+  #
+  #   profiles: ["full"]
+  #     Chỉ chạy khi dùng profile full. Dev local chỉ cần broker+postgres thì
+  #     dùng --profile broker, service này đứng yên, backend vẫn chạy tay được.
+  # ------------------------------------------------------------------------------
+  backend-consumer:
+    build: ../backend
+    container_name: legacy-link-consumer
+    restart: on-failure:5
+    profiles: ["full"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto-init:
+        condition: service_completed_successfully
+      mosquitto:
+        condition: service_started
+    environment:
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_USERNAME: ${MQTT_DEV_USER:-legacy_admin}
+      MQTT_PASSWORD: ${MQTT_DEV_PASS:-legacy_secret_2026}
+      MQTT_CLIENT_ID: legacy-link-backend
+      MQTT_QOS: ${MQTT_QOS:-2}
+      DATABASE_URL: postgres://${POSTGRES_USER:-legacy_admin}:${POSTGRES_PASS:-change_me}@postgres:5432/${POSTGRES_DB:-legacy_link}
+    networks:
+      - legacy-link-net
+
 networks:
   legacy-link-net:
     name: ${DOCKER_NETWORK_NAME:-legacy-link-net}

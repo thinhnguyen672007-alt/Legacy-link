@@ -16,6 +16,9 @@
 // chung chia se trang thai, vi hai tien trinh khong chia se bo nho.
 
 import http from 'node:http';
+import { startControlService } from '../control/client.js';
+import { createHttpHandler } from './handler.js';
+const controls = startControlService();
 
 import { closePool } from '../db/pool.js';
 import { getCatalog } from '../db/catalog.js';
@@ -258,6 +261,8 @@ server.listen(3000, () => {
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     console.log(`\n[HTTP] Nhan ${signal}, dang dung...`);
+    controls.close();
+    publisher.end();
     server.close(async () => {
       await closePool();
       console.log('[HTTP] Da dong server va connection pool.');

@@ -50,6 +50,7 @@ export const config = Object.freeze({
     status: 'legacy-link/devices/+/status',
     alarm: 'legacy-link/devices/+/alarm',
     configAck: 'legacy-link/gateways/+/config/ack',
+    diagnostics: 'legacy-link/devices/+/diagnostics',
   },
 
   database: {

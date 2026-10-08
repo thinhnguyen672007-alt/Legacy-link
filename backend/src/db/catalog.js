@@ -95,7 +95,7 @@ function toFirmwareRegister(row) {
 export async function getCatalog(deviceId) {
   const deviceResult = await pool.query(
     `SELECT device_id, machine_type, name, protocol, baud_rate, parity,
-            stop_bits, slave_id, sampling_interval_ms
+            stop_bits, slave_id, sampling_interval_ms, applied_config
      FROM device
      WHERE device_id = $1`,
     [deviceId],
@@ -106,6 +106,7 @@ export async function getCatalog(deviceId) {
   }
 
   const device = deviceResult.rows[0];
+  if (device.applied_config) return device.applied_config;
   const registerResult = await pool.query(CATALOG_QUERY, [deviceId, device.machine_type]);
 
   const catalog = {

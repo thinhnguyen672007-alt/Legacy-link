@@ -31,8 +31,8 @@ export async function listMachines() {
       d.machine_type,
       COALESCE(s.online, false) AS online,
       s.last_seen_at,
-      s.last_telemetry_at,
-      s.last_metrics
+      s.last_metrics, s.last_telemetry_at, s.last_telemetry_ts, s.diagnostics,
+      d.sampling_interval_ms, d.gateway_id, d.config_request_id
     FROM device d
     LEFT JOIN machine_state s ON s.device_id = d.device_id
     ORDER BY d.device_id
@@ -74,12 +74,15 @@ function toMachine(row) {
     name: row.name,
     machineType: row.machine_type,
     gatewayOnline,
+    online: gatewayOnline,
     lastSeenAt: row.last_seen_at,
     metrics: row.last_metrics,
     lastTelemetryAt: row.last_telemetry_at,
-    // So giay ke tu lan cuoi nhan duoc so do. null nghia la chua bao gio nhan.
-    // Dashboard dung so nay de phan biet "online va so moi" voi
-    // "online nhung so da cu muoi phut".
+    lastMeasurementAt: row.last_telemetry_ts == null ? null : new Date(Number(row.last_telemetry_ts)).toISOString(),
     dataAgeSeconds: lastDataMs === null ? null : Math.round((now - lastDataMs) / 1000),
+    diagnostics: row.diagnostics,
+    samplingIntervalMs: row.sampling_interval_ms,
+    gatewayId: row.gateway_id,
+    configRequestId: row.config_request_id,
   };
 }
