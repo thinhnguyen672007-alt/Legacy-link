@@ -3,6 +3,8 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 infra_root="$PWD"
+source ./scripts/operation-lock.sh
+operation_locked=false
 # shellcheck disable=SC1091
 source .env
 export COMPOSE_PROFILES=full API_WRITE_TOKEN
@@ -36,6 +38,7 @@ cleanup() {
   trap - EXIT
   restore_services || code=1
   if [ "$fixture_active" = true ]; then probe cleanup || code=1; fi
+  if [ "$operation_locked" = true ]; then release_operation_lock || code=1; fi
   echo "Evidence: $report_root"
   exit "$code"
 }
@@ -46,6 +49,8 @@ if [ ${#faults[@]} -eq 0 ]; then faults=(backend-consumer postgres mosquitto net
 for fault in "${faults[@]}"; do
   case "$fault" in backend-consumer|postgres|mosquitto|network) ;; *) echo "Invalid fault: $fault" >&2; exit 2 ;; esac
 done
+acquire_operation_lock recovery
+operation_locked=true
 ./scripts/test-mqtt.sh
 for fault in "${faults[@]}"; do
   run_dir="$report_root/$fault"

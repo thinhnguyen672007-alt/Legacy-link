@@ -70,6 +70,11 @@ INFRA_DIR="$(dirname "$SCRIPT_DIR")"
 # docker-compose.yml. `cd` một lần ở đây thay vì lặp `cd` mỗi lệnh — và cũng
 # là lý do `set -e` không làm hỏng script khi lệnh sau thất bại.
 cd "$INFRA_DIR"
+# Serialize operations that stop workers or migrate the shared database.
+source ./scripts/operation-lock.sh
+acquire_operation_lock setup
+trap release_operation_lock EXIT
+trap 'exit 130' INT TERM
 
 # ------------------------------------------------------------------------------
 # 3. Biến môi trường (.env)
