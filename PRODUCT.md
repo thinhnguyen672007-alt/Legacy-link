@@ -34,10 +34,13 @@ The interface and repository artifacts remain in English.
 - GET /machines returns deviceId, name, machineType, online, lastSeenAt, metrics.
 - GET /catalog?deviceId=... returns a merged, firmware-shaped registerMap.
 - GET /health confirms HTTP process liveness only.
-- lastSeenAt is shared by status and telemetry, not a per-metric timestamp.
-- Current HTTP routes do not expose alarm history, measurement history, device
-  creation, or configuration publishing. Do not fabricate these capabilities.
-- Catalog alarm fields may appear on the backend branch before reaching main.
+- lastSeenAt is shared by status and telemetry; lastTelemetryAt and per-register
+  diagnostics provide independent measurement freshness.
+- HTTP control routes support gateway discovery, test reads, applying a tested
+  configuration and correlated acknowledgements. Devices/catalogs are registered
+  after ESP32 confirms application. Alarm and measurement history are not exposed.
+- New applied catalogs preserve the tested register map and high alarm settings.
+  Existing template catalogs may omit alarm fields.
 - Frontend reads HTTP only; broker credentials never belong in the browser.
 - Live mode is the default. An explicitly selected, clearly labeled sample mode
   can support interface review while the backend is unavailable.

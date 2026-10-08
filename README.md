@@ -127,7 +127,10 @@ npm run dev
 Open http://127.0.0.1:5173 and enter the backend HTTP address in **Connection**.
 The dashboard reads `/machines` and `/catalog`, with explicit offline/error states.
 **Sample** is an opt-in interface preview, never a fallback for failed live data.
-Alarm/history/configuration publishing screens await backend APIs. See the
+Register maps includes gateway discovery, test reads and configuration apply/ACK.
+Deploy the updated schema, HTTP control process, consumer and firmware together;
+follow the [commissioning demo guide](docs/commissioning-demo.md). Alarm/history
+screens remain future work. See the
 [frontend guide](frontend/README.md) for setup, testing and integration boundaries.
 
 ## MQTT and configuration contract

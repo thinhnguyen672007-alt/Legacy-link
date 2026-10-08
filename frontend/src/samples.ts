@@ -8,6 +8,7 @@ export function sampleMachines(now: number): Machine[] {
       machineType: "CNC",
       online: true,
       lastSeenAt: new Date(now).toISOString(),
+      lastTelemetryAt: new Date(now).toISOString(),
       metrics: { temperature: 25, current: 1.23, rpm: 1500 },
     },
     {
@@ -16,6 +17,7 @@ export function sampleMachines(now: number): Machine[] {
       machineType: "CNC",
       online: false,
       lastSeenAt: new Date(now - 180_000).toISOString(),
+      lastTelemetryAt: new Date(now - 180_000).toISOString(),
       metrics: { temperature: 32.4, current: 0, rpm: 0 },
     },
     {

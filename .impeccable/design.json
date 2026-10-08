@@ -563,7 +563,7 @@
       "kind": "card",
       "refersTo": "panel",
       "description": "Flat working surface with a compact header.",
-      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-heading\"><h2 class=\"ds-panel-title\">Data context</h2></div><p class=\"ds-panel-note\">Individual measurement timestamps are not available.</p></section>",
+      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-heading\"><h2 class=\"ds-panel-title\">Data context</h2></div><p class=\"ds-panel-note\">Per-reading diagnostics and the last telemetry timestamp determine measurement freshness.</p></section>",
       "css": ".ds-panel{font-family:\"Manrope Variable\",sans-serif;background:var(--paper,#fff);color:var(--ink,#263144);border:1px solid var(--line,#e3e7ee);border-radius:var(--radius,12px);overflow:hidden;min-width:0}.ds-panel-heading{padding:22px 24px}.ds-panel-title{margin:0;font-size:15.4px;letter-spacing:-.015em;font-weight:750}.ds-panel-note{margin:0;padding:13px 24px;background:#fcfcfd;border-top:1px solid var(--line,#e3e7ee);color:var(--muted,#627084);font-size:10.5px;line-height:1.65} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
     },
     {
@@ -619,7 +619,7 @@
     "donts": [
       "Don't present backend contact time as an individual measurement timestamp.",
       "Don't present a catalog, signal-path diagram, or successful HTTP response as proof of hardware state.",
-      "Don't imply alarm history, historical charts, device creation, or configuration publishing is available through the current read-only interface.",
+      "Don't imply alarm history or historical charts are available, or treat pending configuration commands as confirmed device state.",
       "Don't infer active alarms from configured thresholds or silently replace live data with sample data."
     ]
   }

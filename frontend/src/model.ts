@@ -5,6 +5,22 @@ export interface Machine {
   online: boolean;
   lastSeenAt: string | null;
   metrics: Record<string, number> | null;
+  lastTelemetryAt?: string | null;
+  samplingIntervalMs?: number;
+  gatewayId?: string | null;
+  configRequestId?: string | null;
+  diagnostics?: {
+    timestamp: number;
+    configRequestId: string;
+    samplingIntervalMs: number;
+    readings: {
+      key: string;
+      success: boolean;
+      errorCode: number;
+      sampledAt: number;
+      value?: number;
+    }[];
+  } | null;
 }
 export interface Register {
   key: string;
@@ -68,7 +84,8 @@ export function parseMachines(payload: unknown): Machine[] {
     if (ids.has(deviceId))
       throw new Error("The machines response contains duplicate device IDs.");
     ids.add(deviceId);
-    if (typeof row.online !== "boolean")
+    const online = row.gatewayOnline ?? row.online;
+    if (typeof online !== "boolean")
       throw new Error("Invalid machine online state.");
     const metrics = row.metrics == null ? null : object(row.metrics);
     if (
@@ -81,13 +98,65 @@ export function parseMachines(payload: unknown): Machine[] {
     const lastSeenAt = row.lastSeenAt == null ? null : string(row.lastSeenAt);
     if (lastSeenAt && !Number.isFinite(Date.parse(lastSeenAt)))
       throw new Error("Invalid last-seen timestamp.");
+    let diagnostics: Machine["diagnostics"] = null;
+    if (row.diagnostics != null) {
+      const d = object(row.diagnostics);
+      if (
+        !Number.isSafeInteger(d.timestamp) ||
+        typeof d.configRequestId !== "string" ||
+        typeof d.samplingIntervalMs !== "number" ||
+        d.samplingIntervalMs < 100 ||
+        !Array.isArray(d.readings)
+      )
+        throw new Error("Invalid measurement diagnostics.");
+      const readings = d.readings.map((value) => {
+        const r = object(value);
+        if (
+          typeof r.key !== "string" ||
+          typeof r.success !== "boolean" ||
+          !Number.isInteger(r.errorCode) ||
+          typeof r.sampledAt !== "number" ||
+          !Number.isFinite(r.sampledAt)
+        )
+          throw new Error("Invalid register result.");
+        return {
+          key: r.key,
+          success: r.success,
+          errorCode: r.errorCode as number,
+          sampledAt: r.sampledAt,
+          value:
+            typeof r.value === "number" && Number.isFinite(r.value)
+              ? r.value
+              : undefined,
+        };
+      });
+      diagnostics = {
+        timestamp: d.timestamp as number,
+        configRequestId: d.configRequestId,
+        samplingIntervalMs: d.samplingIntervalMs,
+        readings,
+      };
+    }
+    const measurementTime = "lastMeasurementAt" in row ? row.lastMeasurementAt : row.lastTelemetryAt;
+    const lastTelemetryAt = measurementTime == null ? null : string(measurementTime);
+    if (lastTelemetryAt && !Number.isFinite(Date.parse(lastTelemetryAt)))
+      throw new Error("Invalid telemetry timestamp.");
     return {
       deviceId,
       name: string(row.name),
       machineType: string(row.machineType),
-      online: row.online,
+      online,
       lastSeenAt,
       metrics: metrics as Machine["metrics"],
+      lastTelemetryAt,
+      diagnostics,
+      samplingIntervalMs:
+        typeof row.samplingIntervalMs === "number"
+          ? row.samplingIntervalMs
+          : undefined,
+      gatewayId: typeof row.gatewayId === "string" ? row.gatewayId : null,
+      configRequestId:
+        typeof row.configRequestId === "string" ? row.configRequestId : null,
     };
   });
 }

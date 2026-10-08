@@ -1,7 +1,9 @@
 # Legacy-link frontend
 
 A React + TypeScript dashboard for the existing Node.js HTTP backend. It reads
-real machine state and register maps; no backend or firmware changes are required.
+real machine state and register maps. The commissioning flow requires the updated
+backend schema, HTTP control process, MQTT consumer and ESP32 firmware; see the
+[commissioning demo guide](../docs/commissioning-demo.md).
 
 ## Run
 
@@ -44,7 +46,7 @@ Fonts ship locally; no Google Fonts or external font service is required.
 | Screen | Available now |
 | --- | --- |
 | Overview | Poll `/machines` every 2 seconds; search, filter, select a device, read metrics, pause or manually refresh |
-| Register maps | Read `/catalog?deviceId=...`; inspect raw address, calculated Modicon reference, type, scale, units; export catalog JSON |
+| Register maps | Inspect/export the catalog; configure a machine, read-test on ESP32, inspect raw/converted results, apply and verify flash/restart evidence |
 | Connection | Validate and save HTTP address; explain current backend capabilities and demo setup |
 
 Live mode is the default. **Sample** explicitly loads static, labeled interface
@@ -90,17 +92,19 @@ or + 30001 for FC04. The underlying raw address remains unchanged.
 - `lastSeenAt` currently changes on status and telemetry. A contact older than
   15 seconds is labeled **No recent contact**, not definitively disconnected.
   This UI heuristic may need adjustment for slower reporting profiles.
-- The API does not expose per-metric timestamps, so current contact does not
-  prove that every metric is fresh. Offline/unverified values remain snapshots.
+- Measurement freshness uses `diagnostics.readings[].sampledAt` or `lastTelemetryAt`,
+  independently of gateway contact. Read failures and stale values stay visible.
+  Old API responses without these clocks show measurement time unavailable.
 - The catalog does not prove which configuration is currently applied on ESP32.
-- Alarm history, measurement history, device creation, and configuration publish/
-  acknowledgement APIs are not available. The UI does not emulate their success.
+- Alarm and measurement history are not exposed. Device registration and
+  configuration publish/ACK APIs are available through the commissioning flow.
 - `/health` is process liveness only. Connectivity is verified using a valid
   `/machines` response instead.
 
-Next integration work: expose measurement timestamps and history; expose alarm
-list/state; add configuration validation/publish/ACK endpoints. Agree contracts
-with the backend owner before implementing those screens.
+The control contracts and deployment sequence are in the commissioning demo guide.
+A test result expires after 60 seconds and edits invalidate it. Flash persistence
+and restoration after a new boot are separate confirmations. Offline queuing and
+predictive AI are outside this demo.
 
 ## Validation
 

@@ -5,13 +5,18 @@
 #include "gateway_settings.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <PubSubClient.h>
 #include <WiFi.h>
+#include <WiFiClient.h>
+#include <IPAddress.h>
+#include <PubSubClient.h>
 #include <time.h>
 #include <sys/time.h>
 #include <math.h>
 #include <memory>
 #include <new>
+#ifndef LEGACYLINK_HOST_BUILD
+#include <esp_system.h>
+#endif
 
 // ============================================================
 // CẤU HÌNH MẠNG - Đổi theo môi trường của team
@@ -32,6 +37,11 @@ PubSubClient mqttClient(espClient);
 static char gateway_id[13];
 static char mqtt_client_id[80];
 static char config_topic[80];
+static char probe_topic[80];
+static bool pending_probe = false;
+static char active_request_id[65] = {};
+static char boot_id[17] = {};
+static bool restored_at_boot = false;
 static char device_config_topic[80];
 static bool pending_device_config = false;
 static constexpr size_t CONFIG_BUFFER_SIZE = MAX_CONFIG_PAYLOAD_BYTES + 1;
@@ -63,6 +73,23 @@ unsigned long long current_epoch_ms() {
   return static_cast<unsigned long long>(now.tv_sec) * 1000ULL + now.tv_usec / 1000;
 }
 
+void publish_gateway_state() {
+  if (!mqttClient.connected()) return;
+  StaticJsonDocument<512> doc;
+  doc["schemaVersion"] = 1;
+  doc["gatewayId"] = gateway_id;
+  doc["bootId"] = boot_id;
+  doc["configRequestId"] = active_request_id;
+  doc["restored"] = restored_at_boot;
+  doc["persisted"] = active_config_persisted;
+  doc["timestamp"] = current_epoch_ms();
+  if (is_config_valid) doc["deviceId"] = global_device_config.device_id;
+  char topic[96], payload[640];
+  snprintf(topic, sizeof(topic), "legacy-link/gateways/%s/state", gateway_id);
+  serializeJson(doc, payload, sizeof(payload));
+  mqttClient.publish(topic, payload, true);
+}
+
 void flush_config_ack() {
   if (!config_ack_pending || !mqttClient.connected()) return;
   char topic[96];
@@ -78,6 +105,7 @@ void queue_config_ack(const char *result, const char *reason, const char *reques
   doc["gatewayId"] = gateway_id;
   if (is_config_valid) doc["deviceId"] = global_device_config.device_id;
   if (request_id[0]) doc["requestId"] = request_id;
+  doc["bootId"] = boot_id;
   doc["result"] = result;
   doc["reason"] = reason;
   doc["persisted"] = active_config_persisted;
@@ -263,7 +291,7 @@ void reconnect_mqtt() {
   if (connected) {
     Serial.println("connected!");
 
-    if (!mqttClient.subscribe(config_topic, 1) ||
+    if (!mqttClient.subscribe(probe_topic, 1) || !mqttClient.subscribe(config_topic, 1) ||
         (is_config_valid && !mqttClient.subscribe(device_config_topic, 1))) {
       Serial.println("[MQTT] Config subscription failed; reconnecting on next retry");
       mqttClient.disconnect();
@@ -271,6 +299,7 @@ void reconnect_mqtt() {
     }
     Serial.printf("[MQTT] Config topic: %s\r\n", config_topic);
     if (is_config_valid) publish_status(&global_device_config, true);
+    publish_gateway_state();
     flush_config_ack();
   } else {
     Serial.print("failed, rc=");
@@ -281,7 +310,8 @@ void reconnect_mqtt() {
 // Copy the MQTT-owned bytes before returning; apply outside the callback.
 void mqtt_callback(char *topic, byte *payload, unsigned int length) {
   const bool device_topic = device_config_topic[0] && !strcmp(topic, device_config_topic);
-  if (strcmp(topic, config_topic) != 0 && !device_topic) return;
+  const bool is_probe = !strcmp(topic, probe_topic);
+  if (strcmp(topic, config_topic) != 0 && !device_topic && !is_probe) return;
   if (length == 0 || length >= sizeof(pending_config) || memchr(payload, '\0', length)) {
     Serial.println("[CONFIG] Rejected: empty, oversized or NUL-containing MQTT payload");
     queue_config_ack("rejected", "invalid_payload");
@@ -291,10 +321,32 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length) {
     queue_config_ack("rejected", "busy");
     return;
   }
+  // New control commands are bounded to this boot and a short time window.
+  // Legacy/manual configuration without these fields remains supported.
+  DynamicJsonDocument command(8192);
+  if (!deserializeJson(command, reinterpret_cast<const char *>(payload), length)) {
+    const char *id = command["requestId"] | "";
+    const char *expected_boot = command["expectedBootId"] | "";
+    const char *expected_config = command["expectedConfigRequestId"] | "";
+    const uint64_t expires = command["expiresAt"] | uint64_t(0);
+    if ((command.containsKey("expiresAt") && (!current_epoch_ms() || current_epoch_ms() > expires)) ||
+        (command.containsKey("expectedBootId") && strcmp(expected_boot, boot_id)) ||
+        (!is_probe && command.containsKey("expectedConfigRequestId") &&
+         strcmp(expected_config, active_request_id) && strcmp(id, active_request_id))) {
+      queue_config_ack("rejected", "stale_command", id);
+      return;
+    }
+  }
   memcpy(pending_config, payload, length);
   pending_config[length] = '\0';
   config_pending = true;
   pending_device_config = device_topic;
+  pending_probe = is_probe;
+  char request_id[65] = {};
+  if (read_request_id(pending_config, request_id) && request_id[0]) {
+    queue_config_ack("received", "ok", request_id);
+    flush_config_ack();
+  }
 }
 
 // Reconnect only on identity changes, otherwise a retained config would cause
@@ -320,7 +372,12 @@ bool apply_runtime_config(const char *payload, bool device_scoped = false) {
     return false;
   }
   if (is_config_valid && !memcmp(&next, &global_device_config, sizeof(next))) {
-    if (!active_config_persisted) active_config_persisted = save_config(payload);
+    if (!active_config_persisted || strcmp(active_request_id, request_id)) {
+      active_config_persisted = save_config(payload);
+      restored_at_boot = false;
+    }
+    strlcpy(active_request_id, request_id, sizeof(active_request_id));
+    publish_gateway_state();
     queue_config_ack("unchanged", active_config_persisted ? "ok" : "storage_error", request_id);
     return true;
   }
@@ -331,6 +388,9 @@ bool apply_runtime_config(const char *payload, bool device_scoped = false) {
     return false;
   }
   active_config_persisted = save_config(payload);
+  strlcpy(active_request_id, request_id, sizeof(active_request_id));
+  restored_at_boot = false;
+  publish_gateway_state();
   if (!active_config_persisted) Serial.println("[CONFIG] Applied in RAM; flash save failed");
   alarm_monitor.reset();
   reset_poll_cycle();
@@ -346,13 +406,78 @@ bool apply_runtime_config(const char *payload, bool device_scoped = false) {
 bool restore_saved_configuration() {
   if (!load_saved_config(pending_config, sizeof(pending_config))) return false;
   const bool restored = apply_new_configuration(pending_config);
+  if (!restored) { pending_config[0] = '\0'; return false; }
+  active_request_id[0] = '\0';
+  read_request_id(pending_config, active_request_id);
   pending_config[0] = '\0';
-  if (!restored) return false;
+  restored_at_boot = true;
   active_config_persisted = true;
   alarm_monitor.reset();
   reset_poll_cycle();
   Serial.println("[CONFIG] Restored validated configuration from flash");
   return true;
+}
+
+// Full scan diagnostics are sent even when every register fails. A status
+// heartbeat never makes an unsuccessful measurement appear fresh.
+void add_reading(JsonArray rows, const register_config_t &reg, const modbus_result_t &result) {
+  JsonObject row = rows.createNestedObject();
+  row["key"] = reg.key;
+  row["address"] = reg.address;
+  row["success"] = result.success;
+  row["errorCode"] = result.error_code;
+  const uint64_t now = current_epoch_ms();
+  const uint32_t age = static_cast<uint32_t>(millis()) - result.completed_at_ms;
+  row["sampledAt"] = now > age ? now - age : 0;
+  if (result.success) {
+    row["rawValue"] = result.raw_value;
+    row["value"] = result.scaled_value;
+    JsonArray words = row.createNestedArray("rawWords");
+    for (uint8_t i = 0; i < result.word_count; ++i) words.add(result.raw_words[i]);
+  }
+}
+
+void send_read_report(const device_config_t &cfg, modbus_result_t *results,
+                      const char *request_id = nullptr) {
+  if (!mqttClient.connected()) return;
+  DynamicJsonDocument doc(8192);
+  doc["schemaVersion"] = 1;
+  doc["gatewayId"] = gateway_id;
+  doc["deviceId"] = cfg.device_id;
+  doc["bootId"] = boot_id;
+  doc["timestamp"] = current_epoch_ms();
+  doc["samplingIntervalMs"] = cfg.sampling_interval_ms;
+  doc["configRequestId"] = active_request_id;
+  if (request_id) { doc["requestId"] = request_id; doc["result"] = "completed"; }
+  JsonArray rows = doc.createNestedArray("readings");
+  for (uint8_t i = 0; i < cfg.register_count; ++i) add_reading(rows, cfg.registers[i], results[i]);
+  char topic[96];
+  if (request_id) snprintf(topic, sizeof(topic), "legacy-link/gateways/%s/probe/result", gateway_id);
+  else snprintf(topic, sizeof(topic), "legacy-link/devices/%s/diagnostics", cfg.device_id);
+  std::unique_ptr<char[]> payload(new (std::nothrow) char[4096]);
+  if (!payload || doc.overflowed() || measureJson(doc) >= 4096) return;
+  serializeJson(doc, payload.get(), 4096);
+  mqttClient.publish(topic, payload.get(), false);
+}
+
+void run_probe(const char *payload) {
+  char request_id[65] = {};
+  std::unique_ptr<device_config_t> candidate(new (std::nothrow) device_config_t{});
+  if (!candidate || !read_request_id(payload, request_id) || !request_id[0] ||
+      !parse_device_config(payload, candidate.get())) {
+    queue_config_ack("rejected", "invalid_probe", request_id);
+    return;
+  }
+  // Temporarily switch UART settings; never replace global config, NVS or alarms.
+  device_config_t fallback = {};
+  fallback.baud_rate = 9600; fallback.stop_bits = 1;
+  apply_uart_config(candidate.get());
+  modbus_result_t results[MAX_REGISTERS] = {};
+  for (uint8_t i = 0; i < candidate->register_count; ++i)
+    modbus_read_one(candidate.get(), i, &results[i]);
+  apply_uart_config(is_config_valid ? &global_device_config : &fallback);
+  reset_poll_cycle();
+  send_read_report(*candidate, results, request_id);
 }
 
 void poll_modbus_step() {
@@ -369,6 +494,7 @@ void poll_modbus_step() {
   poll_active = false;
   alarm_monitor.evaluate(&global_device_config, poll_results, poll_index, current_epoch_ms(), publish_alarm);
   publish_telemetry(&global_device_config, poll_results, poll_index);
+  send_read_report(global_device_config, poll_results);
 }
 
 // ============================================================
@@ -393,6 +519,12 @@ void setup() {
            static_cast<unsigned int>(chip_id >> 32), static_cast<unsigned int>(chip_id));
   snprintf(mqtt_client_id, sizeof(mqtt_client_id), "legacy-link-%s", gateway_id);
   snprintf(config_topic, sizeof(config_topic), "legacy-link/gateways/%s/config", gateway_id);
+  snprintf(probe_topic, sizeof(probe_topic), "legacy-link/gateways/%s/probe", gateway_id);
+#ifdef LEGACYLINK_HOST_BUILD
+  strlcpy(boot_id, "host-test-boot", sizeof(boot_id));
+#else
+  snprintf(boot_id, sizeof(boot_id), "%08X%08X", esp_random(), esp_random());
+#endif
   Serial.printf("[MQTT] Gateway ID: %s; config topic: %s\r\n", gateway_id, config_topic);
 
   // Cấu hình MQTT Broker
@@ -429,7 +561,8 @@ void loop() {
 
   if (config_pending) {
     config_pending = false;
-    apply_runtime_config(pending_config, pending_device_config);
+    if (pending_probe) run_probe(pending_config);
+    else apply_runtime_config(pending_config, pending_device_config);
   }
 
   // 2. Nhận JSON qua Serial Monitor để cấu hình (backup khi chưa có MQTT config)
@@ -474,6 +607,11 @@ void loop() {
   }
 
   flush_config_ack();
+  static uint32_t last_gateway_report = 0;
+  if (mqttClient.connected() && millis() - last_gateway_report >= 10000) {
+    last_gateway_report = millis();
+    publish_gateway_state();
+  }
   // At most one register transaction per iteration; network service continues
   // inside the transaction through ModbusMaster's idle hook.
   poll_modbus_step();

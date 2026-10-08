@@ -1,0 +1,213 @@
+.commissioning {
+  margin-bottom: 24px;
+}
+.commission-body {
+  padding: 0 24px 24px;
+}
+.commission-note {
+  padding: 0 24px 18px;
+  color: var(--muted);
+}
+.setup-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 0 0 28px;
+  padding: 0;
+  list-style-position: inside;
+  color: var(--muted);
+}
+.setup-steps .current {
+  color: var(--blue);
+  font-weight: 750;
+}
+.setup-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.setup-fields > legend {
+  font-size: 1.1rem;
+  font-weight: 750;
+  margin-bottom: 16px;
+}
+.setup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.setup-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 0.86rem;
+  font-weight: 650;
+  min-width: 0;
+}
+.setup-grid input,
+.setup-grid select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #cfd7e4;
+  border-radius: 6px;
+  color: var(--ink);
+  background: #fcfcfd;
+  font: inherit;
+}
+.setup-grid input:disabled,
+.setup-grid select:disabled {
+  opacity: 0.65;
+}
+.serial-settings {
+  margin: 22px 0 30px;
+}
+.commissioning summary {
+  cursor: pointer;
+  padding: 12px 0;
+  font-weight: 650;
+}
+.commissioning details .setup-grid {
+  padding: 8px 0 12px;
+}
+.register-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.register-editor {
+  border: 0;
+  border-top: 1px solid var(--line);
+  padding: 18px 0;
+  margin: 18px 0 0;
+  min-width: 0;
+}
+.register-editor legend {
+  padding-right: 14px;
+  font-weight: 750;
+}
+.register-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.remove-metric {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.setup-actions {
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 22px;
+}
+.setup-actions .muted {
+  max-width: 58ch;
+  font-size: 0.86rem;
+}
+.probe-results,
+.operation-evidence {
+  border-top: 1px solid var(--line);
+  margin-top: 26px;
+  padding-top: 22px;
+}
+.probe-results table {
+  min-width: 640px;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+.probe-results th,
+.probe-results td {
+  text-align: left;
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.86rem;
+}
+.probe-results th code {
+  display: block;
+  font-weight: 400;
+  margin-top: 4px;
+}
+.probe-results thead {
+  background: #f8f9fb;
+}
+.read-failed {
+  color: #8d3b2a;
+}
+.range-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 18px 0;
+}
+.range-confirm input {
+  margin-top: 5px;
+}
+.evidence-list {
+  padding-left: 20px;
+  line-height: 2;
+}
+.operation-evidence code {
+  overflow-wrap: anywhere;
+}
+.measurement-health {
+  margin: 8px 0 16px;
+}
+.reading-invalid .reading-value {
+  color: #738096;
+}
+.reading-health {
+  font-size: 0.86rem;
+  color: #8d3b2a;
+  margin-top: 10px;
+}
+@media (max-width: 600px) {
+  .commission-body {
+    padding: 0 16px 20px;
+  }
+  .commission-note {
+    padding-inline: 16px;
+  }
+  .setup-grid,
+  .register-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .setup-steps {
+    gap: 14px;
+    font-size: 0.86rem;
+  }
+  .commissioning .panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .commissioning .panel-heading .button {
+    align-self: flex-start;
+  }
+  .reading-health {
+    grid-column: 1 / -1;
+  }
+}
+
+.reading:not(.reading-invalid) .reading-health {
+  color: var(--green);
+}
+
+.hardware-cost {
+  border-top: 1px solid var(--line);
+  margin-top: 26px;
+  padding-top: 10px;
+}
+.register-health {
+  display: block;
+  max-width: 26ch;
+  white-space: normal;
+  font:
+    0.82rem/1.5 "Manrope Variable",
+    sans-serif;
+  color: var(--muted);
+  margin-top: 6px;
+}

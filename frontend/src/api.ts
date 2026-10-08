@@ -45,3 +45,29 @@ export function readSavedAddress(): string {
     return defaultUrl;
   }
 }
+
+// Control actions return immediately with an operation ID; poll for device evidence.
+export async function controlRequest<T>(
+  base: string,
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  const response = await fetch(`${normalizeBaseUrl(base)}${path}`, {
+    method: body === undefined ? "GET" : "POST",
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(6000)])
+      : AbortSignal.timeout(6000),
+    cache: "no-store",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok)
+    throw new Error(
+      data?.error ||
+        `Control API returned HTTP ${response.status}. Update the backend and retry.`,
+    );
+  if (data === null) throw new Error("The control API returned invalid JSON.");
+  return data as T;
+}

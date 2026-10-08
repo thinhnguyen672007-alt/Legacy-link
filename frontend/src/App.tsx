@@ -29,6 +29,8 @@ import {
   Wifi,
   Zap,
 } from "lucide-react";
+import Commissioning from "./Commissioning";
+import { measurementHealth } from "./measurement-health";
 import { readSavedAddress } from "./api";
 import {
   formatValue,
@@ -83,8 +85,10 @@ function RegisterTable({
   catalog,
   metrics,
   stored = false,
+  health,
 }: {
   stored?: boolean;
+  health?: Record<string, string>;
   catalog: Catalog;
   metrics?: Machine["metrics"];
 }) {
@@ -130,6 +134,9 @@ function RegisterTable({
                 <span className="muted">
                   {reg.unit === "C" ? "°C" : reg.unit}
                 </span>
+                {health?.[reg.key] && (
+                  <small className="register-health">{health[reg.key]}</small>
+                )}
               </td>
             </tr>
           ))}
@@ -265,7 +272,19 @@ export default function App() {
           : selectedState === "waiting"
             ? "This device has not reported measurements yet."
             : "";
-  const metrics = selected?.metrics ? Object.entries(selected.metrics) : [];
+  const metricKeys = new Set([
+    ...Object.keys(selected?.metrics ?? {}),
+    ...(selected?.diagnostics?.readings.map((r) => r.key) ?? []),
+  ]);
+  const metrics: [string, number | undefined][] = [...metricKeys].map((key) => {
+    const reading = selected?.diagnostics?.readings.find((r) => r.key === key);
+    return [
+      key,
+      reading?.success && reading.value !== undefined
+        ? reading.value
+        : selected?.metrics?.[key],
+    ];
+  });
   const isConnected = feed.lastFetch !== null && !feed.error && mode === "live";
   const showCatalog = () =>
     config.loading ? (
@@ -294,7 +313,21 @@ export default function App() {
         )}
         <RegisterTable
           catalog={config.catalog}
-          metrics={selected?.metrics}
+          metrics={Object.fromEntries(
+            metrics.filter(
+              (entry): entry is [string, number] => entry[1] !== undefined,
+            ),
+          )}
+          health={
+            selected
+              ? Object.fromEntries(
+                  config.catalog.registerMap.map((reg) => [
+                    reg.key,
+                    measurementHealth(selected, reg.key, now, cached).label,
+                  ]),
+                )
+              : undefined
+          }
           stored={!!readingWarning}
         />
         <p className="table-note">
@@ -794,17 +827,26 @@ export default function App() {
                           (r) => r.key === key,
                         );
                         return (
-                          <article className="reading" key={key}>
+                          <article
+                            className={`reading ${measurementHealth(selected, key, now, cached).state !== "fresh" ? "reading-invalid" : ""}`}
+                            key={key}
+                          >
                             <div className="reading-label">
                               <span>{metricName(key)}</span>
                               <MetricIcon metric={key} />
                             </div>
                             <div className="reading-value">
-                              {formatValue(value)}
+                              {value === undefined ? "—" : formatValue(value)}
                               <span>
                                 {reg?.unit === "C" ? "°C" : reg?.unit || ""}
                               </span>
                             </div>
+                            <p className="reading-health">
+                              {
+                                measurementHealth(selected, key, now, cached)
+                                  .label
+                              }
+                            </p>
                             <div className="reading-source">
                               <span className="status-dot" />
                               {reg
@@ -878,8 +920,9 @@ export default function App() {
                         </div>
                       </dl>
                       <p>
-                        Last contact includes status messages. Individual
-                        measurement timestamps are not available.
+                        Gateway contact and measurement freshness are checked
+                        separately. Each reading shows its own read result and
+                        age when available.
                       </p>
                     </section>
                   </div>
@@ -890,6 +933,16 @@ export default function App() {
 
           {page === "registers" && (
             <>
+              <Commissioning
+                key={`${base}:${mode}`}
+                base={base}
+                catalog={config.catalog}
+                disabled={mode !== "live"}
+                onApplied={() => {
+                  feed.refresh();
+                  config.refresh();
+                }}
+              />
               <section className="panel catalog-panel">
                 <div className="panel-heading">
                   <div>
@@ -979,9 +1032,9 @@ export default function App() {
                 <section>
                   <h3>Configuration changes</h3>
                   <p>
-                    This screen inspects the catalog. Editing, publishing to
-                    ESP32 and verifying its acknowledgement require a backend
-                    API that is not available yet.
+                    Use setup above to test a draft and apply it to a gateway.
+                    The saved catalog is updated only after ESP32 acknowledges
+                    application.
                   </p>
                   <p className="muted">
                     The catalog is not proof of the configuration currently
@@ -1138,11 +1191,16 @@ export default function App() {
                   <span>Device register map</span>
                   <code>GET /catalog</code>
                 </div>
+                <div className="capability">
+                  <Check size={17} />
+                  <span>
+                    Test reads, configuration and ESP32 acknowledgements
+                  </span>
+                  <a href="#registers">Open setup</a>
+                </div>
                 <div className="capability pending">
                   <Clock3 size={17} />
-                  <span>
-                    Alarm history, charts and configuration publishing
-                  </span>
+                  <span>Alarm history and charts</span>
                   <span>Awaiting backend APIs</span>
                 </div>
               </section>
@@ -1157,7 +1215,7 @@ export default function App() {
               <span className="status-dot" />
               {mode === "sample"
                 ? "Illustrative sample data"
-                : "Read-only HTTP connection"}
+                : "HTTP API connection"}
             </span>
           </footer>
         </main>

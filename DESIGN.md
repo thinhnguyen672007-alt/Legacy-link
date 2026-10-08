@@ -265,9 +265,15 @@ The signature reference pattern places metric identity, raw address, conventiona
 
 ### Data truth and feedback
 
-The interface keeps browser HTTP connection, gateway state, and backend contact time separate. `lastSeenAt` includes status messages and is not a timestamp for each measurement. Paused polling or a feed error labels existing snapshots unverified. Empty, loading, error, awaiting-data, and stale states remain explicit; error messages offer the corresponding retry or connection action.
+The interface keeps browser HTTP connection, gateway state, and backend contact time separate. `lastSeenAt` includes status and diagnostics messages and is not a timestamp for each measurement. Per-reading diagnostics and the last telemetry timestamp determine measurement freshness; Modbus failures are visible even while the gateway remains online. Paused polling or a feed error labels existing snapshots unverified. Empty, loading, error, awaiting-data, and stale states remain explicit; error messages offer the corresponding retry or connection action.
 
-The signal path is an architecture diagram, not an independently verified link-health display. Catalog thresholds are configuration values, not active alarm events. HTTP health alone proves only process liveness. History, chart data, device creation, and configuration publishing have no current HTTP API here. The connection form saves the backend address locally; it does not configure the gateway or publish broker credentials.
+The signal path is an architecture diagram, not an independently verified link-health display. Catalog thresholds are configuration values, not active alarm events. HTTP health alone proves only process liveness. Alarm history and historical chart data have no current HTTP API here. The connection form saves the backend address locally; it does not configure the gateway or publish broker credentials.
+
+### Machine setup and test read
+
+Register maps contains an expandable setup form using the existing panel, field, and type roles. Operators select a gateway and starting profile, edit machine and register settings, then test the draft before applying it. The results table shows raw words, decoded raw values, converted values, and register errors. A successful test is valid for 60 seconds; edits invalidate it, failed reads block apply, and range warnings require acknowledgment.
+
+Apply feedback distinguishes received, applied, saved to flash, and restored after restart. A successful HTTP request alone does not confirm these steps. Restart confirmation requires evidence from a different boot with the same saved configuration request. The machine catalog is updated after the applied acknowledgment. Sample mode disables hardware actions. Setup duration and manually entered hardware costs support the demo without claiming measured hardware results from sample data.
 
 ## Do's and Don'ts
 
@@ -281,7 +287,7 @@ The signal path is an architecture diagram, not an independently verified link-h
 ### Don't:
 - Don't present backend contact time as an individual measurement timestamp.
 - Don't present a catalog, signal-path diagram, or successful HTTP response as proof of hardware state.
-- Don't imply alarm history, historical charts, device creation, or configuration publishing is available through the current read-only interface.
+- Don't imply alarm history or historical charts are available, or treat pending configuration commands as confirmed device state.
 - Don't infer active alarms from configured thresholds or silently replace live data with sample data.
 
 The tiny uppercase brand descriptor and the smallest incidental caption sizes are not promoted to reusable typography roles. They remain implementation details pending any separate legibility review; this record does not canonize them as a heading or eyebrow pattern.
