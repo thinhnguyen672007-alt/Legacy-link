@@ -36,7 +36,11 @@ def main():
         for name in ['shared', 'telemetry', 'status', 'alarm']:
             source = subprocess.check_output(
                 ['git', 'show', f'{revision}:backend/src/validation/{name}.js'], cwd=repo)
-            (work / f'{name}.js').write_bytes(source)
+            (work / 'validation').mkdir(exist_ok=True)
+            (work / 'validation' / f'{name}.js').write_bytes(source)
+        (work / 'ingestion').mkdir()
+        identity = subprocess.check_output(['git', 'show', f'{revision}:backend/src/ingestion/identity.js'], cwd=repo)
+        (work / 'ingestion' / 'identity.js').write_bytes(identity)
         binary = work / 'messages'
         subprocess.run([
             os.environ.get('CXX', 'c++'), '-std=c++11', '-Wall', '-Wextra', '-Werror',
@@ -52,7 +56,7 @@ def main():
         with capture.open('w', encoding='utf8') as output:
             subprocess.run([str(binary), str(project / 'examples/bench-device.json')],
                            stdout=output, check=True)
-        subprocess.run(['node', str(host / 'check_contract.mjs'), str(work), str(capture)], check=True)
+        subprocess.run(['node', str(host / 'check_contract.mjs'), str(work / 'validation'), str(capture)], check=True)
         if args.mqtt_host:
             try:
                 received = roundtrip(capture, work, args.mqtt_host, args.mqtt_port, args.mosquitto_bin_dir)
@@ -61,7 +65,7 @@ def main():
             except (subprocess.SubprocessError, OSError):
                 # Subprocess exceptions can include command-line credentials.
                 parser.exit(1, 'Broker test failed: check connection, credentials, permissions and client tools.\n')
-            subprocess.run(['node', str(host / 'check_contract.mjs'), str(work), str(received)], check=True)
+            subprocess.run(['node', str(host / 'check_contract.mjs'), str(work / 'validation'), str(received)], check=True)
             print('Scope: host-simulated firmware -> live test broker -> backend validators. '
                   'No physical ESP32, remote backend process or database was tested.')
         else:
