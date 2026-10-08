@@ -70,7 +70,8 @@ INFRA_DIR="$(dirname "$SCRIPT_DIR")"
 # docker-compose.yml. `cd` một lần ở đây thay vì lặp `cd` mỗi lệnh — và cũng
 # là lý do `set -e` không làm hỏng script khi lệnh sau thất bại.
 cd "$INFRA_DIR"
-# Serialize operations that stop workers or migrate the shared database.
+# Giành khóa trước khi đổi env/dừng worker: setup và recovery không được chạy chồng.
+# EXIT nhả khóa khi chạy xong hoặc lỗi; SIGINT/SIGTERM kết thúc qua cùng đường cleanup.
 source ./scripts/operation-lock.sh
 acquire_operation_lock setup
 trap release_operation_lock EXIT
@@ -103,7 +104,8 @@ requested_profiles="${COMPOSE_PROFILES:-}"
 # shellcheck disable=SC1091
 source .env
 export COMPOSE_PROFILES="${requested_profiles:-${COMPOSE_PROFILES:-full}}"
-# Generate the API write token locally; never print it or commit the real .env.
+# Nếu chưa có token, lấy 32 byte ngẫu nhiên rồi viết thành 64 ký tự hex trong .env.
+# Giữ token đã có để frontend không mất quyền sau mỗi lần setup; không in token ra log.
 if [[ ",$COMPOSE_PROFILES," == *,full,* ]] && [ -z "${API_WRITE_TOKEN:-}" ]; then
   umask 077
   API_WRITE_TOKEN="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
@@ -124,7 +126,8 @@ if [[ ",$COMPOSE_PROFILES," == *,full,* ]] && [ ! -s ../backend/db/schema.sql ];
   exit 1
 fi
 
-# DATABASE_URL is interpolated in Compose; refuse unescaped URL delimiters.
+# Compose ghép user/password/tên DB vào URL. Các dấu như @, : hoặc / chưa được encode
+# nên bị từ chối sớm, tránh chẩn đoán nhầm thành lỗi mạng hoặc sai mật khẩu DB.
 for key in POSTGRES_USER POSTGRES_PASS POSTGRES_DB; do
   value="${!key:-}"
   if [ -n "$value" ] && ! [[ "$value" =~ ^[a-zA-Z0-9_.~-]+$ ]]; then
@@ -231,16 +234,19 @@ fi
 # và mosquitto chết với "Unable to open pwfile". Kiểm tra sau khi up để chặn
 # trường hợp đó sớm.
 # ------------------------------------------------------------------------------
-# Build before stopping workers, so a failed build does not interrupt ingestion.
+# Build image trước khi dừng worker: nếu build lỗi thì bản đang chạy vẫn tiếp tục nhận tin.
+# Build tạo image mới; bước up cuối mới chạy container bằng code đã build.
 docker compose config --quiet
 if [[ ",$COMPOSE_PROFILES," == *,full,* ]]; then
   docker compose build backend-consumer backend-api
 fi
-# C7-C10 replaces uniqueness keys: old workers must not write during migration.
+# Schema C7-C10 đổi khóa chống trùng. Dừng cả hai tiến trình Node trước khi nạp SQL
+# để code cũ không ghi vào lúc cấu trúc bảng đang thay đổi.
 docker compose stop backend-consumer backend-api api-gateway
 echo "[INFO] Khoi dong ha tang..."
 docker compose up -d --wait --wait-timeout 90 postgres
-# Password generator can replace the mounted file inode: recreate broker to reload.
+# Công cụ cập nhật passwd có thể thay file phía host. Broker được recreate để mount/đọc
+# đúng file mới; thư mục dữ liệu broker giữ ngoài container nên không bị xóa theo.
 docker compose up -d --force-recreate --wait --wait-timeout 90 mosquitto || {
   echo "[ERROR] 'docker compose up -d' that bai." >&2
   echo "        Doc log: docker compose logs" >&2
@@ -294,15 +300,17 @@ if [ "$ready" != true ]; then
 fi
 
 echo "[INFO]        Postgres OK."
-# Keep a recoverable copy before any SQL upgrade; backups/ is gitignored.
+# Tạo bản phục hồi trước khi nạp schema. backups/ bị Git bỏ qua vì chứa dữ liệu thật.
+# Nếu backup lỗi, dừng ở đây để không tiếp tục nâng cấp mà thiếu bản cứu hộ.
 ./scripts/backup-db.sh
 
 
 # ------------------------------------------------------------------------------
 # 8. Nạp schema
 # ------------------------------------------------------------------------------
-# Schema belongs to backend; apply via stdin with ON_ERROR_STOP.
-# Full profile requires the backend directory from the same repo revision.
+# Schema do backend quản lý; infra dùng file của cùng revision repo, không giữ bản SQL riêng.
+# Nạp qua stdin để tránh bind mount nhầm file chưa tồn tại thành một thư mục.
+# ON_ERROR_STOP giúp một câu SQL lỗi làm toàn bước thất bại rõ ràng.
 BACKEND_DIR="$(cd .. 2>/dev/null && pwd || echo "")"
 SCHEMA="$BACKEND_DIR/backend/db/schema.sql"
 SEED="$BACKEND_DIR/backend/db/seed-demo.sql"
@@ -384,12 +392,15 @@ if [ "$WANT_SEED" = true ]; then
   echo "[INFO]        Da nap du lieu mau."
 fi
 
+# Seed BENCH dùng ID phần cứng đã xác nhận. Seed backend có ON CONFLICT DO NOTHING,
+# nên không tự ghi đè cấu hình commissioning đang có hoặc đoán ID từ file ví dụ.
 if [ "$WANT_BENCH" = true ]; then
   docker compose exec -T postgres sh -c 'exec psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v gateway_id="$1"' sh "$BENCH_GATEWAY_ID" < ../backend/db/seed-bench.sql
 fi
 
 # Chỉ bật/rebuild consumer sau khi schema và seed đã nạp thành công.
-# Profile broker giữ Node chạy ngoài Docker; profile full bật consumer.
+# Profile broker chỉ bật broker/DB; full bật consumer + API + gateway.
+# --wait chờ health thực tế, nhưng healthy vẫn cần bài thử telemetry/ACK để xác nhận đầu-cuối.
 echo "[INFO] Build va khoi dong cac dich vu da chon..."
 docker compose up -d --wait --wait-timeout 120
 
