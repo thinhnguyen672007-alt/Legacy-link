@@ -1,3 +1,4 @@
+// Kiểm tra ID của mẫu/cảnh báo và tạo dấu vân tay nội dung. Cùng ID phải luôn đi kèm cùng dữ liệu.
 import { createHash } from 'node:crypto';
 
 export function checkIdentity(payload, errors, kind) {
@@ -15,11 +16,13 @@ export function checkIdentity(payload, errors, kind) {
   return present ? { gatewayId: payload.gatewayId, [field]: payload[field] } : {};
 }
 
+// Sắp xếp tên trường trước khi băm: đổi thứ tự các key JSON không làm đổi dấu vân tay.
 function canonical(value) {
   if (value && typeof value === 'object' && !Array.isArray(value))
     return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]));
   return value;
 }
+// Hàm băm tạo dấu vân tay để phát hiện cùng ID nhưng nội dung bị thay đổi.
 export function fingerprint(value) {
   return createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
 }
