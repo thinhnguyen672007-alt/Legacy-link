@@ -6,6 +6,7 @@ import { ControlService } from './service.js';
 
 export function startControlService() {
   const client = mqtt.connect(config.mqtt.url, {
+    ...config.mqtt.tls,
     username: config.mqtt.username, password: config.mqtt.password,
     clientId: `${config.mqtt.clientId}-control-${process.pid}`, reconnectPeriod: 3000,
     connectTimeout: 5000, queueQoSZero: false,
