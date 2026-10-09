@@ -5,6 +5,8 @@
 // Nap .env TRUOC khi doc process.env.
 // Phai nam trong file nay (khong phai index.js) vi ESM thuc thi moi lenh
 // import TRUOC khi chay code trong file goi no.
+import { readFileSync } from 'node:fs';
+
 try {
   process.loadEnvFile();
 } catch {
@@ -21,7 +23,12 @@ for (const key of REQUIRED) {
 }
 
 // QoS chi nhan 0, 1, 2. Sai thi dung ngay, khong am tham doan mot gia tri khac.
-const qos = Number.parseInt(process.env.MQTT_QOS, 10);
+const mqttUrl = new URL(process.env.MQTT_URL);
+if (mqttUrl.username || mqttUrl.password) throw new Error('Đặt credential trong MQTT_USERNAME/PASSWORD, không đặt trong URL');
+if (!['mqtt:', 'mqtts:'].includes(mqttUrl.protocol)) throw new Error('MQTT_URL phải dùng mqtt hoặc mqtts');
+if (!/^[012]$/.test(process.env.MQTT_QOS)) throw new Error('MQTT_QOS chỉ nhận 0, 1, 2');
+if (process.env.NODE_ENV === 'production' && mqttUrl.protocol !== 'mqtts:' && process.env.MQTT_ALLOW_PLAINTEXT !== 'true') throw new Error('Production yêu cầu mqtts; chỉ opt-in MQTT_ALLOW_PLAINTEXT cho mạng riêng đã kiểm soát');
+const qos = Number(process.env.MQTT_QOS);
 
 if (![0, 1, 2].includes(qos)) {
   console.error(
@@ -30,13 +37,19 @@ if (![0, 1, 2].includes(qos)) {
   process.exit(1);
 }
 
-// Stable consumer identity across restarts. Each concurrent consumer MUST use
-// its own MQTT_CLIENT_ID; publisher-only clients use a separate suffix.
+// Giữ nguyên ID của consumer khi khởi động lại để broker nhận ra phiên cũ.
+// Hai consumer chạy đồng thời cần ID khác nhau; kết nối chỉ gửi dùng hậu tố riêng.
+function positiveInteger(name, fallback, maximum) {
+  const raw = process.env[name] ?? String(fallback);
+  if (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > maximum) throw new Error(`${name} không hợp lệ`);
+  return Number(raw);
+}
 const clientIdBase = process.env.MQTT_CLIENT_ID ?? 'legacy-link-backend';
 
 export const config = Object.freeze({
   mqtt: {
     url: process.env.MQTT_URL,
+    tls: process.env.MQTT_TLS_CA_FILE ? { ca: readFileSync(process.env.MQTT_TLS_CA_FILE), rejectUnauthorized: true } : {},
     username: process.env.MQTT_USERNAME,
     password: process.env.MQTT_PASSWORD,
     clientId: clientIdBase,
@@ -53,6 +66,12 @@ export const config = Object.freeze({
     diagnostics: 'legacy-link/devices/+/diagnostics',
   },
 
+  ingestion: {
+    concurrency: positiveInteger('INGESTION_CONCURRENCY', 4, 32),
+    capacity: positiveInteger('INGESTION_CAPACITY', 256, 10000),
+    maxBytes: positiveInteger('MQTT_MAX_PAYLOAD_BYTES', 16384, 1048576),
+    shutdownMs: positiveInteger('SHUTDOWN_TIMEOUT_MS', 15000, 120000),
+  },
   database: {
     url: process.env.DATABASE_URL,
   },

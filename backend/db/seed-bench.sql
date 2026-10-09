@@ -1,8 +1,8 @@
--- Optional simulator fixture, NOT an industrial machine profile.
--- Gateway is supplied explicitly from ESP32 serial output:
+-- Dữ liệu BENCH-01 tùy chọn cho bộ giả lập Modbus; không đại diện máy công nghiệp thật.
+-- Truyền gateway ID thật đọc được trên Serial của ESP32, ví dụ:
 -- psql "$DATABASE_URL" -v gateway_id=CCDBA7603C64 -f db/seed-bench.sql
--- Addresses 1/2/3 match docs/bench-01-handoff-2026-10-08.md (OpenModSim).
--- Existing commissioning results are NEVER overwritten by this fixture.
+-- Địa chỉ 1/2/3 theo bản ghi kiểm thử OpenModSim trong docs/bench-01-handoff-2026-10-08.md.
+-- Chạy lại không ghi đè cấu hình của thiết bị đã được đăng ký trước đó.
 BEGIN;
 CREATE TEMP TABLE bench_gateway (id text CHECK (id ~ '^[A-F0-9]{12}$')) ON COMMIT DROP;
 INSERT INTO bench_gateway VALUES (:'gateway_id');

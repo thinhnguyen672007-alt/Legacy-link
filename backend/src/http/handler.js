@@ -1,3 +1,4 @@
+// Nơi nhận request từ frontend và chọn đúng hàm xử lý. Luồng: kiểm tra URL/method → gọi nghiệp vụ/database → trả JSON.
 import { ControlError } from '../control/validation.js';
 import { integer, deviceId, rowId, pageParams } from './params.js';
 
@@ -7,6 +8,7 @@ function send(res,status,body) {
   res.setHeader('Cache-Control','no-store');
   res.end(JSON.stringify(body));
 }
+// Body là dữ liệu JSON frontend gửi trong POST. Giới hạn 12 KiB để không nhận nội dung quá lớn.
 async function readBody(req) {
   if (req.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json')
     throw new ControlError('Content-Type must be application/json',415);
@@ -28,18 +30,19 @@ export function createHttpHandler(deps) {
   const {controls,listMachines,getMachine,getCatalog,applyConfig,getConfigRequest,
     telemetryHistory,listAlarms,acknowledgeAlarm,listServiceRuns,readiness}=deps;
   return async(req,res)=>{
-    res.setHeader('Access-Control-Allow-Origin','*');
-    res.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers','Content-Type');
+
     try {
-      // Parse against a fixed base; never build an origin from untrusted Host.
+      // Dùng địa chỉ gốc cố định để đọc URL; không dựa vào header Host do người gọi cung cấp.
       let url, path;
       try {
         if(typeof req.url!=='string' || !req.url.startsWith('/') || req.url.startsWith('//')) throw new Error();
         url=new URL(req.url,'http://localhost');
         path=decodeURIComponent(url.pathname);
       } catch { throw new ControlError('Malformed request URL'); }
+      // Server thật luôn truyền security; unit test có thể truyền policy giả.
+      deps.security?.(req,res,path);
       const params=url.searchParams;
+      // Mỗi endpoint có đúng phương thức cho phép: GET để xem, POST để thực hiện thao tác.
       const route=(method,run)=>({method,run});
       let selected;
       if(path==='/health' || path==='/health/live') selected=route('GET',()=>({status:'alive'}));
@@ -84,6 +87,7 @@ export function createHttpHandler(deps) {
           selected=route('GET',async()=>notFound(await getConfigRequest(match[1])));
         }
       }
+      // Chỉ gọi nghiệp vụ sau khi đã xác định endpoint và kiểm tra phương thức.
       if(!selected) throw new ControlError('Endpoint not found',404);
       res.setHeader('Allow',`${selected.method}, OPTIONS`);
       if(req.method==='OPTIONS') { res.statusCode=204; res.end(); return; }
@@ -91,6 +95,7 @@ export function createHttpHandler(deps) {
       const result=await selected.run();
       if(!res.headersSent) send(res,200,result);
 
+      // Bộ lọc cảnh báo được kiểm tra trước khi đưa vào truy vấn database.
       async function readAlarms(id) {
         const severity=params.get('severity');
         if(severity!==null && !['low','medium','high','critical'].includes(severity)) throw new ControlError('Invalid severity');

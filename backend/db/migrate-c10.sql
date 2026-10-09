@@ -1,4 +1,4 @@
--- HTTP readiness observes the separate MQTT consumer through a short-lived heartbeat.
+-- HTTP theo dõi consumer MQTT riêng qua tín hiệu định kỳ có thời hạn ngắn.
 BEGIN;
 CREATE TABLE IF NOT EXISTS consumer_health (
   client_id text PRIMARY KEY,

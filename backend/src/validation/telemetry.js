@@ -17,21 +17,10 @@ import { isPlainObject, checkDeviceId, checkTimestamp, checkSchemaVersion } from
 
 const MAX_METRIC_COUNT = 32
 
-// Danh sach chi so duoc phep.
-//
-// QUY TAC BAT BUOC: danh sach nay phai la SUPERSET cua moi gia tri metric_key
-// trong bang register_map. Nghia la moi chi so xuat hien trong catalog deu phai
-// co mat o day.
-//
-// Neu mot chi so co trong catalog ma thieu o day, ESP32 se doc duoc thanh ghi,
-// gui du lieu len, va bi backend chan. Nhung firmware KHONG he biet — no chi
-// thay minh gui thanh cong. Chi nguoi doc log backend moi thay loi.
-//
-// Day la lan thu hai chuyen nay xay ra (lan dau la "speed", lan nay la "torque").
-// Ve lau dai nen doc danh sach nay tu database luc khoi dong thay vi viet cung.
-// Tam thoi, src/validation/catalog-check.js se canh bao luc khoi dong neu
-// danh sach nay lech voi bang register_map.
-export const ALLOWED_METRICS = new Set(['temperature', 'current', 'rpm', 'speed', 'pressure', 'torque']);
+// Chỉ kiểm tra hình dạng ở đây; quyền gửi metric được kiểm tra theo catalog
+// của đúng thiết bị trong transaction lưu dữ liệu, không giữ hai danh sách riêng.
+export const validMetricKey = key => typeof key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,18}$/.test(key)
+  && !['constructor', 'prototype', '__proto__'].includes(key);
 
 export function validateTelemetry(topicDeviceId, payload) {
   const errors = [];
@@ -68,8 +57,8 @@ export function validateTelemetry(topicDeviceId, payload) {
     }
 
     for (const name of metricNames) {
-      if (!ALLOWED_METRICS.has(name)) {
-        errors.push(`metrics.${name} is not in the allowed metric list`);
+      if (!validMetricKey(name)) {
+        errors.push(`metrics.${name} has an invalid metric key`);
         continue;
       }
 

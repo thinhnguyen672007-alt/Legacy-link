@@ -67,7 +67,7 @@ export async function applyConfig({ deviceId, publishClient }) {
       requestId,
     });
   } catch (err) {
-    // Publication failed or timed out. Device outcome remains unknown.
+    // Gửi lệnh lỗi hoặc quá hạn: chưa biết ESP32 đã nhận hay chưa, không kết luận thất bại chắc chắn.
     await failConfigRequest({ requestId, reason: `publish_failed: ${err.message}` });
     return { ok: false, code: 'publish_failed', requestId };
   }
@@ -86,10 +86,10 @@ export async function applyConfig({ deviceId, publishClient }) {
 //   - requestId khong ton tai
 //   - yeu cau da duoc xu ly roi (ACK den hai lan)
 //   - yeu cau da qua han va bi danh dau 'timeout'
-export async function handleConfigAck({ requestId, result, reason, persisted }) {
+export async function handleConfigAck({ requestId, gatewayId, result, reason, persisted }) {
   if (requestId === null) {
     return { matched: false, reason: 'ack_khong_co_requestId' };
   }
 
-  return applyConfigAck({ requestId, result, reason, persisted });
+  return applyConfigAck({ requestId, gatewayId, result, reason, persisted });
 }

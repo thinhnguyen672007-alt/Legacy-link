@@ -1,4 +1,4 @@
-import { ALLOWED_METRICS } from '../validation/telemetry.js';
+import { validMetricKey } from '../validation/telemetry.js';
 
 export class ControlError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -27,7 +27,7 @@ export function validateConfig(value) {
   if (!Array.isArray(value.registerMap) || value.registerMap.length < 1 || value.registerMap.length > 16) fail('Provide 1–16 registers');
   const seen = new Set();
   cfg.registerMap = value.registerMap.map(row => {
-    if (!object(row) || !ALLOWED_METRICS.has(row.key) || seen.has(row.key)) fail('Choose distinct supported metrics');
+    if (!object(row) || !validMetricKey(row.key) || seen.has(row.key)) fail('Choose distinct valid metric keys');
     seen.add(row.key);
     const reg = { key: row.key, address: row.address, functionCode: row.functionCode ?? 3,
       dataType: row.dataType ?? 'INT16', scale: row.scale ?? 1, unit: row.unit ?? '',
@@ -68,7 +68,7 @@ export function validateReadings(rows, config) {
   if (config && rows.length !== config.registerMap.length) fail('Incomplete probe report');
   const seen = new Set();
   return rows.map((row, index) => {
-    if (!object(row) || !ALLOWED_METRICS.has(row.key) || seen.has(row.key) ||
+    if (!object(row) || !validMetricKey(row.key) || seen.has(row.key) ||
         !integer(row.address, 0, 65535) || typeof row.success !== 'boolean' ||
         !integer(row.errorCode, 0, 255) || !integer(row.sampledAt, Date.UTC(2020, 0, 1), Date.now() + 60000)) fail('Malformed register result');
     seen.add(row.key);

@@ -1,5 +1,5 @@
-// Isolated integration tests. Requires Docker, postgres:16 and eclipse-mosquitto:2.
-// Never connects to the developer's database or broker.
+// Kiểm thử tích hợp: tự tạo PostgreSQL và MQTT riêng bằng Docker để thử toàn bộ luồng.
+// Dữ liệu giả và container riêng giúp bài kiểm thử không ghi vào database đang dùng của bạn.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -10,6 +10,7 @@ import mqtt from 'mqtt';
 import pg from 'pg';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const suffix = randomUUID().slice(0,8), password = randomUUID();
+const apiToken = randomUUID(), readToken = randomUUID();
 const pgName = `legacy-ingestion-pg-${suffix}`, mqName = `legacy-ingestion-mq-${suffix}`;
 const containers = [], children = [], logs = [], acks = [];
 let pool, sourcePool, publisher;
@@ -54,18 +55,23 @@ try {
   docker('run','-d','--name',mqName,'-e',`REVIEW_PASSWORD=${password}`,'-p','127.0.0.1::1883','--entrypoint','sh','eclipse-mosquitto:2','-c',
     'mosquitto_passwd -b -c /tmp/test.passwd reviewer "$REVIEW_PASSWORD"; chmod 644 /tmp/test.passwd; printf "listener 1883 0.0.0.0\nallow_anonymous false\npassword_file /tmp/test.passwd\n" > /tmp/test.conf; exec mosquitto -c /tmp/test.conf'); containers.push(mqName);
   const mqPort=docker('port',mqName,'1883/tcp').split(':').at(-1);
-  Object.assign(process.env,{MQTT_URL:`mqtt://127.0.0.1:${mqPort}`,MQTT_USERNAME:'reviewer',MQTT_PASSWORD:password,MQTT_QOS:'1',MQTT_CLIENT_ID:`test-consumer-${suffix}`,DATABASE_URL:`postgres://reviewer:${password}@127.0.0.1:${pgPort}/review`});
+  Object.assign(process.env,{API_WRITE_TOKEN:apiToken,API_READ_TOKEN:readToken,API_AUTH_DISABLED:'false',INGESTION_CONCURRENCY:'1',INGESTION_CAPACITY:'2',NODE_ENV:'test',CORS_ORIGINS:'http://localhost:5173',MQTT_URL:`mqtt://127.0.0.1:${mqPort}`,MQTT_USERNAME:'reviewer',MQTT_PASSWORD:password,MQTT_QOS:'1',MQTT_CLIENT_ID:`test-consumer-${suffix}`,DATABASE_URL:`postgres://reviewer:${password}@127.0.0.1:${pgPort}/review`});
   pool=new pg.Pool({connectionString:process.env.DATABASE_URL,connectionTimeoutMillis:1000}); pool.on('error',()=>{});
   await waitFor(async()=>{try{await pool.query('SELECT 1');return true;}catch{return false;}},'database');
   const schema=readFileSync(`${root}db/schema.sql`,'utf8');
-  // Exercise upgrade from the old schema, preserving actual historical rows.
-  await pool.query(schema.split('-- C7-C9 additive upgrade')[0]);
+  // Thử nâng cấp database cũ: dữ liệu lịch sử phải còn nguyên sau migration.
+  // Tìm câu SQL mở đầu migration thay vì bám vào ngôn ngữ của comment.
+  const upgradeStatement = schema.indexOf('ALTER TABLE device ADD COLUMN IF NOT EXISTS applied_config');
+  const upgradeTransaction = schema.lastIndexOf('BEGIN;', upgradeStatement);
+  assert.ok(upgradeStatement > 0 && upgradeTransaction > 0, 'Phải tìm được phần schema cũ trước migration');
+  await pool.query(schema.slice(0, upgradeTransaction));
+  assert.equal((await pool.query("SELECT count(*)::int n FROM information_schema.columns WHERE table_schema='public' AND table_name='telemetry' AND column_name='message_id'")).rows[0].n, 0);
   await pool.query(readFileSync(`${root}db/seed-demo.sql`,'utf8'));
   const now=Date.now();
   await pool.query("INSERT INTO telemetry(device_id,ts,metrics) VALUES ('esp32-01',$1,'{\"temperature\":25}')",[now-10000]);
   await pool.query("INSERT INTO alarms(device_id,ts,code,severity,value) VALUES ('esp32-01',$1,'OVERHEAT','high',95)",[now-10000]);
   await pool.query(readFileSync(`${root}db/migrate-c7-c8-c9.sql`,'utf8'));
-  await pool.query(schema); // Idempotent full-schema setup after upgrade.
+  await pool.query(schema); // Chạy schema lần nữa để kiểm tra việc chạy lặp không làm hỏng database.
   assert.equal((await pool.query('SELECT count(*)::int n FROM telemetry')).rows[0].n,1);
   assert.equal((await pool.query('SELECT count(*)::int n FROM alarms')).rows[0].n,1);
   passed('migration preserves history and can be re-run');
@@ -101,7 +107,7 @@ try {
   await saveAlarm(legacy); await saveAlarm({...legacy,severity:'critical',value:105}); await saveAlarm(legacy);
   assert.equal((await pool.query("SELECT count(*)::int n FROM alarms WHERE device_id='esp32-01' AND ts=$1",[now])).rows[0].n,2);
   passed('C9 distinct alarm IDs/severities/metrics survive; exact retries deduplicate including legacy payloads');
-  // Fail after receipt + telemetry INSERT, before commit: neither may survive.
+  // Cố ý gây lỗi sau khi ghi mẫu và biên nhận: rollback phải hủy cả hai, không để lưu nửa chừng.
   await pool.query("ALTER TABLE machine_state ADD CONSTRAINT test_projection_failure CHECK ((last_metrics->>'temperature')::numeric <> 123456)");
   const rollback={...t,messageId:'boot:rollback',timestamp:now+100,metrics:{temperature:123456}};
   await assert.rejects(()=>saveTelemetry(rollback),{code:'23514'});
@@ -118,6 +124,29 @@ try {
   assert.equal((await getCatalog('BENCH-01')).deviceName,'Commissioned simulator');
   assert.equal((await listMachines()).find(m=>m.deviceId==='BENCH-01').configRequestId,'request-commissioned');
   passed('real commissioning persists catalog/registry; fixture re-run preserves applied configuration');
+  const humidityConfig={...cfg,registerMap:[...cfg.registerMap,{key:'humidity',address:4,functionCode:3,dataType:'INT16',scale:0.1,unit:'%'}]};
+  await saveAppliedConfig(humidityConfig,'Commissioned bench',t.gatewayId,'dynamic-metric');
+  const humidity={...t,messageId:'dynamic:1',metrics:{humidity:55}};
+  await saveTelemetry(humidity);
+  await assert.rejects(()=>saveTelemetry({...t,messageId:'dynamic:bad',metrics:{vibration:10}}),{code:'metric_not_configured'});
+  assert.equal((await pool.query("SELECT count(*)::int n FROM ingestion_receipt WHERE message_id=$1",[`${t.gatewayId}:dynamic:bad`])).rows[0].n,0);
+  await saveAppliedConfig(cfg,'Commissioned bench',t.gatewayId,'restore');
+  assert.equal((await saveTelemetry(humidity)).inserted,false); // Mẫu đã lưu vẫn ACK lại sau đổi cấu hình.
+  await assert.rejects(()=>saveTelemetry({...humidity,messageId:'dynamic:2'}),{code:'metric_not_configured'});
+  await pool.query('DELETE FROM telemetry WHERE message_id=$1',[`${t.gatewayId}:dynamic:1`]);
+  passed('C11 dynamic per-device catalog, no receipt on rejection, retry after config change');
+  const {createConfigRequest,applyConfigAck,getConfigRequest}=await import('../src/db/config-request.js');
+  const scopedId=randomUUID();
+  await createConfigRequest({requestId:scopedId,deviceId:t.deviceId,gatewayId:t.gatewayId,payload:cfg});
+  const configAck={requestId:scopedId,result:'applied',reason:null,persisted:true};
+  assert.equal((await applyConfigAck({...configAck,gatewayId:'FFFFFFFFFFFF'})).matched,false);
+  assert.equal((await applyConfigAck(configAck)).matched,false);
+  assert.equal((await getConfigRequest(scopedId)).status,'pending');
+  assert.equal((await applyConfigAck({...configAck,gatewayId:t.gatewayId})).matched,true);
+  assert.equal((await applyConfigAck({...configAck,gatewayId:t.gatewayId})).matched,false);
+  passed('C15 config ACK requires matching gateway; knowing requestId alone cannot confirm another gateway');
+
+
   await sourcePool.end(); sourcePool=null;
   let worker=consumer();
   await waitFor(()=>logs.join('').includes('Da subscribe:'),'consumer subscription');
@@ -132,7 +161,11 @@ try {
   await waitFor(()=>logs.slice(apiLog).join('').includes('[HTTP] Listening port='),'HTTP listener');
   const apiPort=logs.slice(apiLog).join('').match(/Listening port=(\d+)/)[1];
   const base=`http://127.0.0.1:${apiPort}`;
-  const request=(path,method='GET')=>fetch(base+path,{method});
+  assert.equal((await fetch(base+'/machines')).status,401);
+  assert.equal((await fetch(base+'/alarms/1/ack',{method:'POST',headers:{Authorization:`Bearer ${readToken}`}})).status,403);
+  assert.equal((await fetch(base+'/machines',{headers:{Authorization:`Bearer ${readToken}`}})).status,200);
+  passed('C15 real API enforces authentication and read/write roles');
+  const request=(path,method='GET')=>fetch(base+path,{method,headers:{Authorization:`Bearer ${apiToken}`}});
   assert.equal((await request('/health/live')).status,200);
   await waitFor(async()=>(await request('/health/ready')).status===200,'full readiness');
   const machines=await (await request('/machines')).json();
@@ -155,8 +188,8 @@ try {
   assert.equal((await (await request(ackPath,'POST')).json()).acknowledgedAt,acknowledged.acknowledgedAt);
   assert.equal((await request('/uptime?limit=5')).status,200);
   assert.equal((await request('/gateways')).status,200);
-  // A real probe request reaches ControlService (no gateway online -> 409, not 404).
-  assert.equal((await fetch(base+`/gateways/${t.gatewayId}/probe`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({config:cfg})})).status,409);
+  // Gọi endpoint probe thật: gateway offline phải trả 409, chứng minh route đã được nối vào HTTP.
+  assert.equal((await fetch(base+`/gateways/${t.gatewayId}/probe`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${apiToken}`} ,body:JSON.stringify({config:cfg})})).status,409);
   const occupied=spawn(process.execPath,['src/http/server.js'],{cwd:root,env:{...process.env,HTTP_HOST:'127.0.0.1',HTTP_PORT:apiPort},stdio:['ignore','pipe','pipe']});
   children.push(occupied);
   let occupiedLog='';occupied.stderr.on('data',b=>{occupiedLog+=b.toString();});occupied.stdout.resume();
@@ -164,20 +197,48 @@ try {
   assert.equal(occupied.exitCode,1);assert.ok(occupiedLog.includes('EADDRINUSE'));
   passed('real HTTP entrypoint: dashboard, pagination, alarms/ACK, commands, methods, malformed URL, readiness');
   const live={...t,messageId:'boot:live',timestamp:now+1};
-  await acked(live); await acked(live); // Simulate loss of the first ACK at firmware.
+  await acked(live); await acked(live); // Giả lập ESP32 không nhận ACK đầu tiên nên gửi lại cùng bản tin.
   assert.equal((await pool.query('SELECT count(*)::int n FROM telemetry WHERE message_id=$1',[`${t.gatewayId}:${live.messageId}`])).rows[0].n,1);
   assert.equal((await acked({...live,metrics:{temperature:99}},'telemetry','rejected')).reason,'identity_conflict');
   assert.equal((await acked({...live,deviceId:'GHOST'},'telemetry','rejected')).reason,'unknown_device');
   await acked({...alarm,eventId:'boot:mqtt-alarm'},'alarm');
   passed('real QoS0 MQTT -> SQL -> application ACK; lost ACK retry; rejected identity/unknown device; alarm ACK');
+  const lock=await pool.connect();
+  try {
+    await lock.query('BEGIN'); await lock.query("SELECT 1 FROM device WHERE device_id='BENCH-01' FOR UPDATE");
+    const flood=[1,2,3].map(n=>({...t,messageId:`queue:${n}`}));
+    const floodLog=logs.length;
+    for(const sample of flood) await send(sample);
+    await waitFor(()=>logs.slice(floodLog).join('').includes('Hàng đợi đầy'),'queue full');
+    assert.equal(acks.some(a=>a.messageId==='queue:3'),false);
+    await lock.query('COMMIT');
+    await waitFor(()=>acks.some(a=>a.messageId==='queue:2'),'admitted samples committed');
+    assert.equal(acks.some(a=>a.messageId==='queue:3'),false);
+    await acked(flood[2]);
+    // Payload quá lớn bị chặn trước JSON.parse; worker vẫn nhận mẫu hợp lệ tiếp theo.
+    await publisher.publishAsync(`legacy-link/devices/${t.deviceId}/telemetry`,'x'.repeat(16385),{qos:0});
+    await lock.query('BEGIN'); await lock.query("SELECT 1 FROM device WHERE device_id='BENCH-01' FOR UPDATE");
+    const draining={...t,messageId:'queue:drain'}, drainLog=logs.length;
+    await send(draining);
+    await waitFor(()=>logs.slice(drainLog).join('').includes('[MQTT] Nhan topic='),'drain sample admitted');
+    worker.kill('SIGTERM'); await sleep(150);
+    assert.equal(worker.exitCode,null); // Chưa được thoát trong khi transaction đang đợi.
+    await lock.query('COMMIT');
+    await waitFor(()=>worker.exitCode!==null,'graceful shutdown');
+    assert.equal(worker.exitCode,0);
+    assert.ok(acks.some(a=>a.messageId==='queue:drain'&&a.status==='committed'));
+    assert.ok(logs.slice(drainLog).join('').includes('"oversized":1'));
+    passed('C12 bounded MQTT queue rejects without ACK, retry recovers, oversized payload blocked, SIGTERM drains accepted work');
+  } finally { await lock.query('ROLLBACK'); lock.release(); }
+
   await stop(worker);
   assert.equal((await request('/health/ready')).status,503);
   assert.equal((await request('/health/live')).status,200);
   const offline={...t,messageId:'boot:offline',timestamp:now+2};
-  await send(offline); await sleep(300); // The firmware outbox keeps this sample.
+  await send(offline); await sleep(300); // Giả lập hàng đợi firmware vẫn giữ mẫu khi backend đang tắt.
   const restartLog=logs.length; worker=consumer();
   await waitFor(()=>logs.slice(restartLog).join('').includes('Da subscribe:'),'consumer restart');
-  await acked(offline); // Firmware replays the identical sample after recovery.
+  await acked(offline); // Sau khi backend hoạt động lại, firmware gửi lại nguyên mẫu cũ.
   passed('backend restart + simulated firmware outbox replay recovers sample');
   docker('stop','-t','1',pgName);
   assert.equal((await request('/health/ready')).status,503);

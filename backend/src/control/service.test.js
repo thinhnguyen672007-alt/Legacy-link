@@ -77,9 +77,10 @@ test('timeout means unknown application outcome; stale gateway state stays offli
   assert.equal(r.service.listGateways()[0].online,false);
   assert.throws(() => r.service.start(gatewayId,'probe',{config}),/not reporting/);
 });
-test('validates bounds, unsupported metrics, duplicated keys and malformed hardware results', () => {
+test('validates bounds, malformed metric keys, duplicated keys and malformed hardware results', () => {
+  assert.equal(validateConfig({...config,registerMap:[{...config.registerMap[0],key:'humidity'}]}).registerMap[0].key,'humidity');
   const valid = validateConfig(config); assert.equal(valid.registerMap[0].address,0);
-  for (const patch of [{address:-1},{address:65535,dataType:'UINT32'},{dataType:'FLOAT32'},{scale:NaN},{key:'unknown'}]) {
+  for (const patch of [{address:-1},{address:65535,dataType:'UINT32'},{dataType:'FLOAT32'},{scale:NaN},{key:'bad-key'}, {key:'x'.repeat(20)}]) {
     assert.throws(() => validateConfig({...config,registerMap:[{...config.registerMap[0],...patch}]}));
   }
   assert.throws(() => validateConfig({...config,registerMap:[config.registerMap[0],config.registerMap[0]]}));

@@ -8,7 +8,9 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "start:http": "node src/http/server.js",
-    "test:integration": "node scripts/ingestion-integration.mjs"
+    "test:integration": "node scripts/ingestion-integration.mjs",
+    "test:all": "npm test && npm run test:integration && npm run test:security",
+    "test:security": "node scripts/security-integration.mjs"
   },
   "keywords": [],
   "author": "",
@@ -18,5 +20,8 @@
   "dependencies": {
     "mqtt": "^5.15.2",
     "pg": "^8.23.1"
+  },
+  "engines": {
+    "node": ">=22.9.0"
   }
 }
