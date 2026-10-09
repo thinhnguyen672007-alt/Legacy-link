@@ -8,7 +8,7 @@ if [[ ! -f "$json_include/ArduinoJson.h" ]]; then
 fi
 binary="$(mktemp /tmp/legacy-link-config-test.XXXXXX)"
 trap 'rm -f "$binary"' EXIT
-for test_source in config_parser_test gateway_test alarm_test network_test endpoint_test config_size_test polling_test recovery_test rs485_test probe_test telemetry_queue_test delivery_test health_test; do
+for test_source in config_parser_test gateway_test alarm_test network_test endpoint_test config_size_test polling_test recovery_test rs485_test probe_test telemetry_queue_test delivery_test outage_test health_test; do
 extra_flags=(-DLEGACYLINK_HOST_BUILD)
 if [[ "$test_source" == rs485_test ]]; then
   extra_flags+=(-DLEGACYLINK_RS485_DE_RE_PIN=23)
