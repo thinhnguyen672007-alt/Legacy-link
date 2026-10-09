@@ -71,6 +71,9 @@ not prove no measurements were dropped; inspect failedEnqueues too.
 
 ## Acceptance runbook
 
+Use the [physical acceptance worksheet](firmware-physical-acceptance.md) for
+per-case evidence, registry setup, cold boot, profile switching and TLS prerequisites.
+
 1. Run backend schema/migrations from its C7–C10 docs and verify registry gateway
    matches ESP32's printed gateway ID. Keep ESP32 powered and time synchronized.
 2. Record `:health`, MQTT payload IDs and baseline DB rows. Stop the consumer for
