@@ -242,10 +242,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS config_request_one_pending_per_gateway
 -- ---------------------------------------------------------------------------
 -- Lich su cac lan tien trinh MQTT khoi dong.
 --
--- Diagnostic process history only: a gap does not prove samples were lost.
--- Firmware outbox + post-COMMIT ingestion ACK enables replay even over QoS0.
--- A NULL stopped_at means either running or an unclean exit; uptime alone
--- cannot determine the exact crash time, missing samples, or MQTT/DB outages.
+-- Lịch sử chạy giúp phát hiện nguy cơ gián đoạn, không chứng minh đã mất số đo.
+-- Firmware có hàng đợi và ACK sau COMMIT có thể gửi bù kể cả dùng QoS0.
+-- stopped_at=NULL có thể là còn chạy hoặc dừng đột ngột; chỉ dựa vào uptime
+-- không biết chính xác thời điểm crash, số mẫu thiếu hay lỗi kết nối MQTT/database.
 CREATE TABLE IF NOT EXISTS service_run (
   id         bigserial   PRIMARY KEY,
   started_at timestamptz NOT NULL DEFAULT now(),
@@ -253,9 +253,9 @@ CREATE TABLE IF NOT EXISTS service_run (
 );
 
 
--- C7-C9 additive upgrade; safe to re-run on existing installations.
+-- Nâng cấp C7–C9: bổ sung cấu trúc mới, có thể chạy lại trên database hiện có.
 BEGIN;
--- Columns already used by commissioning and dashboard code, missing in the old schema.
+-- Bổ sung các cột mà luồng đăng ký thiết bị/dashboard đã dùng nhưng schema cũ còn thiếu.
 ALTER TABLE device ADD COLUMN IF NOT EXISTS applied_config jsonb;
 ALTER TABLE device ADD COLUMN IF NOT EXISTS config_request_id text;
 ALTER TABLE machine_state ADD COLUMN IF NOT EXISTS diagnostics jsonb;
@@ -283,7 +283,7 @@ CREATE TABLE IF NOT EXISTS ingestion_receipt (
 
 COMMIT;
 
--- HTTP readiness observes the separate MQTT consumer through a short-lived heartbeat.
+-- HTTP theo dõi consumer MQTT riêng qua tín hiệu định kỳ có thời hạn ngắn.
 BEGIN;
 CREATE TABLE IF NOT EXISTS consumer_health (
   client_id text PRIMARY KEY,
