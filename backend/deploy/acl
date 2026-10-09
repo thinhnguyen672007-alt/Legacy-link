@@ -1,0 +1,29 @@
+# Quyền dựa vào USERNAME được xác thực, không dựa clientId có thể tự khai.
+user backend
+topic read legacy-link/devices/+/telemetry
+topic read legacy-link/devices/+/alarm
+topic read legacy-link/devices/+/status
+topic read legacy-link/devices/+/diagnostics
+topic read legacy-link/gateways/+/config/ack
+topic read legacy-link/gateways/+/state
+topic read legacy-link/gateways/+/availability
+topic read legacy-link/gateways/+/probe/result
+topic write legacy-link/gateways/+/config
+topic write legacy-link/gateways/+/probe
+topic write legacy-link/gateways/+/ingestion/ack
+topic write legacy-link/devices/+/config
+
+# Mỗi gateway cần một tài khoản và danh sách device được cấp riêng.
+user gateway-643C60A7DBCC
+topic write legacy-link/devices/BENCH-01/telemetry
+topic write legacy-link/devices/BENCH-01/alarm
+topic write legacy-link/devices/BENCH-01/status
+topic write legacy-link/devices/BENCH-01/diagnostics
+topic write legacy-link/gateways/643C60A7DBCC/config/ack
+topic write legacy-link/gateways/643C60A7DBCC/state
+topic write legacy-link/gateways/643C60A7DBCC/availability
+topic write legacy-link/gateways/643C60A7DBCC/probe/result
+topic read legacy-link/gateways/643C60A7DBCC/config
+topic read legacy-link/gateways/643C60A7DBCC/probe
+topic read legacy-link/gateways/643C60A7DBCC/ingestion/ack
+topic read legacy-link/devices/BENCH-01/config
