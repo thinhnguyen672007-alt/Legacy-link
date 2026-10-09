@@ -18,5 +18,7 @@ COPY src ./src
 # ENV: biến môi trường bên trong container, báo cho Node biết đang production.
 ENV NODE_ENV=production
 
+USER node
+
 # CMD: lệnh chạy khi container khởi động. Dạng array tránh shell trung gian.
 CMD ["node", "src/index.js"]
