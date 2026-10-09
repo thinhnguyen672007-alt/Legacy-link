@@ -52,13 +52,14 @@ export async function findPendingByGateway(gatewayId) {
 //
 // Tra ve matched=false cung xay ra khi requestId khong ton tai (vi du ACK cua
 // mot yeu cau da qua han va bi danh dau 'timeout').
-export async function applyConfigAck({ requestId, result, reason, persisted }) {
+// C15: biết requestId chưa đủ; ACK phải thuộc gateway mà yêu cầu đã gửi tới.
+export async function applyConfigAck({ requestId, gatewayId, result, reason, persisted }) {
   const updated = await pool.query(
     `UPDATE config_request
      SET status = $2, result = $2, reason = $3, persisted = $4, ack_at = now()
-     WHERE request_id = $1 AND status = 'pending'
+     WHERE request_id = $1 AND gateway_id = $5 AND status = 'pending'
      RETURNING request_id, gateway_id, device_id`,
-    [requestId, result, reason, persisted],
+    [requestId, result, reason, persisted, gatewayId],
   );
 
   return { matched: updated.rowCount > 0, row: updated.rows[0] ?? null };
