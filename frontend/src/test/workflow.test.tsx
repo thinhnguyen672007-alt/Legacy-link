@@ -5,8 +5,12 @@ import { OperationResult } from "../pages/Commissioning";
 import { chartPoints } from "../pages/MachineDetail";
 import { ApiError } from "../api/client";
 import { polling } from "../session";
+import { stamp } from "../components/ui";
 import { config, operation } from "./fixtures";
 const gateway = { gatewayId: "ABCDEF123456", bootId: "boot-1", online: true };
+it("formats operational timestamps in GMT+7 rather than the computer timezone", () => {
+  expect(stamp("2026-10-10T00:00:00Z")).toContain("07:00:00");
+});
 describe("Commissioning gates", () => {
   it.each([
     [2, 65534, /Thiết bị từ chối địa chỉ hoặc số thanh ghi/],
@@ -48,10 +52,45 @@ describe("Commissioning gates", () => {
     expect(
       canApply(p, config, { ...gateway, bootId: "new-boot" }, Date.now()),
     ).toBe(false);
+    expect(
+      canApply(
+        p,
+        config,
+        { ...gateway, gatewayId: "OTHER-GATEWAY" },
+        Date.now(),
+      ),
+    ).toBe(false);
     expect(canApply(p, config, gateway, Date.now() + 60001)).toBe(false);
     expect(canApply(p, config, { ...gateway, online: false }, Date.now())).toBe(
       false,
     );
+  });
+  it("rejects future-dated evidence and inconsistent successful reading codes", () => {
+    const now = Date.now();
+    expect(
+      canApply(operation({ finishedAt: now + 1000 }), config, gateway, now),
+    ).toBe(false);
+    expect(
+      canApply(
+        operation({
+          readings: [
+            {
+              key: "temperature",
+              address: 1,
+              success: true,
+              value: 25,
+              errorCode: 2,
+            },
+          ],
+        }),
+        config,
+        gateway,
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      canApply(operation({ finishedAt: now - 60000 }), config, gateway, now),
+    ).toBe(false);
   });
   it("rejects incomplete/failed read evidence", () => {
     expect(

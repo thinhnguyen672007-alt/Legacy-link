@@ -1,13 +1,17 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { ArrowRight, ShieldCheck, Unplug } from "lucide-react";
 import { normalizeUrl } from "../api/client";
 import { useSession } from "../session";
 import { Notice } from "../components/ui";
 import { login } from "../api/accounts";
 export function Connection() {
-  const { connect } = useSession();
+  const { connect, sessionError } = useSession();
+  const pending = useRef(false);
   const [base, setBase] = useState(
-    import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? `${location.origin}/api` : "http://localhost:3000"),
+    import.meta.env.VITE_API_BASE_URL ||
+      (import.meta.env.PROD
+        ? `${location.origin}/api`
+        : "http://localhost:3000"),
   );
   const [read, setRead] = useState("");
   const [write, setWrite] = useState("");
@@ -15,6 +19,8 @@ export function Connection() {
   const [error, setError] = useState("");
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (pending.current) return;
+    pending.current = true;
     setError("");
     setBusy(true);
     try {
@@ -30,6 +36,7 @@ export function Connection() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể kết nối.");
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   }
@@ -69,6 +76,7 @@ export function Connection() {
           <label>
             Địa chỉ API
             <input
+              disabled={busy}
               type="url"
               required
               value={base}
@@ -80,6 +88,7 @@ export function Connection() {
           <label>
             Tên đăng nhập
             <input
+              disabled={busy}
               type="text"
               required
               value={read}
@@ -91,6 +100,7 @@ export function Connection() {
           <label>
             Mật khẩu
             <input
+              disabled={busy}
               type="password"
               required
               value={write}
@@ -100,7 +110,9 @@ export function Connection() {
             />
           </label>
           <p className="help">Liên hệ quản trị viên để được cấp tài khoản.</p>
-          {error && <Notice tone="bad">{error}</Notice>}
+          {(error || sessionError) && (
+            <Notice tone="bad">{error || sessionError}</Notice>
+          )}
           <button className="primary wide" disabled={busy}>
             {busy ? "Đang kiểm tra…" : "Đăng nhập"}
             <ArrowRight size={18} />

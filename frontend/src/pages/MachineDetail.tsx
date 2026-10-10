@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import { useApi, polling } from "../session";
+import { useApi, polling, useSession } from "../session";
 import {
   Badge,
   Empty,
@@ -21,6 +21,7 @@ import {
   number,
   stamp,
 } from "../components/ui";
+import { modbusReadError } from "../api/errors";
 import type { Machine, Telemetry } from "../api/schema";
 export function chartPoints(rows: Telemetry[], metric: string, gap: number) {
   const sorted = [...rows].sort((a, b) => a.timestamp - b.timestamp);
@@ -37,6 +38,7 @@ export function MachineDetail() {
 }
 function Detail({ id }: { id: string }) {
   const api = useApi();
+  const { session } = useSession();
   const q = useQuery({
     queryKey: ["machine", id],
     queryFn: ({ signal }) => api.machine(id, signal),
@@ -59,13 +61,15 @@ function Detail({ id }: { id: string }) {
         title={m?.name || id}
         description={`Mã thiết bị ${id} · Thời gian GMT+7`}
         action={
-          <Link
-            className="button"
-            to={`/commissioning?device=${encodeURIComponent(id)}`}
-          >
-            <Settings2 size={17} />
-            Cấu hình
-          </Link>
+          session?.writeToken && (
+            <Link
+              className="button"
+              to={`/commissioning?device=${encodeURIComponent(id)}`}
+            >
+              <Settings2 size={17} />
+              Cấu hình
+            </Link>
+          )
         }
       />
       <QueryState
@@ -340,7 +344,14 @@ function Diagnostics({ m }: { m: Machine }) {
               <li key={r.key}>
                 <span>{r.key}</span>
                 <Badge value={r.success ? "healthy" : "read_error"} />
-                {!r.success && <span>Mã lỗi: {r.errorCode ?? "chưa rõ"}</span>}
+                {!r.success && (
+                  <span>
+                    Mã Modbus: {r.errorCode ?? "chưa rõ"}.{" "}
+                    {r.errorCode == null
+                      ? "Kiểm tra log gateway để xem nguyên nhân."
+                      : modbusReadError(r.errorCode)}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

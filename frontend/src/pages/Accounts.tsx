@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountsApi, roleLabel, type Account } from "../api/accounts";
 import { useSession } from "../session";
-import { Notice } from "../components/ui";
+import { Notice, stamp } from "../components/ui";
 export function PasswordChange() {
   const { session, disconnect } = useSession();
+  const pending = useRef(false);
   const [current, setCurrent] = useState(""),
     [password, setPassword] = useState(""),
     [confirm, setConfirm] = useState("");
@@ -12,10 +13,18 @@ export function PasswordChange() {
     [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (pending.current) return;
     if (password !== confirm) {
       setError("Hai mật khẩu mới chưa khớp.");
       return;
     }
+    if (new TextEncoder().encode(password).length > 256) {
+      setError(
+        "Mật khẩu vượt 256 byte. Rút ngắn mật khẩu; ký tự có dấu có thể chiếm nhiều byte.",
+      );
+      return;
+    }
+    pending.current = true;
     setBusy(true);
     setError("");
     try {
@@ -24,6 +33,7 @@ export function PasswordChange() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không đổi được mật khẩu.");
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   }
@@ -39,6 +49,7 @@ export function PasswordChange() {
         <label>
           Mật khẩu hiện tại
           <input
+            disabled={busy}
             type="password"
             autoComplete="current-password"
             required
@@ -49,6 +60,7 @@ export function PasswordChange() {
         <label>
           Mật khẩu mới
           <input
+            disabled={busy}
             type="password"
             autoComplete="new-password"
             minLength={12}
@@ -61,6 +73,7 @@ export function PasswordChange() {
         <label>
           Nhập lại mật khẩu mới
           <input
+            disabled={busy}
             type="password"
             autoComplete="new-password"
             required
@@ -81,6 +94,7 @@ export function Accounts() {
   const { session } = useSession();
   const cache = useQueryClient();
   const api = accountsApi(session!);
+  const pending = useRef(false);
   const users = useQuery({ queryKey: ["accounts"], queryFn: api.list });
   const history = useQuery({ queryKey: ["account-audit"], queryFn: api.audit });
   const [name, setName] = useState(""),
@@ -91,6 +105,8 @@ export function Accounts() {
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   async function run(action: () => Promise<unknown>, message: string) {
+    if (pending.current) return;
+    pending.current = true;
     setBusy(true);
     setError("");
     setMessage("");
@@ -104,16 +120,24 @@ export function Accounts() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không lưu được tài khoản.");
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   }
   function submit(e: FormEvent) {
     e.preventDefault();
+    if (pending.current) return;
+    if (new TextEncoder().encode(password).length > 256) {
+      setError(
+        "Mật khẩu vượt 256 byte. Rút ngắn mật khẩu; ký tự có dấu có thể chiếm nhiều byte.",
+      );
+      return;
+    }
     void run(
       () =>
         selected
           ? api.update(selected.id, { password })
-          : api.create(name, password, role),
+          : api.create(name.trim(), password, role),
       selected
         ? "Đã đặt lại mật khẩu và thu hồi các phiên đăng nhập."
         : "Đã tạo tài khoản. Nhân viên cần đổi mật khẩu lần đầu.",
@@ -136,6 +160,7 @@ export function Accounts() {
             <label>
               Tên đăng nhập
               <input
+                disabled={busy}
                 required
                 minLength={3}
                 maxLength={48}
@@ -146,7 +171,11 @@ export function Accounts() {
             </label>
             <label>
               Quyền
-              <select value={role} onChange={(e) => setRole(e.target.value)}>
+              <select
+                disabled={busy}
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+              >
                 <option value="viewer">Viewer · Chỉ xem</option>
                 <option value="technician">Technician · Kỹ thuật</option>
               </select>
@@ -156,6 +185,7 @@ export function Accounts() {
         <label>
           Mật khẩu tạm
           <input
+            disabled={busy}
             type="password"
             autoComplete="new-password"
             required
@@ -172,6 +202,7 @@ export function Accounts() {
         {selected && (
           <button
             type="button"
+            disabled={busy}
             onClick={() => {
               setSelected(null);
               setPassword("");
@@ -277,7 +308,7 @@ export function Accounts() {
           <tbody>
             {history.data?.map((a) => (
               <tr key={a.id}>
-                <td>{new Date(a.created_at).toLocaleString("vi-VN")}</td>
+                <td>{stamp(a.created_at)}</td>
                 <td>{a.username ?? "—"}</td>
                 <td>{a.action}</td>
                 <td>{a.target}</td>

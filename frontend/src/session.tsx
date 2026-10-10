@@ -11,11 +11,13 @@ import { ApiError, createApi, type Session } from "./api/client";
 import { accountsApi } from "./api/accounts";
 const Context = createContext<{
   session: Session | null;
+  sessionError: string;
   connect: (s: Session) => void;
   disconnect: () => void;
 } | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [sessionError, setSessionError] = useState("");
   const [client] = useState(
     () =>
       new QueryClient({
@@ -27,17 +29,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
   useEffect(() => {
     if (!session?.user) return;
+    let cancelled = false;
+    const controller = new AbortController();
     const timer = setInterval(() => {
       void accountsApi(session)
-        .me()
+        .me(controller.signal)
         .catch((error) => {
-          if (error instanceof ApiError && error.status === 401) {
+          if (!cancelled && error instanceof ApiError && error.status === 401) {
             client.clear();
+            setSessionError(
+              "Phiên đăng nhập đã hết hạn hoặc bị quản trị viên thu hồi. Hãy đăng nhập lại.",
+            );
             setSession(null);
           }
         });
     }, 30000);
-    return () => clearInterval(timer);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearInterval(timer);
+    };
   }, [session, client]);
   const clear = () => {
     void client.cancelQueries();
@@ -47,8 +58,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     <Context.Provider
       value={{
         session,
+        sessionError,
         connect: (s) => {
           clear();
+          setSessionError("");
           setSession(s);
         },
         disconnect: () => {
@@ -57,6 +70,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               .logout()
               .catch(() => {});
           clear();
+          setSessionError("");
           setSession(null);
         },
       }}

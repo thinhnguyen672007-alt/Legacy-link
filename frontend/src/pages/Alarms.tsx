@@ -61,6 +61,7 @@ export function Alarms() {
             onClick={() => {
               const to = Date.now();
               reset();
+              mutation.reset();
               setRange({ from: to - Number(days) * 86400000, to });
             }}
           >

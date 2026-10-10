@@ -1,3 +1,4 @@
+import { explainError } from "./errors";
 import { z } from "zod";
 import {
   copilotSchema,
@@ -30,27 +31,15 @@ const messages: Record<number, string> = {
   429: "API đang giới hạn số yêu cầu. Hệ thống sẽ giảm tần suất đọc.",
   503: "API chưa sẵn sàng. Kiểm tra dịch vụ backend.",
 };
-function validationMessage(detail: string) {
-  const match = /^([^:]+): (.+)$/.exec(detail);
-  if (!match) return undefined;
-  const fixes: Record<string, string> = {
-    "minimum exceeds maximum":
-      "“Giá trị nhỏ nhất dự kiến” đang lớn hơn “Giá trị lớn nhất dự kiến”. Sửa để giá trị nhỏ nhất không vượt giá trị lớn nhất.",
-    "expected range must contain finite numbers":
-      "Khoảng dự kiến phải là các số hợp lệ. Kiểm tra lại giá trị nhỏ nhất và lớn nhất.",
-    "invalid critical alarm threshold":
-      "Ngưỡng nghiêm trọng phải lớn hơn ngưỡng cao và chỉ dùng với mức cảnh báo high.",
-    "low threshold must be below high threshold":
-      "Ngưỡng cảnh báo thấp phải nhỏ hơn ngưỡng cảnh báo cao.",
-    "UNDERHEAT requires a temperature unit":
-      "Cảnh báo nhiệt độ thấp cần đơn vị nhiệt độ như C, F hoặc K.",
-  };
-  return fixes[match[2]]
-    ? `Thông số ${match[1]}: ${fixes[match[2]]}`
-    : undefined;
-}
 export function normalizeUrl(input: string) {
-  const u = new URL(input.trim());
+  let u: URL;
+  try {
+    u = new URL(input.trim());
+  } catch {
+    throw new Error(
+      "Địa chỉ API chưa hợp lệ. Nhập đầy đủ http:// hoặc https://, ví dụ http://192.168.110.12:8080/api.",
+    );
+  }
   if (
     !["http:", "https:"].includes(u.protocol) ||
     u.username ||
@@ -98,7 +87,7 @@ export async function request<T>(
     throw new ApiError(
       timer.aborted
         ? "Yêu cầu quá thời gian chờ."
-        : "Không kết nối được API. Kiểm tra URL, mạng và cấu hình CORS.",
+        : "Không kết nối được backend. Kiểm tra địa chỉ API, Wi-Fi và máy chạy Docker; nếu vẫn lỗi, nhờ quản trị viên kiểm tra quyền truy cập từ trang web này.",
       0,
       0,
       method === "POST",
@@ -131,10 +120,11 @@ export async function request<T>(
       : 0;
     const detail = z.object({ error: z.string() }).safeParse(data);
     throw new ApiError(
-      (response.status === 400 && detail.success
-        ? validationMessage(detail.data.error)
-        : undefined) ??
-        (messages[response.status] ?? `API trả lỗi HTTP ${response.status}.`) +
+      (detail.success ? explainError(detail.data.error) : undefined) ??
+        (path === "/auth/login" && response.status === 401
+          ? "Tên đăng nhập hoặc mật khẩu không đúng, hoặc tài khoản đã bị khóa. Liên hệ quản trị viên nếu cần."
+          : (messages[response.status] ??
+            `API trả lỗi HTTP ${response.status}.`)) +
           (detail.success ? ` ${detail.data.error}` : ""),
       response.status,
       Math.min(120000, Math.max(0, wait || 0)),
@@ -151,7 +141,12 @@ export async function request<T>(
     );
   return parsed.data;
 }
-export type Session = { user?: import("./accounts").Account; base: string; readToken: string; writeToken: string };
+export type Session = {
+  user?: import("./accounts").Account;
+  base: string;
+  readToken: string;
+  writeToken: string;
+};
 export function createApi(s: Session) {
   const get = <T>(p: string, schema: z.ZodType<T>, signal?: AbortSignal) =>
     request(s.base, p, s.readToken || s.writeToken, schema, { signal });

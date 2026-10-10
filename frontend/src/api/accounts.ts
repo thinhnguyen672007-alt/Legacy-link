@@ -27,7 +27,8 @@ export function accountsApi(s: Session) {
   const post = <T>(path: string, schema: z.ZodType<T>, body?: unknown) =>
     request(s.base, path, token, schema, { method: "POST", body });
   return {
-    me: () => request(s.base, "/auth/me", token, userSchema),
+    me: (signal?: AbortSignal) =>
+      request(s.base, "/auth/me", token, userSchema, { signal }),
     logout: () => post("/auth/logout", z.object({ ok: z.boolean() })),
     password: (currentPassword: string, password: string) =>
       post("/auth/password", z.object({ ok: z.boolean() }), {

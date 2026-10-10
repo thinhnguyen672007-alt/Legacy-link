@@ -24,6 +24,7 @@ const states: Record<string, [string, string]> = {
   out_of_range: ["Ngoài khoảng dự kiến", "warn"],
   healthy: ["Bình thường", "ok"],
   read_error: ["Lỗi đọc", "bad"],
+  read_ok: ["Đọc thành công", "ok"],
   unknown: ["Chưa rõ", "muted"],
   stale: ["Báo cáo cũ", "warn"],
   backlog: ["Đang chờ xác nhận", "warn"],

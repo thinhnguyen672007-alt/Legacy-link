@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Link } from "react-router-dom";
 import { useApi } from "../session";
+import { stamp } from "./ui";
 import type { CopilotResponse } from "../api/schema";
 const quick = [
   ["overheat", "Máy quá nóng"],
@@ -31,6 +32,11 @@ export function Copilot() {
   useEffect(() => () => pending.current?.abort(), []);
   async function send(body: { question?: string; action?: string }) {
     if (pending.current) return;
+    if (body.question !== undefined) {
+      const trimmed = body.question.trim();
+      if (!trimmed) return;
+      body = { ...body, question: trimmed };
+    }
     const controller = new AbortController();
     pending.current = controller;
     setBusy(true);
@@ -111,10 +117,7 @@ export function Copilot() {
                 <p>{answer.text}</p>
                 {answer.results.map((r, j) => (
                   <section key={j}>
-                    <p>
-                      Database · Lấy lúc{" "}
-                      {new Date(r.queriedAt).toLocaleString("vi-VN")}
-                    </p>
+                    <p>Database · Lấy lúc {stamp(r.queriedAt)}</p>
                     {r.counts && (
                       <p>
                         Đã kiểm tra {r.counts.inspected} máy · Gateway có kết
@@ -160,10 +163,7 @@ export function Copilot() {
                             <p>
                               Ngưỡng thấp: {t.low ?? "chưa đặt"} · Ngưỡng cao:{" "}
                               {t.high ?? "chưa đặt"}. Đo lúc:{" "}
-                              {t.measuredAt
-                                ? new Date(t.measuredAt).toLocaleString("vi-VN")
-                                : "chưa có"}
-                              .
+                              {t.measuredAt ? stamp(t.measuredAt) : "chưa có"}.
                             </p>
                             {t.reason && <p>{t.reason}</p>}
                           </div>
@@ -180,7 +180,7 @@ export function Copilot() {
                         {r.alerts.map((a) => (
                           <p key={a.id}>
                             {a.deviceId} · {a.code} · {a.value ?? "—"} ·{" "}
-                            {new Date(a.timestamp).toLocaleString("vi-VN")}
+                            {stamp(a.timestamp)}
                           </p>
                         ))}
                       </>
