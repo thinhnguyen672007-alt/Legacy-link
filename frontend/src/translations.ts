@@ -263,25 +263,22 @@ export const english: Record<string, string> = {
   "Chủ động vận hành.": "Stay in control.",
   "Theo dõi số đo, xem cảnh báo và cấu hình gateway từ một nơi.":
     "Monitor readings, review alerts and configure gateways in one place.",
-  "Kết nối trực tiếp API của đội.": "Connect directly to your team's API.",
+  "Theo dõi thiết bị của đội.": "Monitor your team's devices.",
   "Mỗi nhân viên có tài khoản và quyền riêng.":
     "Each employee has their own account and permissions.",
   "Dự án Legacy-link · DENSO Factory Hacks 2026":
     "Legacy-link project · DENSO Factory Hacks 2026",
   "Không phải phần mềm chính thức của DENSO.": "Not official DENSO software.",
   "Đăng nhập": "Sign in",
-  "Mở giao diện trên máy backend để dùng địa chỉ mặc định.":
-    "Open this interface on the backend computer to use the default address.",
-  "Địa chỉ API": "API address",
+  "Đăng nhập để theo dõi thiết bị và cảnh báo.":
+    "Sign in to monitor devices and alerts.",
   "Mật khẩu": "Password",
   "Liên hệ quản trị viên để được cấp tài khoản.":
     "Contact your administrator to get an account.",
   "Đang kiểm tra…": "Checking…",
   "Không kết nối được?": "Cannot connect?",
-  "API Docker Compose cần hoạt động; origin":
-    "The Docker Compose API must be running; origin",
-  "phải có trong CORS_ORIGINS. Nếu mở từ máy khác, localhost là máy đang dùng, hãy nhập IP máy backend. Trang HTTPS không gọi được API HTTP.":
-    "must be included in CORS_ORIGINS. On another computer, localhost refers to that computer; enter the backend computer's IP. HTTPS pages cannot call an HTTP API.",
+  "Kiểm tra kết nối mạng rồi thử lại. Nếu vẫn không đăng nhập được, hãy liên hệ quản trị viên.":
+    "Check your network connection and try again. If you still cannot sign in, contact your administrator.",
   "Danh sách thiết bị": "Device list",
   "Mã thiết bị {0} · Thời gian GMT+7": "Device ID {0} · Time zone GMT+7",
   "Liên lạc": "Connectivity",
@@ -398,8 +395,8 @@ export const english: Record<string, string> = {
   "Chưa đủ căn cứ": "Insufficient evidence",
   "Kiểm tra": "Check",
   "Không lấy được dữ liệu.": "Could not retrieve data.",
-  "AI Copilot · Hỏi về máy": "AI Copilot · Ask about machines",
-  "Đóng Copilot": "Close Copilot",
+  "AI DENSO · Hỏi về máy": "AI DENSO · Ask about machines",
+  "Đóng AI DENSO": "Close AI DENSO",
   "Đọc số đo và cảnh báo. AI không điều khiển máy hoặc sửa cấu hình.":
     "Read measurements and alerts. AI does not control machines or edit configurations.",
   "Nút kiểm tra nhanh không cần Gemini. Dữ liệu dưới đây phản ánh thời điểm truy vấn, không tự cập nhật.":
@@ -456,14 +453,14 @@ export const english: Record<string, string> = {
     "The API is rate limiting requests. The system will reduce polling frequency.",
   "API chưa sẵn sàng. Kiểm tra dịch vụ backend.":
     "The API is not ready. Check the backend services.",
-  "Địa chỉ API chưa hợp lệ. Nhập đầy đủ http:// hoặc https://, ví dụ http://192.168.110.12:8080/api.":
-    "Invalid API address. Include http:// or https://, for example http://192.168.110.12:8080/api.",
+  "Cấu hình kết nối không hợp lệ. Vui lòng liên hệ quản trị viên.":
+    "Invalid connection configuration. Please contact your administrator.",
   "URL phải là HTTP/HTTPS, không chứa token, tài khoản hoặc tham số.":
     "The URL must use HTTP/HTTPS and contain no tokens, credentials or query parameters.",
   "Đã hủy": "Cancelled",
   "Yêu cầu quá thời gian chờ.": "The request timed out.",
-  "Không kết nối được backend. Kiểm tra địa chỉ API, Wi-Fi và máy chạy Docker; nếu vẫn lỗi, nhờ quản trị viên kiểm tra quyền truy cập từ trang web này.":
-    "Cannot connect to the backend. Check the API address, Wi-Fi and Docker computer. If it still fails, ask your administrator to check website access permissions.",
+  "Không kết nối được hệ thống. Kiểm tra kết nối mạng rồi thử lại; nếu vẫn lỗi, hãy liên hệ quản trị viên.":
+    "Cannot connect to the system. Check your network connection and retry; if the problem persists, contact your administrator.",
   "Không đọc được phản hồi API.": "Could not read the API response.",
   "Tên đăng nhập hoặc mật khẩu không đúng, hoặc tài khoản đã bị khóa. Liên hệ quản trị viên nếu cần.":
     "Incorrect username or password, or the account is locked. Contact your administrator if needed.",

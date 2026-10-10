@@ -101,7 +101,7 @@ export function Copilot() {
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
         <button className="copilot-launch">
-          {tr("AI Copilot · Hỏi về máy")}
+          {tr("AI DENSO · Hỏi về máy")}
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -110,7 +110,7 @@ export function Copilot() {
           className={`copilot-panel ${expanded ? "investigation-expanded" : ""}`}
         >
           <header>
-            <Dialog.Title>Legacy-link · AI Copilot</Dialog.Title>
+            <Dialog.Title>Legacy-link · AI DENSO</Dialog.Title>
             <div className="investigation-controls">
               <button
                 type="button"
@@ -146,7 +146,7 @@ export function Copilot() {
                 {expanded ? <Minimize2 size={18} /> : <Expand size={18} />}
               </button>
               <Dialog.Close asChild>
-                <button aria-label={tr("Đóng Copilot")}>{tr("Đóng")}</button>
+                <button aria-label={tr("Đóng AI DENSO")}>{tr("Đóng")}</button>
               </Dialog.Close>
             </div>
           </header>
