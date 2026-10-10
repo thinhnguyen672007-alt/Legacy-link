@@ -1256,3 +1256,18 @@ tbody tr:hover {
     top: -30px;
   }
 }
+
+/* Copilot dùng màu DENSO, chỉ áp dụng trong panel. */
+.copilot-launch { position: fixed; bottom: 24px; right: 24px; z-index: 20; background: #00ed48; color: #10172b; font-weight: 700; }
+.copilot-panel { position: fixed; right: 16px; top: 16px; bottom: 16px; width: min(540px, calc(100vw - 32px)); z-index: 51; display: flex; flex-direction: column; gap: 12px; padding: 20px; color: #f5f7ff; background: #19162e; border: 1px solid #44d9ff; border-radius: 14px; box-shadow: 0 12px 50px #0008; }
+.copilot-panel header { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.copilot-panel h2, .copilot-panel h3, .copilot-panel p { color: inherit; margin: 4px 0; }
+.copilot-panel a { color: #66e1ff; text-decoration: underline; }
+.copilot-panel button { background: #00ed48; color: #111b24; }
+.copilot-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.copilot-messages { overflow-y: auto; flex: 1; min-height: 0; }
+.copilot-messages article { border-top: 1px solid #ffffff30; padding: 16px 0; overflow-wrap: anywhere; }
+.copilot-device { background: #ffffff08; padding: 12px; border-radius: 8px; margin-top: 10px; }
+.copilot-panel .copilot-note { color: #b9c7e0; font-size: 13px; }
+.copilot-panel textarea { width: 100%; min-height: 70px; background: #12162a; color: white; border: 1px solid #73849e; }
+@media (max-width: 600px) { .copilot-panel { inset: 0; width: 100%; border-radius: 0; } .copilot-launch { bottom: 12px; right: 12px; } }

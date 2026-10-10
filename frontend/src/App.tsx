@@ -15,6 +15,7 @@ import { Machines } from "./pages/Machines";
 const MachineDetail = lazy(() =>
   import("./pages/MachineDetail").then((m) => ({ default: m.MachineDetail })),
 );
+import { Copilot } from "./components/Copilot";
 import { Alarms } from "./pages/Alarms";
 import { Commissioning } from "./pages/Commissioning";
 export class ErrorBoundary extends Component<
@@ -84,6 +85,7 @@ export function App() {
           <span>Factory Hacks 2026</span>
         </div>
       </aside>
+      <Copilot />
       <div className="workspace">
         <header className="topbar">
           <span className="endpoint">
