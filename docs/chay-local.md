@@ -48,9 +48,13 @@ Migration là file SQL bổ sung bảng/cột cần thiết cho code mới. Nó 
 ```bash
 docker exec -i legacy-link-postgres psql -v ON_ERROR_STOP=1 -U legacy_admin -d legacy_link < backend/db/migrate-c7-c8-c9.sql
 docker exec -i legacy-link-postgres psql -v ON_ERROR_STOP=1 -U legacy_admin -d legacy_link < backend/db/migrate-c10.sql
+docker exec -i legacy-link-postgres psql -v ON_ERROR_STOP=1 -U legacy_admin -d legacy_link < backend/db/migrate-c16.sql
 ```
 
-Hai lệnh trên dành cho database đã có schema cũ, đúng tình trạng local lúc kiểm tra. Nếu database hoàn toàn mới, chạy file schema đầy đủ thay cho hai migration:
+Ba lệnh trên dành cho database đã có schema cũ, đúng tình trạng local lúc kiểm tra.
+Cách gọn hơn là chạy một lệnh trong `backend/` (tự nhận DB rỗng hay đã có và kiểm tra
+version): `npm run db:migrate`; kết quả mong đợi `Migration thành công, version=4`.
+Nếu database hoàn toàn mới, chạy file schema đầy đủ thay cho ba migration:
 
 ```bash
 docker exec -i legacy-link-postgres psql -v ON_ERROR_STOP=1 -U legacy_admin -d legacy_link < backend/db/schema.sql
