@@ -15,6 +15,10 @@ Không xóa volume. Setup làm gián đoạn ingestion trong lúc nâng cấp.
 Nếu build lỗi, worker cũ chưa bị dừng. Nếu migration lỗi, worker giữ trạng thái dừng
 để tránh ghi vào schema dở dang: đọc lỗi, sửa nguyên nhân rồi chạy lại setup.
 
+Dừng dịch vụ bằng `docker compose stop` tôn trọng `stop_grace_period` 25 giây; watchdog
+đọc `SHUTDOWN_TIMEOUT_MS` (mặc định 15 giây) trước khi SIGKILL. Nhờ đó consumer kịp drain
+mẫu đã nhận và gửi nốt ACK thay vì bị cắt giữa chừng.
+
 Database có 15 bảng (schema version 4): 10 bảng dữ liệu `telemetry`, `machine_state`,
 `alarms`, `device`, `register_map`, `register_override`, `config_request`, `service_run`,
 `ingestion_receipt`, `consumer_health`, cộng 5 bảng C16 `schema_migrations`,
