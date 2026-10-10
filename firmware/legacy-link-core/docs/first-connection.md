@@ -152,7 +152,7 @@ not on PATH. Portable installations may also need their library directory in
 `LD_LIBRARY_PATH`. The sanitizer workaround above applies in this mode too.
 
 The tool first validates the captured firmware messages. It then waits for an
-MQTT subscription acknowledgment before publishing the 19 payloads through a
+MQTT subscription acknowledgment before publishing the 22 payloads through a
 unique topic prefix `legacy-link/test/contract-{runId}/`. It receives them,
 compares their payload bytes and sequence, and runs the backend validators again
 using their original device-topic names. Status messages are sent retained, as in
