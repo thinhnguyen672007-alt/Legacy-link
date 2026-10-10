@@ -217,6 +217,6 @@ head just to make a dashboard look current. The backend must accept/reconcile
 historical samples according to its ingestion policy. Telemetry schema 1 has no
 configuration revision field: an old and a new sample with the same metric key
 but different scale/source cannot be reliably attributed to their profiles from
-that payload alone. This change adds no new MQTT fields to solve that separately.
+that payload alone. No configuration revision field has been added to telemetry.
 Frontend freshness/Unknown/Error presentation remains frontend/backend work.
 MQTT continues to use the team's chosen plaintext LAN transport.
