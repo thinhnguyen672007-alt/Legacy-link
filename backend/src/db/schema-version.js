@@ -1,6 +1,9 @@
 // Kiểm tra cả phiên bản lẫn cột thật, không chỉ tin một số version trong DB.
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 const required = {
+  app_user: ['id','username','password_hash','role','disabled','must_change_password'],
+  app_session: ['token_hash','user_id','expires_at'],
+  account_audit: ['actor_id','action','target','outcome'],
   device: ['device_id', 'gateway_id', 'applied_config', 'config_request_id'],
   register_map: ['metric_key', 'word_order'],
   register_override: ['word_order'],
