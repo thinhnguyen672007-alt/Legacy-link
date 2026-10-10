@@ -235,6 +235,10 @@ services:
     command: ["node", "/app/infra-run.cjs", "consumer"]
     restart: unless-stopped
     profiles: ["full"]
+    # init: dọn tiến trình con của wrapper. stop_grace_period phải dài hơn deadline
+    # drain của backend (15s) cộng biên, nếu không Docker SIGKILL sẽ cắt drain.
+    init: true
+    stop_grace_period: 25s
     volumes:
       - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z
       - type: bind
@@ -277,6 +281,8 @@ services:
     container_name: ${API_CONTAINER_NAME:-legacy-link-api}
     profiles: ["full"]
     restart: unless-stopped
+    init: true
+    stop_grace_period: 25s
     command: ["node", "/app/infra-run.cjs", "api"]
     volumes:
       - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z
