@@ -59,12 +59,20 @@ export function createHttpHandler(deps) {
       }
       // Server thật luôn truyền security; unit test có thể truyền policy giả.
       deps.rateLimit?.(req, res, path);
-      deps.security?.(req, res, path);
+      await deps.security?.(req, res, path);
       const params = url.searchParams;
       // Mỗi endpoint có đúng phương thức cho phép: GET để xem, POST để thực hiện thao tác.
       const route = (method, run) => ({ method, run });
       let selected;
-      if (path === '/health' || path === '/health/live')
+      if (deps.accounts && path === '/auth/login') selected = route('POST', async () => deps.accounts.login(await readBody(req)));
+      else if (deps.accounts && path === '/auth/me') selected = route('GET', () => req.actor);
+      else if (deps.accounts && path === '/auth/logout') selected = route('POST', () => deps.accounts.logout(req.sessionToken));
+      else if (deps.accounts && path === '/auth/password') selected = route('POST', async () => deps.accounts.changePassword(req.actor, await readBody(req)));
+      else if (deps.accounts && path === '/admin/users') selected = route('GET', () => deps.accounts.list());
+      else if (deps.accounts && path === '/admin/users/create') selected = route('POST', async () => deps.accounts.create(req.actor, await readBody(req)));
+      else if (deps.accounts && /^\/admin\/users\/[^/]+$/.test(path)) selected = route('POST', async () => deps.accounts.update(req.actor, path.split('/').pop(), await readBody(req)));
+      else if (deps.accounts && path === '/admin/audit') selected = route('GET', () => deps.accounts.history());
+      else if (path === '/health' || path === '/health/live')
         selected = route('GET', () => ({ status: 'alive' }));
       else if (path === '/health/ready')
         selected = route('GET', async () => {
@@ -169,7 +177,15 @@ export function createHttpHandler(deps) {
         return;
       }
       if (req.method !== selected.method) throw new ControlError('Method not allowed', 405);
-      const result = await selected.run();
+      const tracked = req.actor && req.method === 'POST' && !path.startsWith('/auth/') && !path.startsWith('/admin/');
+      if (tracked) await deps.accounts.record(req.actor, 'request', path, 'started');
+      let result;
+      try { result = await selected.run(); }
+      catch (error) {
+        if (tracked) await deps.accounts.record(req.actor, 'request', path, 'failed');
+        throw error;
+      }
+      if (tracked) await deps.accounts.record(req.actor, 'request', path, result?.id ? `accepted:${result.id}` : 'accepted');
       if (!res.headersSent) send(res, 200, result);
 
       // Bộ lọc cảnh báo được kiểm tra trước khi đưa vào truy vấn database.
