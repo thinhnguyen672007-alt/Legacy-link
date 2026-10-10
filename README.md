@@ -8,14 +8,13 @@ without reflashing the gateway.
 ```text
 Modbus RTU machine / OpenModSim
     -> ESP32 -> Wi-Fi / MQTT -> Node.js backend -> PostgreSQL -> HTTP API
-                                                                    -> frontend (planned)
+                                                                    -> React frontend
 ```
 
-**Status:** firmware, backend and infrastructure are implemented. Physical
-OpenModSim -> ESP32 -> MQTT telemetry and alarms have been tested, and so has
-outage recovery from a real ESP32 against real PostgreSQL, broker and HTTP API.
-Frontend code is not yet included; frontend acceptance and real CNC/RS-485 checks
-remain to be completed. See the [hardware reports](#validation).
+**Status:** firmware, backend, frontend and Compose images are implemented.
+Physical ESP32 telemetry, alarms and outage recovery have been tested against
+PostgreSQL and MQTT. The complete frontend/desktop flow on the demo hotspot and
+real CNC/RS-485 remain to be accepted. See the [hardware reports](#validation).
 
 ## Components
 
@@ -23,7 +22,8 @@ remain to be completed. See the [hardware reports](#validation).
 | --- | --- |
 | [`firmware/legacy-link-core/`](firmware/legacy-link-core/README.md) | PlatformIO ESP32 firmware, configuration examples, host and hardware tests |
 | [`backend/`](backend/) | MQTT consumer, payload validation, PostgreSQL storage and HTTP API |
-| [`infrastructure/`](infrastructure/README.md) | Mosquitto, PostgreSQL and the backend image in Docker Compose, setup scripts and runbook |
+| [`frontend/`](frontend/README.md) | React dashboard, employee accounts, commissioning and Copilot |
+| [`infrastructure/`](infrastructure/README.md) | Mosquitto, PostgreSQL, backend and frontend in Docker Compose; setup scripts and runbook |
 
 - **Firmware:** Modbus holding/input registers (FC03/FC04), INT16/UINT16/UINT32,
   scaling, Wi-Fi reconnection, NTP time, retained status and offline Last Will.
@@ -32,34 +32,37 @@ remain to be completed. See the [hardware reports](#validation).
 - **Backend:** validates telemetry/status/alarm messages, stores measurements and
   alarms, maintains latest machine state, and combines shared register maps with
   per-device overrides.
-- **Infrastructure:** authenticated MQTT broker and PostgreSQL. Profile `broker`
-  starts only those two, so the backend runs from your own terminal. Profile
-  `full` additionally starts `backend-consumer`, `backend-api` and an Nginx
-  `api-gateway` that publishes port 3000 and rejects writes without the token,
-  putting the whole stack in one `docker compose up`.
+- **Infrastructure:** profile `full` starts the broker, database, one-time
+  initialization, consumer, API, frontend and API gateway. Frontend publishes
+  port 8080; API gateway stays on local port 3000. Profile `broker` remains for
+  development with Node processes on the host.
 
 ## Quick start
 
-Requirements: Docker with Compose v2, Node.js 22+, PlatformIO, and an ESP32 with
-2.4 GHz Wi-Fi. Use a suitable RS-485 adapter for industrial equipment; the
-OpenModSim bench demo uses a CH340 TTL adapter with verified 3.3 V UART logic.
+Requirements: Docker with Compose v2 on the server. PlatformIO and an ESP32 with
+2.4 GHz Wi-Fi are needed to build/upload firmware. Use a suitable RS-485 adapter
+for industrial equipment; the OpenModSim bench demo uses a CH340 TTL adapter
+with verified 3.3 V UART logic.
 
-### 1. Start infrastructure
+### 1. Prepare once and start the full stack
 
 From the repository root:
 
 ```bash
 cd infrastructure
-COMPOSE_PROFILES=broker ./scripts/setup.sh --seed
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work:z" -w /work node:22-alpine node scripts/prepare-env.mjs
+# Put the Linux Wi-Fi IP in DEMO_LAN_IP inside .env, then run the same prepare command again.
+docker compose up -d --build --wait
 ```
 
-The script prepares `.env` and broker authentication, starts services, loads the
-available database schema and optional demo seed, and tests MQTT access. Omit
-`--seed` when sample devices are not needed. Review generated credentials and
-ports before deployment. See the [infrastructure guide](infrastructure/README.md)
-and [runbook](infrastructure/docs/runbook.md).
+Open `http://<Linux-Wi-Fi-IP>:8080` and sign in with the new admin credentials
+from the ignored `.env`. On an existing database, use the existing account;
+startup never resets its password. Review generated credentials and ports before
+the demo. See the [infrastructure guide](infrastructure/README.md) and
+[runbook](infrastructure/docs/runbook.md). Restart the frozen stack with
+`docker compose up -d --wait`.
 
-### 2. Start backend and API
+### 2. Optional: run backend and API outside Docker for development
 
 In a new terminal, from the repository root:
 

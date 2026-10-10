@@ -16,6 +16,9 @@ docker compose exec -T backend-api node -e 'fetch("http://127.0.0.1:3000/health/
 # Đây là đường đi gateway -> API; khả năng máy khác truy cập LAN còn tùy IP/firewall.
 docker compose exec -T api-gateway wget -q -O - http://127.0.0.1/health/ready
 printf '\n[PASS] API gateway routes readiness successfully.\n'
+docker compose exec -T frontend wget -q -O - http://127.0.0.1/health
+docker compose exec -T frontend wget -q -O - http://127.0.0.1/api/health/ready
+printf '\n[PASS] Frontend and its API proxy are ready.\n'
 # Đường frontend thật đi qua gateway và cần token đọc. Token thiếu/sai phải lộ ra ở đây,
 # không chỉ ở lúc demo. wget trả lỗi khi backend từ chối (401/403).
 if [ -n "${API_READ_TOKEN:-}" ]; then

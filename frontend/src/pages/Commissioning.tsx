@@ -1,8 +1,10 @@
+import { tr } from "../language";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Check, FlaskConical, Plus, Send, Trash2, X } from "lucide-react";
+import { explainError, modbusReadError } from "../api/errors";
 import { ApiError } from "../api/client";
 import {
   canApply,
@@ -57,9 +59,14 @@ export function Commissioning({ active }: { active: boolean }) {
   const { session } = useSession();
   const client = useQueryClient();
   const [params] = useSearchParams();
+  const requestedDevice = params.get("device") ?? "";
+  const [routeDevice, setRouteDevice] = useState(requestedDevice);
   const [gateway, setGateway] = useState("");
   const [source, setSource] = useState("");
-  const [config, setConfig] = useState<Config>(newConfig);
+  const [config, setConfig] = useState<Config>(() => ({
+    ...newConfig(),
+    deviceId: requestedDevice,
+  }));
   const [preview, setPreview] = useState<Config>();
   const [previewWarnings, setPreviewWarnings] = useState<string[]>([]);
   const [probeId, setProbeId] = useState("");
@@ -108,12 +115,29 @@ export function Commissioning({ active }: { active: boolean }) {
   const editable = !locked;
   const inRange =
     probe?.readings?.every((r) => r.withinRange !== false) ?? false;
+  const failedReads = probe?.readings?.some((r) => !r.success) ?? false;
+  const rangeWarnings =
+    probe?.readings?.some((r) => r.success && r.withinRange === false) ?? false;
   const ready =
-    canApply(probe, preview, g, now) &&
+    canApply(probe, preview, g, Date.now()) &&
     !gateways.error &&
+    !op.error &&
     !applyId &&
     !uncertain &&
     (inRange || acceptWarnings);
+  useEffect(() => {
+    if (!active || locked || requestedDevice === routeDevice) return;
+    setRouteDevice(requestedDevice);
+    setConfig({ ...newConfig(), deviceId: requestedDevice });
+    setGateway("");
+    setPreview(undefined);
+    setPreviewWarnings([]);
+    setProbeId("");
+    setApplyId("");
+    setAcceptedProbeId("");
+    setConfirm(false);
+    setError("");
+  }, [active, locked, requestedDevice, routeDevice]);
   useEffect(() => {
     if (!active) return;
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -151,7 +175,7 @@ export function Commissioning({ active }: { active: boolean }) {
     }
   }
   async function loadCatalog() {
-    const device = params.get("device") || config.deviceId;
+    const device = config.deviceId.trim() || params.get("device");
     if (!device) {
       setError("Nhập mã thiết bị để đọc catalog hiện tại.");
       return;
@@ -181,7 +205,7 @@ export function Commissioning({ active }: { active: boolean }) {
     max: number,
   ) => (
     <label>
-      {label}
+      {tr(label)}
       <input
         type="number"
         required
@@ -195,34 +219,33 @@ export function Commissioning({ active }: { active: boolean }) {
   return (
     <div hidden={!active}>
       <PageHead
-        title="Cấu hình thiết bị"
-        description="Kiểm tra cấu hình, đọc thử trên gateway, rồi áp dụng đúng kết quả đã thử."
+        title={tr("Cấu hình thiết bị")}
+        description={tr(
+          "Kiểm tra cấu hình, đọc thử trên gateway, rồi áp dụng đúng kết quả đã thử.",
+        )}
       />
       <ol className="steps">
-        {["Chuẩn bị cấu hình", "Kiểm tra & đọc thử", "Áp dụng & đối chiếu"].map(
-          (s, i) => (
-            <li
-              className={(applyId ? 2 : preview ? 1 : 0) === i ? "current" : ""}
-              key={s}
-            >
-              <span>{i + 1}</span>
-              {s}
-            </li>
-          ),
-        )}
+        {[
+          tr("Chuẩn bị cấu hình"),
+          tr("Kiểm tra & đọc thử"),
+          tr("Áp dụng & đối chiếu"),
+        ].map((s, i) => (
+          <li
+            className={(applyId ? 2 : preview ? 1 : 0) === i ? "current" : ""}
+            key={s}
+          >
+            <span>{i + 1}</span>
+            {s}
+          </li>
+        ))}
       </ol>
       {!session?.writeToken && (
         <Notice>
-          Phiên chỉ đọc. Cần quyền Technician để kiểm tra, đọc thử và áp dụng.
+          {tr(
+            "Phiên chỉ đọc. Cần quyền Technician để kiểm tra, đọc thử và áp dụng.",
+          )}
         </Notice>
       )}
-      {uncertain && (
-        <Notice tone="bad">
-          Chưa xác định được kết quả gửi lệnh. Không gửi lại tự động. Xem lịch
-          sử thao tác và trạng thái gateway trước khi tiếp tục.
-        </Notice>
-      )}
-      {error && <Notice tone="bad">{error}</Notice>}
       <div className="commission-grid">
         <form
           className="surface section"
@@ -239,7 +262,7 @@ export function Commissioning({ active }: { active: boolean }) {
             });
           }}
         >
-          <h2>Thiết bị & nguồn cấu hình</h2>
+          <h2>{tr("Thiết bị & nguồn cấu hình")}</h2>
           <fieldset disabled={!editable}>
             <div className="form-grid">
               <label>
@@ -252,22 +275,22 @@ export function Commissioning({ active }: { active: boolean }) {
                     invalidate();
                   }}
                 >
-                  <option value="">Chọn gateway</option>
+                  <option value="">{tr("Chọn gateway")}</option>
                   {gateways.data?.map((g) => (
                     <option value={g.gatewayId} key={g.gatewayId}>
                       {g.gatewayId} ·{" "}
-                      {g.online ? "Sẵn sàng" : "Trạng thái cũ/offline"}
+                      {g.online ? tr("Sẵn sàng") : tr("Trạng thái cũ/offline")}
                     </option>
                   ))}
                 </select>
               </label>
               <label>
-                Profile có sẵn
+                {tr("Profile có sẵn")}
                 <select
                   value={source}
                   onChange={(e) => setSource(e.target.value)}
                 >
-                  <option value="">Cấu hình thủ công</option>
+                  <option value="">{tr("Cấu hình thủ công")}</option>
                   {profiles.data?.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name} · r{p.revision}
@@ -287,10 +310,11 @@ export function Commissioning({ active }: { active: boolean }) {
                   })
                 }
               >
-                Nạp profile
+                {tr("Nạp profile")}
               </button>
               <button type="button" onClick={() => void loadCatalog()}>
-                Đọc catalog {params.get("device") ?? "theo mã máy"}
+                {tr("Đọc catalog")}{" "}
+                {config.deviceId || params.get("device") || tr("theo mã máy")}
               </button>
             </div>
             <QueryState
@@ -299,7 +323,7 @@ export function Commissioning({ active }: { active: boolean }) {
             />
             <div className="form-grid">
               <label>
-                Mã thiết bị
+                {tr("Mã thiết bị")}
                 <input
                   required
                   pattern="[A-Za-z0-9_-]{1,31}"
@@ -310,7 +334,7 @@ export function Commissioning({ active }: { active: boolean }) {
                 />
               </label>
               <label>
-                Tên thiết bị
+                {tr("Tên thiết bị")}
                 <input
                   required
                   value={config.deviceName}
@@ -319,16 +343,16 @@ export function Commissioning({ active }: { active: boolean }) {
                   }
                 />
               </label>
-              {numberField("Địa chỉ slave", "slaveId", 1, 247)}
+              {numberField(tr("Địa chỉ slave"), "slaveId", 1, 247)}
               {numberField(
-                "Chu kỳ đọc (ms)",
+                tr("Chu kỳ đọc (ms)"),
                 "samplingIntervalMs",
                 100,
                 86400000,
               )}
             </div>
             <details>
-              <summary>Truyền thông Modbus RTU</summary>
+              <summary>{tr("Truyền thông Modbus RTU")}</summary>
               <div className="form-grid">
                 {numberField("Baud rate", "baudRate", 300, 2000000)}
                 <label>
@@ -351,7 +375,7 @@ export function Commissioning({ active }: { active: boolean }) {
               </div>
             </details>
             <div className="section-title">
-              <h2>Thông số cần đọc</h2>
+              <h2>{tr("Thông số cần đọc")}</h2>
               <button
                 type="button"
                 disabled={config.registerMap.length >= 16}
@@ -363,22 +387,26 @@ export function Commissioning({ active }: { active: boolean }) {
                 }
               >
                 <Plus size={15} />
-                Thêm
+                {tr("Thêm")}
               </button>
             </div>
             <p className="help">
-              Địa chỉ thanh ghi là địa chỉ thô bắt đầu từ 0, không phải số
-              40001. Scale chỉ áp dụng một lần tại firmware.
+              {tr(
+                "Địa chỉ thanh ghi là địa chỉ thô bắt đầu từ 0, không phải số 40001. Scale chỉ áp dụng một lần tại firmware.",
+              )}
             </p>
             {config.registerMap.map((r, i) => (
               <div className="register" key={i}>
                 <div className="section-title">
-                  <h3>Thông số {i + 1}</h3>
+                  <h3>
+                    {tr("Thông số ")}
+                    {i + 1}
+                  </h3>
                   <button
                     className="quiet"
                     type="button"
                     disabled={config.registerMap.length === 1}
-                    aria-label={`Xóa thông số ${i + 1}`}
+                    aria-label={tr("Xóa thông số {0}", i + 1)}
                     onClick={() =>
                       edit({
                         ...config,
@@ -402,7 +430,7 @@ export function Commissioning({ active }: { active: boolean }) {
                     />
                   </label>
                   <label>
-                    Địa chỉ thô
+                    {tr("Địa chỉ thô")}
                     <input
                       required
                       type="number"
@@ -415,7 +443,7 @@ export function Commissioning({ active }: { active: boolean }) {
                     />
                   </label>
                   <label>
-                    Kiểu dữ liệu
+                    {tr("Kiểu dữ liệu")}
                     <select
                       value={r.dataType}
                       onChange={(e) =>
@@ -430,7 +458,7 @@ export function Commissioning({ active }: { active: boolean }) {
                     </select>
                   </label>
                   <label>
-                    Hệ số scale
+                    {tr("Hệ số scale")}
                     <input
                       required
                       type="number"
@@ -442,14 +470,14 @@ export function Commissioning({ active }: { active: boolean }) {
                     />
                   </label>
                   <label>
-                    Đơn vị
+                    {tr("Đơn vị")}
                     <input
                       value={r.unit}
                       onChange={(e) => rowEdit(i, { unit: e.target.value })}
                     />
                   </label>
                   <label>
-                    Hàm đọc
+                    {tr("Hàm đọc")}
                     <select
                       value={r.functionCode}
                       onChange={(e) =>
@@ -462,10 +490,12 @@ export function Commissioning({ active }: { active: boolean }) {
                   </label>
                 </div>
                 <details>
-                  <summary>Khoảng dự kiến, thứ tự word & cảnh báo</summary>
+                  <summary>
+                    {tr("Khoảng dự kiến, thứ tự word & cảnh báo")}
+                  </summary>
                   <div className="form-grid">
                     <label>
-                      Loại số đo
+                      {tr("Loại số đo")}
                       <select
                         value={r.metricType ?? ""}
                         onChange={(e) =>
@@ -476,13 +506,13 @@ export function Commissioning({ active }: { active: boolean }) {
                           })
                         }
                       >
-                        <option value="">Chưa khai báo</option>
-                        <option value="temperature">Nhiệt độ</option>
-                        <option value="generic">Số đo khác</option>
+                        <option value="">{tr("Chưa khai báo")}</option>
+                        <option value="temperature">{tr("Nhiệt độ")}</option>
+                        <option value="generic">{tr("Số đo khác")}</option>
                       </select>
                     </label>
                     <label>
-                      Thứ tự word
+                      {tr("Thứ tự word")}
                       <select
                         value={r.wordOrder}
                         onChange={(e) =>
@@ -498,8 +528,8 @@ export function Commissioning({ active }: { active: boolean }) {
                     {(["expectedMin", "expectedMax"] as const).map((k) => (
                       <label key={k}>
                         {k === "expectedMin"
-                          ? "Giá trị nhỏ nhất dự kiến"
-                          : "Giá trị lớn nhất dự kiến"}
+                          ? tr("Giá trị nhỏ nhất dự kiến")
+                          : tr("Giá trị lớn nhất dự kiến")}
                         <input
                           type="number"
                           step="any"
@@ -533,12 +563,12 @@ export function Commissioning({ active }: { active: boolean }) {
                         })
                       }
                     />
-                    Bật ngưỡng cảnh báo
+                    {tr("Bật ngưỡng cảnh báo")}
                   </label>
                   {r.alarm && (
                     <div className="form-grid">
                       <label>
-                        Ngưỡng cao
+                        {tr("Ngưỡng cao")}
                         <input
                           required
                           type="number"
@@ -555,7 +585,7 @@ export function Commissioning({ active }: { active: boolean }) {
                         />
                       </label>
                       <label>
-                        Độ trễ tái báo
+                        {tr("Độ trễ tái báo")}
                         <input
                           required
                           type="number"
@@ -573,7 +603,7 @@ export function Commissioning({ active }: { active: boolean }) {
                         />
                       </label>
                       <label>
-                        Mã cảnh báo
+                        {tr("Mã cảnh báo")}
                         <select
                           value={r.alarm.code}
                           onChange={(e) =>
@@ -598,7 +628,7 @@ export function Commissioning({ active }: { active: boolean }) {
                         </select>
                       </label>
                       <label>
-                        Mức cảnh báo
+                        {tr("Mức cảnh báo")}
                         <select
                           value={r.alarm.severity}
                           onChange={(e) =>
@@ -620,7 +650,7 @@ export function Commissioning({ active }: { active: boolean }) {
                       </label>
                       {r.alarm.severity === "high" && (
                         <label>
-                          Ngưỡng nghiêm trọng (tùy chọn)
+                          {tr("Ngưỡng nghiêm trọng (tùy chọn)")}
                           <input
                             type="number"
                             step="any"
@@ -658,18 +688,19 @@ export function Commissioning({ active }: { active: boolean }) {
                         })
                       }
                     />{" "}
-                    Bật cảnh báo nhiệt độ thấp (UNDERHEAT)
+                    {tr("Bật cảnh báo nhiệt độ thấp (UNDERHEAT)")}
                   </label>
                   {r.lowAlarm && (
                     <>
                       <p className="help">
-                        Điền ngưỡng thực tế theo máy và đơn vị số đo. Giá trị 0
-                        chỉ là bản nháp, không phải ngưỡng khuyến nghị. Nhiệt độ
-                        thấp khi máy chưa chạy có thể là bình thường.
+                        {tr(
+                          "Điền ngưỡng thực tế theo máy và đơn vị số đo. Giá trị 0 chỉ là bản nháp, không phải ngưỡng khuyến nghị. Nhiệt độ thấp khi máy chưa chạy có thể là bình thường.",
+                        )}
                       </p>
                       <div className="form-grid">
                         <label>
-                          Ngưỡng thấp ({r.unit || "chưa có đơn vị"})
+                          {tr("Ngưỡng thấp (")}
+                          {r.unit || tr("chưa có đơn vị")})
                           <input
                             required
                             type="number"
@@ -686,7 +717,7 @@ export function Commissioning({ active }: { active: boolean }) {
                           />
                         </label>
                         <label>
-                          Độ tăng để cho phép báo lại
+                          {tr("Độ tăng để cho phép báo lại")}
                           <input
                             required
                             type="number"
@@ -704,7 +735,7 @@ export function Commissioning({ active }: { active: boolean }) {
                           />
                         </label>
                         <label>
-                          Mức độ
+                          {tr("Mức độ")}
                           <select
                             value={r.lowAlarm.severity}
                             onChange={(e) =>
@@ -734,25 +765,36 @@ export function Commissioning({ active }: { active: boolean }) {
             className="primary"
             disabled={locked || !session?.writeToken || !gateway}
           >
-            {busy ? "Đang xử lý…" : "Kiểm tra cấu hình"}
+            {busy ? tr("Đang xử lý…") : tr("Kiểm tra cấu hình")}
           </button>
           <p className="help">
-            Mọi thay đổi sau khi đọc thử đều yêu cầu kiểm tra và đọc thử lại.
-            Chưa gửi cấu hình đến thiết bị ở bước này.
+            {tr(
+              "Mọi thay đổi sau khi đọc thử đều yêu cầu kiểm tra và đọc thử lại. Chưa gửi cấu hình đến thiết bị ở bước này.",
+            )}
           </p>
         </form>
         <aside className="commission-side">
           <div className="surface section">
-            <h2>Đọc thử & áp dụng</h2>
+            <h2>{tr("Đọc thử & áp dụng")}</h2>
             <p>
-              Gateway <span className="mono">{gateway || "chưa chọn"}</span>
+              Gateway <span className="mono">{gateway || tr("chưa chọn")}</span>
             </p>
-            <Badge value={g?.online ? "online" : "unknown"} />
+            <Badge value={g ? (g.online ? "online" : "offline") : "unknown"} />
+            {error && <Notice tone="bad">{tr(error)}</Notice>}
+            {uncertain && (
+              <Notice tone="bad">
+                {tr(
+                  "Chưa xác định được kết quả gửi lệnh. Xem lịch sử thao tác và trạng thái gateway trước khi gửi lại.",
+                )}
+              </Notice>
+            )}
+            <QueryState error={op.error} loading={false} />
             {preview ? (
               <>
                 <p>
                   <Check size={16} className="inline-icon" />
-                  Cấu hình hợp lệ: {preview.deviceId}
+                  {tr("Cấu hình hợp lệ: ")}
+                  {preview.deviceId}
                 </p>
                 {previewWarnings.map((w) => (
                   <Notice key={w}>{w}</Notice>
@@ -774,30 +816,58 @@ export function Commissioning({ active }: { active: boolean }) {
                   }
                 >
                   <FlaskConical size={17} />
-                  Đọc thử trên gateway
+                  {tr("Đọc thử trên gateway")}
                 </button>
               </>
             ) : (
               <p className="muted">
-                Hoàn thành kiểm tra cấu hình để mở bước đọc thử.
+                {tr("Hoàn thành kiểm tra cấu hình để mở bước đọc thử.")}
               </p>
             )}
             <QueryState
-              error={op.error}
+              error={null}
               loading={!!(applyId || probeId) && op.isPending}
             />
             {op.data && <OperationResult op={op.data} />}
             {probe?.phase === "completed" && !applyId && (
               <>
                 <p className="help">
-                  Kết quả đọc thử còn{" "}
+                  {tr("Kết quả đọc thử còn")}{" "}
                   {Math.max(
                     0,
                     Math.ceil(((probe.finishedAt ?? 0) + 60000 - now) / 1000),
                   )}{" "}
-                  giây hiệu lực; backend sẽ kiểm tra lại boot và config.
+                  {tr("giây hiệu lực; backend sẽ kiểm tra lại boot và config.")}
                 </p>
-                {!inRange && (
+                {now - (probe.finishedAt ?? 0) >= 60000 && (
+                  <Notice>
+                    {tr(
+                      "Kết quả đọc thử đã hết hạn. Bấm Đọc thử trên gateway để lấy kết quả mới.",
+                    )}
+                  </Notice>
+                )}
+                {g && probe.bootId !== g.bootId && (
+                  <Notice>
+                    {tr(
+                      "Gateway đã khởi động lại sau lần đọc thử. Bấm Đọc thử trên gateway để kiểm tra lại.",
+                    )}
+                  </Notice>
+                )}
+                {(probe.finishedAt ?? 0) > Date.now() && (
+                  <Notice tone="bad">
+                    {tr(
+                      "Giờ trên máy này đang chậm hơn thời điểm backend ghi kết quả. Đồng bộ đồng hồ máy rồi đọc thử lại.",
+                    )}
+                  </Notice>
+                )}
+                {failedReads && (
+                  <Notice tone="bad">
+                    {tr(
+                      "Có thanh ghi không đọc được. Sửa các thông số báo lỗi rồi kiểm tra và đọc thử lại trước khi áp dụng.",
+                    )}
+                  </Notice>
+                )}
+                {!failedReads && rangeWarnings && (
                   <label className="check">
                     <input
                       type="checkbox"
@@ -806,7 +876,7 @@ export function Commissioning({ active }: { active: boolean }) {
                         setAcceptedProbeId(e.target.checked ? probeId : "")
                       }
                     />
-                    Tôi đã xem và chấp nhận số đo ngoài khoảng dự kiến.
+                    {tr("Tôi đã xem và chấp nhận số đo ngoài khoảng dự kiến.")}
                   </label>
                 )}
               </>
@@ -818,26 +888,29 @@ export function Commissioning({ active }: { active: boolean }) {
                   disabled={!ready || busy || !session?.writeToken}
                 >
                   <Send size={17} />
-                  Xem lại và áp dụng
+                  {tr("Xem lại và áp dụng")}
                 </button>
               </Dialog.Trigger>
               <Dialog.Portal>
                 <Dialog.Overlay className="dialog-overlay" />
                 <Dialog.Content className="dialog-content">
                   <Dialog.Title>
-                    Áp dụng cấu hình cho {preview?.deviceId}?
+                    {tr("Áp dụng cấu hình cho ")}
+                    {preview?.deviceId}?
                   </Dialog.Title>
                   <Dialog.Description>
-                    Gateway {gateway}. Đây là thay đổi cách thu thập dữ liệu,
-                    không phải lệnh bật/tắt máy.
+                    Gateway {gateway}
+                    {tr(
+                      ". Đây là thay đổi cách thu thập dữ liệu, không phải lệnh bật/tắt máy.",
+                    )}
                   </Dialog.Description>
                   <dl className="review-list">
                     <div>
-                      <dt>Tên thiết bị</dt>
+                      <dt>{tr("Tên thiết bị")}</dt>
                       <dd>{preview?.deviceName}</dd>
                     </div>
                     <div>
-                      <dt>Chu kỳ đọc</dt>
+                      <dt>{tr("Chu kỳ đọc")}</dt>
                       <dd>{preview?.samplingIntervalMs} ms</dd>
                     </div>
                     <div>
@@ -848,24 +921,36 @@ export function Commissioning({ active }: { active: boolean }) {
                   <ul>
                     {preview?.registerMap.map((r) => (
                       <li key={r.key}>
-                        {r.key}: địa chỉ {r.address}, {r.dataType}, scale{" "}
-                        {r.scale}, đơn vị {r.unit || "không có"}
+                        {r.key}
+                        {tr(": địa chỉ ")}
+                        {r.address}, {r.dataType}, scale {r.scale}
+                        {tr(", đơn vị ")}
+                        {r.unit || tr("không có")}
                       </li>
                     ))}
                   </ul>
                   <Notice>
-                    Cấu hình này thay thế bản đang dùng. Kết quả đọc thử:{" "}
+                    {tr(
+                      "Cấu hình này thay thế bản đang dùng. Kết quả đọc thử:",
+                    )}{" "}
                     <span className="mono">{probeId}</span>.
                   </Notice>
                   <div className="dialog-actions">
                     <Dialog.Close asChild>
-                      <button>Quay lại</button>
+                      <button>{tr("Quay lại")}</button>
                     </Dialog.Close>
                     <button
                       className="primary"
                       disabled={!ready || busy}
                       onClick={() => {
                         if (!preview || !ready) return;
+                        if (!canApply(probe, preview, g, Date.now())) {
+                          setConfirm(false);
+                          setError(
+                            "Kết quả đọc thử không còn hợp lệ. Đọc thử lại trước khi áp dụng.",
+                          );
+                          return;
+                        }
                         setConfirm(false);
                         void run(
                           async () =>
@@ -881,11 +966,11 @@ export function Commissioning({ active }: { active: boolean }) {
                         );
                       }}
                     >
-                      Áp dụng cấu hình
+                      {tr("Áp dụng cấu hình")}
                     </button>
                   </div>
                   <Dialog.Close asChild>
-                    <button className="dialog-close" aria-label="Đóng">
+                    <button className="dialog-close" aria-label={tr("Đóng")}>
                       <X size={18} />
                     </button>
                   </Dialog.Close>
@@ -898,7 +983,7 @@ export function Commissioning({ active }: { active: boolean }) {
                 onClick={() => void op.refetch()}
                 disabled={op.isFetching}
               >
-                Đọc lại trạng thái thao tác
+                {tr("Đọc lại trạng thái thao tác")}
               </button>
             )}
             {applyId && op.data && terminal(op.data) && (
@@ -910,15 +995,16 @@ export function Commissioning({ active }: { active: boolean }) {
                   void client.invalidateQueries({ queryKey: ["catalog"] });
                 }}
               >
-                Bắt đầu lượt cấu hình mới
+                {tr("Bắt đầu lượt cấu hình mới")}
               </button>
             )}
           </div>
           <div className="surface section">
-            <h2>Đối chiếu thao tác</h2>
+            <h2>{tr("Đối chiếu thao tác")}</h2>
             <p className="help">
-              Nếu request lỗi mạng, kết quả có thể đã tới backend. Kiểm tra mã,
-              thời gian và cấu hình trước khi gửi lại.
+              {tr(
+                "Nếu request lỗi mạng, kết quả có thể đã tới backend. Kiểm tra mã, thời gian và cấu hình trước khi gửi lại.",
+              )}
             </p>
             <button
               disabled={!gateway || history.isFetching}
@@ -928,7 +1014,7 @@ export function Commissioning({ active }: { active: boolean }) {
                 void history.refetch();
               }}
             >
-              Đọc lịch sử gateway
+              {tr("Đọc lịch sử gateway")}
             </button>
             {historyOpen && (
               <>
@@ -936,13 +1022,14 @@ export function Commissioning({ active }: { active: boolean }) {
                 {history.data?.map((o) => (
                   <div className="operation-history" key={o.id}>
                     <strong>
-                      {o.kind === "probe" ? "Đọc thử" : "Áp dụng"} ·{" "}
-                      {phaseNames[o.phase]}
+                      {o.kind === "probe" ? tr("Đọc thử") : tr("Áp dụng")} ·{" "}
+                      {tr(phaseNames[o.phase])}
                     </strong>
                     <small>{stamp(o.startedAt)}</small>
                     <code>{o.id}</code>
                     <p>
-                      Thiết bị: <strong>{o.config.deviceId}</strong> ·{" "}
+                      {tr("Thiết bị: ")}
+                      <strong>{o.config.deviceId}</strong> ·{" "}
                       {o.config.deviceName}
                       <br />
                       Gateway: <span className="mono">{o.gatewayId}</span>
@@ -950,11 +1037,13 @@ export function Commissioning({ active }: { active: boolean }) {
                     <p className="help">
                       {preview &&
                       JSON.stringify(o.config) === JSON.stringify(preview)
-                        ? "Cấu hình trùng bản đang chuẩn bị."
-                        : "Cấu hình khác bản đang chuẩn bị hoặc chưa có bản kiểm tra."}
+                        ? tr("Cấu hình trùng bản đang chuẩn bị.")
+                        : tr(
+                            "Cấu hình khác bản đang chuẩn bị hoặc chưa có bản kiểm tra.",
+                          )}
                     </p>
                     <details>
-                      <summary>Xem cấu hình của thao tác</summary>
+                      <summary>{tr("Xem cấu hình của thao tác")}</summary>
                       <p className="help">
                         Slave {o.config.slaveId} · {o.config.baudRate} baud ·{" "}
                         {o.config.samplingIntervalMs} ms
@@ -971,8 +1060,10 @@ export function Commissioning({ active }: { active: boolean }) {
                           setReviewedOperationId(e.target.checked ? o.id : "")
                         }
                       />
-                      Tôi đã đối chiếu thiết bị, thời gian và cấu hình của thao
-                      tác {o.id}.
+                      {tr(
+                        "Tôi đã đối chiếu thiết bị, thời gian và cấu hình của thao tác ",
+                      )}
+                      {o.id}.
                     </label>
                     <button
                       disabled={busy || reviewedOperationId !== o.id}
@@ -985,14 +1076,15 @@ export function Commissioning({ active }: { active: boolean }) {
                         });
                       }}
                     >
-                      Theo dõi thao tác này
+                      {tr("Theo dõi thao tác này")}
                     </button>
                   </div>
                 ))}
                 {history.data?.length === 0 && (
                   <p>
-                    Chưa tìm thấy thao tác. Một request đang truyền vẫn có thể
-                    xuất hiện sau.
+                    {tr(
+                      "Chưa tìm thấy thao tác. Một request đang truyền vẫn có thể xuất hiện sau.",
+                    )}
                   </p>
                 )}
               </>
@@ -1004,7 +1096,7 @@ export function Commissioning({ active }: { active: boolean }) {
                   invalidate();
                 }}
               >
-                Đã đối chiếu; chuẩn bị lại cấu hình
+                {tr("Đã đối chiếu; chuẩn bị lại cấu hình")}
               </button>
             )}
           </div>
@@ -1022,21 +1114,27 @@ export function OperationResult({ op }: { op: Operation }) {
   ].includes(op.phase);
   return (
     <div className="operation-result">
-      <strong className={bad ? "text-bad" : ""}>{phaseNames[op.phase]}</strong>
+      <strong className={bad ? "text-bad" : ""}>
+        {tr(phaseNames[op.phase])}
+      </strong>
       <code>{op.id}</code>
-      <p className="help">
-        HTTP 202 chỉ là đã tiếp nhận. Theo dõi kết quả cuối từ gateway.
-      </p>
-      {op.error && <Notice tone="bad">{op.error}</Notice>}
+      {!terminal(op) && (
+        <p className="help">
+          {tr("Backend đã nhận lệnh; đang chờ kết quả từ gateway.")}
+        </p>
+      )}
+      {op.error && (
+        <Notice tone="bad">{tr(explainError(op.error) ?? op.error)}</Notice>
+      )}
       {op.readings?.map((r) => (
         <div className="probe-row" key={r.key}>
           <span>{r.key}</span>
           <span>
             {r.success
               ? r.value == null
-                ? "Không có giá trị"
+                ? tr("Không có giá trị")
                 : number(r.value)
-              : `Lỗi ${r.errorCode}`}
+              : tr("Không đọc được")}
           </span>
           <Badge
             value={
@@ -1044,22 +1142,42 @@ export function OperationResult({ op }: { op: Operation }) {
                 ? "read_error"
                 : r.withinRange === false
                   ? "out_of_range"
-                  : "healthy"
+                  : "read_ok"
             }
           />
+          {!r.success && (
+            <p className="probe-detail text-bad">
+              {tr("Không đọc được ")}
+              {r.key} {tr(" tại địa chỉ thô ")}
+              {r.address} {tr(" (mã Modbus")} {r.errorCode}).{" "}
+              {tr(modbusReadError(r.errorCode))}
+            </p>
+          )}
+          {r.success && r.withinRange === false && (
+            <p className="probe-detail help">
+              {tr(
+                "Số đo đã đọc được nhưng nằm ngoài khoảng dự kiến. Kiểm tra giá trị nhỏ nhất/lớn nhất, hệ số scale và đơn vị của ",
+              )}
+              {r.key}.
+            </p>
+          )}
         </div>
       ))}
       {op.kind === "apply" && op.phase === "applied" && (
         <>
           <Notice tone={op.persisted ? "ok" : "bad"}>
             {op.persisted
-              ? "Đã áp dụng và lưu vào flash."
-              : "Đã áp dụng nhưng chưa lưu được vào flash. Có thể mất cấu hình sau khởi động lại."}
+              ? tr("Đã áp dụng và lưu vào flash.")
+              : tr(
+                  "Đã áp dụng nhưng chưa lưu được vào flash. Có thể mất cấu hình sau khởi động lại.",
+                )}
           </Notice>
           <p className="help">
             {op.restoredAfterRestart
-              ? "Backend đã quan sát khôi phục sau khởi động lại."
-              : "Chưa có bằng chứng khôi phục sau khởi động lại trong phản hồi này."}
+              ? tr("Backend đã quan sát khôi phục sau khởi động lại.")
+              : tr(
+                  "Chưa có bằng chứng khôi phục sau khởi động lại trong phản hồi này.",
+                )}
           </p>
         </>
       )}

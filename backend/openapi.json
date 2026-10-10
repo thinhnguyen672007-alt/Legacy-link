@@ -3,7 +3,7 @@
   "info": {
     "title": "Legacy Link Backend API",
     "version": "0.6.0",
-    "description": "API Legacy Link: token đọc cho GET, token ghi cho POST; timestamp đo là epoch milliseconds, ID DB là chuỗi. C16 bổ sung profile version, preview, lịch sử thao tác PostgreSQL, metrics, freshness. Xem deploy/README.md và docs/SO-TAY-HIEU-DU-AN-LEGACY-LINK.md. Rate limit mỗi socket IP/process: 300 GET và 30 thao tác/phút; 429 kèm Retry-After. Thêm deliveryHealth và diagnostics.delivery để quan sát queue ESP32; không cần endpoint riêng. AI: POST /ai/chat và /ai/query chỉ đọc, chấp nhận token đọc; Gemini chỉ chọn tool. UNDERHEAT dùng lowAlarm riêng, yêu cầu đơn vị nhiệt độ."
+    "description": "API Legacy Link: token đọc cho GET, token ghi cho POST; timestamp đo là epoch milliseconds, ID DB là chuỗi. C16 bổ sung profile version, preview, lịch sử thao tác PostgreSQL, metrics, freshness. Xem deploy/README.md và docs/SO-TAY-HIEU-DU-AN-LEGACY-LINK.md. Rate limit mỗi socket IP/process: 300 GET và 30 thao tác/phút; 429 kèm Retry-After. Thêm deliveryHealth và diagnostics.delivery để quan sát queue ESP32; không cần endpoint riêng. AI: POST /ai/chat và /ai/query chỉ đọc, chấp nhận token đọc; Gemini phối hợp công cụ đọc và giải thích bằng chứng. UNDERHEAT dùng lowAlarm riêng, yêu cầu đơn vị nhiệt độ."
   },
   "servers": [
     {
@@ -2908,8 +2908,8 @@
     },
     "/ai/chat": {
       "post": {
-        "summary": "Câu hỏi tiếng Việt: Gemini chọn công cụ; backend xác minh dữ liệu",
-        "description": "Chấp nhận read hoặc write bearer token. Chỉ gửi question hoặc action. Context giữ ID kết quả 10 phút, tối đa 200 phiên/process. Model tối đa 5 câu/phút/process, 1 đồng thời; 1 request/câu, không retry. Timeout provider 12s, tổng tools 8s. Không có key/hết quota thì fallback minh bạch. Không thực thi SQL, URL hoặc điều khiển máy. Session viewer, technician, admin được truy vấn sau khi hoàn tất đổi mật khẩu bắt buộc.",
+        "summary": "AI Investigation chỉ đọc: hỏi tự nhiên VI/EN hoặc kiểm tra nhanh",
+        "description": "Gemini phối hợp tối đa 8 lượt công cụ trong 3 vòng, rồi tổng hợp JSON có bằng chứng. Tổng tối đa 50 giây; mỗi lượt Gemini 12 giây và mỗi công cụ 8 giây. Tối đa 24 lượt Gemini/phút/process, 2 điều tra đồng thời; provider có thể giới hạn thấp hơn. 429 giữ bằng chứng và nghỉ khoảng 60 giây; nút kiểm tra nhanh không cần Gemini. Hội thoại gắn bearer/session, giữ tối đa 4 lượt trong 10 phút, 50 phiên/process; hết hạn trả 410, khác chủ trả 403. Chỉ đọc, không SQL hoặc điều khiển máy. Không xác nhận hỏng hóc/nguyên nhân. Biểu đồ lịch sử chưa xác minh đơn vị tại từng mẫu.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2936,6 +2936,14 @@
                       "summary",
                       "alerts"
                     ]
+                  },
+                  "language": {
+                    "type": "string",
+                    "enum": [
+                      "vi",
+                      "en"
+                    ],
+                    "default": "vi"
                   }
                 },
                 "oneOf": [
@@ -2982,14 +2990,20 @@
           },
           "503": {
             "description": "Nguồn dữ liệu không khả dụng"
+          },
+          "409": {
+            "description": "Hội thoại đang xử lý"
+          },
+          "410": {
+            "description": "Hội thoại hết hạn; bắt đầu phiên mới"
           }
         }
       }
     },
     "/ai/query": {
       "post": {
-        "summary": "AI Copilot chỉ đọc: quick action không dùng Gemini",
-        "description": "Chấp nhận read hoặc write bearer token. Chỉ gửi question hoặc action. Context giữ ID kết quả 10 phút, tối đa 200 phiên/process. Model tối đa 5 câu/phút/process, 1 đồng thời; 1 request/câu, không retry. Timeout provider 12s, tổng tools 8s. Không có key/hết quota thì fallback minh bạch. Không thực thi SQL, URL hoặc điều khiển máy. Session viewer, technician, admin được truy vấn sau khi hoàn tất đổi mật khẩu bắt buộc.",
+        "summary": "AI Investigation chỉ đọc: hỏi tự nhiên VI/EN hoặc kiểm tra nhanh",
+        "description": "Gemini phối hợp tối đa 8 lượt công cụ trong 3 vòng, rồi tổng hợp JSON có bằng chứng. Tổng tối đa 50 giây; mỗi lượt Gemini 12 giây và mỗi công cụ 8 giây. Tối đa 24 lượt Gemini/phút/process, 2 điều tra đồng thời; provider có thể giới hạn thấp hơn. 429 giữ bằng chứng và nghỉ khoảng 60 giây; nút kiểm tra nhanh không cần Gemini. Hội thoại gắn bearer/session, giữ tối đa 4 lượt trong 10 phút, 50 phiên/process; hết hạn trả 410, khác chủ trả 403. Chỉ đọc, không SQL hoặc điều khiển máy. Không xác nhận hỏng hóc/nguyên nhân. Biểu đồ lịch sử chưa xác minh đơn vị tại từng mẫu.",
         "requestBody": {
           "required": true,
           "content": {
@@ -3011,6 +3025,14 @@
                       "summary",
                       "alerts"
                     ]
+                  },
+                  "language": {
+                    "type": "string",
+                    "enum": [
+                      "vi",
+                      "en"
+                    ],
+                    "default": "vi"
                   }
                 },
                 "required": [
@@ -3048,6 +3070,12 @@
           },
           "503": {
             "description": "Nguồn dữ liệu không khả dụng"
+          },
+          "409": {
+            "description": "Hội thoại đang xử lý"
+          },
+          "410": {
+            "description": "Hội thoại hết hạn; bắt đầu phiên mới"
           }
         }
       }
@@ -4173,7 +4201,8 @@
           "mode",
           "text",
           "notice",
-          "results"
+          "results",
+          "report"
         ],
         "properties": {
           "conversationId": {
@@ -4195,7 +4224,7 @@
           },
           "results": {
             "type": "array",
-            "maxItems": 4,
+            "maxItems": 8,
             "items": {
               "type": "object",
               "required": [
@@ -4278,9 +4307,37 @@
                       "minimum": 0
                     }
                   }
+                },
+                "evidenceId": {
+                  "type": "string"
+                },
+                "partial": {
+                  "type": "boolean"
+                },
+                "errors": {
+                  "type": "array",
+                  "maxItems": 6,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "deviceId",
+                      "message"
+                    ],
+                    "properties": {
+                      "deviceId": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
+          },
+          "report": {
+            "$ref": "#/components/schemas/InvestigationReport"
           }
         }
       },
@@ -4314,6 +4371,161 @@
           },
           "mustChangePassword": {
             "type": "boolean"
+          }
+        }
+      },
+      "InvestigationReport": {
+        "type": "object",
+        "required": [
+          "version",
+          "status",
+          "generatedAt",
+          "view",
+          "findings",
+          "followUp",
+          "limitations",
+          "evidence",
+          "trace",
+          "failureConfirmed"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ]
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "brief",
+              "workspace"
+            ]
+          },
+          "failureConfirmed": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "followUp": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "findings": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title",
+                "explanation",
+                "evidenceIds",
+                "nextCheck"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                "explanation": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "evidenceIds": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "nextCheck": {
+                  "type": "string",
+                  "maxLength": 500
+                }
+              }
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tool",
+                "queriedAt"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "queriedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "trace": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "required": [
+                "tool",
+                "round",
+                "status",
+                "durationMs"
+              ],
+              "properties": {
+                "tool": {
+                  "type": "string"
+                },
+                "round": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "success",
+                    "error"
+                  ]
+                },
+                "durationMs": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }

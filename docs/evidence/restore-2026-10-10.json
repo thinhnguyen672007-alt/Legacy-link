@@ -1,0 +1,160 @@
+{
+  "at": "2026-10-10T13:49:32.202Z",
+  "op": {
+    "id": "318c78f4-c6f5-432e-bb6a-5bb2369e6ea0",
+    "kind": "apply",
+    "phase": "applied",
+    "bootId": "F2B9E0004C839CEF",
+    "config": {
+      "parity": "NONE",
+      "slaveId": 1,
+      "baudRate": 9600,
+      "deviceId": "BENCH-01",
+      "protocol": "MODBUS_RTU",
+      "stopBits": 1,
+      "deviceName": "Hackathon legacy PLC simulator",
+      "registerMap": [
+        {
+          "key": "temperature",
+          "unit": "C",
+          "alarm": {
+            "code": "OVERHEAT",
+            "severity": "high",
+            "threshold": 90,
+            "hysteresis": 3,
+            "criticalThreshold": 100
+          },
+          "scale": 0.1,
+          "address": 1,
+          "dataType": "INT16",
+          "wordOrder": "HIGH_FIRST",
+          "functionCode": 3
+        },
+        {
+          "key": "current",
+          "unit": "A",
+          "scale": 0.01,
+          "address": 2,
+          "dataType": "UINT16",
+          "wordOrder": "HIGH_FIRST",
+          "functionCode": 3
+        },
+        {
+          "key": "rpm",
+          "unit": "rpm",
+          "scale": 1,
+          "address": 3,
+          "dataType": "UINT16",
+          "wordOrder": "HIGH_FIRST",
+          "functionCode": 3
+        }
+      ],
+      "samplingIntervalMs": 2000
+    },
+    "applied": true,
+    "received": true,
+    "gatewayId": "643C60A7DBCC",
+    "persisted": true,
+    "startedAt": 1791639943495,
+    "finishedAt": 1791639943743,
+    "machineType": "OpenModSim-bench",
+    "restoredAfterRestart": true
+  },
+  "gateway": {
+    "gatewayId": "643C60A7DBCC",
+    "bootId": "035205F8587ECC46",
+    "deviceId": "BENCH-01",
+    "configRequestId": "318c78f4-c6f5-432e-bb6a-5bb2369e6ea0",
+    "persisted": true,
+    "restored": true,
+    "timestamp": 1791640170030,
+    "receivedAt": 1791640170061,
+    "online": true
+  },
+  "machine": {
+    "deviceId": "BENCH-01",
+    "name": "Hackathon legacy PLC simulator",
+    "machineType": "OpenModSim-bench",
+    "gatewayOnline": true,
+    "online": true,
+    "lastSeenAt": "2026-10-10T13:49:31.314Z",
+    "metrics": {
+      "rpm": 1534,
+      "current": 1.78999996,
+      "temperature": 25.00000037
+    },
+    "lastTelemetryAt": "2026-10-10T13:49:31.217Z",
+    "lastMeasurementAt": "2026-10-10T13:49:31.182Z",
+    "dataAgeSeconds": 1,
+    "diagnostics": {
+      "delivery": {
+        "alarm": {
+          "pending": 0,
+          "capacity": 8,
+          "committed": 0,
+          "highWater": 0,
+          "failedEnqueues": 0
+        },
+        "bootId": "035205F8587ECC46",
+        "storage": "RAM",
+        "telemetry": {
+          "pending": 0,
+          "capacity": 32,
+          "committed": 48,
+          "highWater": 2,
+          "failedEnqueues": 0
+        },
+        "clockReady": true,
+        "freeHeapBytes": 166508
+      },
+      "readings": [
+        {
+          "key": "temperature",
+          "value": 25.00000037,
+          "address": 1,
+          "success": true,
+          "rawValue": 250,
+          "rawWords": [
+            250
+          ],
+          "errorCode": 0,
+          "sampledAt": 1791640171144
+        },
+        {
+          "key": "current",
+          "value": 1.78999996,
+          "address": 2,
+          "success": true,
+          "rawValue": 179,
+          "rawWords": [
+            179
+          ],
+          "errorCode": 0,
+          "sampledAt": 1791640171163
+        },
+        {
+          "key": "rpm",
+          "value": 1534,
+          "address": 3,
+          "success": true,
+          "rawValue": 1534,
+          "rawWords": [
+            1534
+          ],
+          "errorCode": 0,
+          "sampledAt": 1791640171182
+        }
+      ],
+      "gatewayId": "643C60A7DBCC",
+      "timestamp": 1791640171242,
+      "configRequestId": "318c78f4-c6f5-432e-bb6a-5bb2369e6ea0",
+      "samplingIntervalMs": 2000
+    },
+    "deliveryHealth": "healthy",
+    "dataFresh": true,
+    "readHealth": "healthy",
+    "samplingIntervalMs": 2000,
+    "gatewayId": "643C60A7DBCC",
+    "configRequestId": "318c78f4-c6f5-432e-bb6a-5bb2369e6ea0"
+  }
+}

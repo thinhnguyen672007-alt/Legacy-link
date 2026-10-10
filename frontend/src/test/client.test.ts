@@ -4,6 +4,107 @@ import { ApiError, createApi, normalizeUrl, request } from "../api/client";
 const schema = z.object({ ok: z.boolean() });
 afterEach(() => vi.unstubAllGlobals());
 describe("API boundary", () => {
+  it.each(["", "192.168.110.12:8080/api", "http://"])(
+    "explains malformed API URL %s",
+    (url) => {
+      expect(() => normalizeUrl(url)).toThrow(/Cấu hình kết nối không hợp lệ/);
+    },
+  );
+  it.each([
+    [
+      401,
+      "/auth/login",
+      "Invalid credentials",
+      /Tên đăng nhập hoặc mật khẩu không đúng/,
+    ],
+    [
+      403,
+      "/auth/password",
+      "Current password is incorrect",
+      /Mật khẩu hiện tại không đúng/,
+    ],
+    [
+      409,
+      "/admin/users/create",
+      "Username already exists",
+      /Tên đăng nhập đã tồn tại/,
+    ],
+    [
+      409,
+      "/gateways/G/apply",
+      "Read this exact configuration again before applying it",
+      /đọc thử.*hết hạn/,
+    ],
+    [
+      400,
+      "/config/preview",
+      "Choose distinct valid metric keys",
+      /Metric phải khác nhau/,
+    ],
+    [
+      400,
+      "/config/preview",
+      "Machine name is required (maximum 47 UTF-8 bytes)",
+      /47 byte/,
+    ],
+    [
+      409,
+      "/gateways/G/probe",
+      "Another gateway reports this machine ID. Choose a unique machine ID.",
+      /gateway khác sử dụng/,
+    ],
+  ])(
+    "explains HTTP %s on %s without masking the cause",
+    async (status, path, error, message) => {
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockResolvedValue(
+            new Response(JSON.stringify({ error }), { status }),
+          ),
+      );
+      await expect(
+        request("http://api", path, "writer", schema, { method: "POST" }),
+      ).rejects.toMatchObject({
+        status,
+        message: expect.stringMatching(message),
+        uncertain: false,
+      });
+    },
+  );
+  it("gives login guidance even when a 401 has no JSON detail", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+    );
+    await expect(
+      request("http://api", "/auth/login", "", schema, { method: "POST" }),
+    ).rejects.toThrow(/Tên đăng nhập hoặc mật khẩu/);
+  });
+  it("explains invalid expected range in Vietnamese without losing HTTP status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ error: "temperature: minimum exceeds maximum" }),
+            { status: 400 },
+          ),
+        ),
+    );
+    await expect(
+      request("http://api", "/config/preview", "writer", schema, {
+        method: "POST",
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      uncertain: false,
+      message:
+        "Thông số temperature: “Giá trị nhỏ nhất dự kiến” đang lớn hơn “Giá trị lớn nhất dự kiến”. Sửa để giá trị nhỏ nhất không vượt giá trị lớn nhất.",
+    });
+  });
   it.each([
     ["http://localhost:3000/", "http://localhost:3000"],
     ["https://demo.local/api/", "https://demo.local/api"],

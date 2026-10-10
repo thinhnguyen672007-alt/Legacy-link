@@ -69,6 +69,18 @@ const machines = await api.machines();
 
 Đặt `CORS_ORIGINS` đúng origin của frontend; `http://127.0.0.1:5173` khác `http://localhost:5173`. Nhiều origin phân cách bằng dấu phẩy. Không dùng `*`. Không dùng CORS thay authentication: chương trình ngoài trình duyệt vẫn có thể gọi HTTP, nên token luôn được kiểm tra.
 
+### Đăng nhập qua ngrok
+
+Nếu web báo `Origin not allowed`, thêm `https://vineyard-fifteen-elusive.ngrok-free.dev` vào giá trị `CORS_ORIGINS` hiện có trong file môi trường của backend. Chỉ dùng origin, không thêm `/api` hoặc dấu `/` cuối URL. Cấu hình mẫu đã chứa URL này; file `.env` đang triển khai không tự cập nhật khi pull code.
+
+Với stack trong `infrastructure/`, sửa `infrastructure/.env`, giữ các origin hiện có rồi chạy từ thư mục đó:
+
+```sh
+docker compose --profile full up -d --force-recreate backend-api
+```
+
+Với backend chạy trực tiếp bằng Node, cập nhật biến môi trường rồi khởi động lại tiến trình HTTP API. Đăng nhập lại bằng tên đăng nhập/mật khẩu; API token không thay thế tài khoản ở form này. Nếu URL tunnel đổi, cập nhật lại origin chính xác và tạo lại container API. Không mở wildcard cho tất cả miền ngrok.
+
 ## 2. Docker cho Huy
 
 `Dockerfile` dùng chung cho consumer và HTTP; chạy bằng user `node`, không phải root. `compose.yml` tạo hai service. Nó **không tạo lại database/broker**.

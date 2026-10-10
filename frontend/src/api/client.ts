@@ -1,3 +1,4 @@
+import { explainError } from "./errors";
 import { z } from "zod";
 import {
   copilotSchema,
@@ -31,7 +32,14 @@ const messages: Record<number, string> = {
   503: "API chưa sẵn sàng. Kiểm tra dịch vụ backend.",
 };
 export function normalizeUrl(input: string) {
-  const u = new URL(input.trim());
+  let u: URL;
+  try {
+    u = new URL(input.trim());
+  } catch {
+    throw new Error(
+      "Cấu hình kết nối không hợp lệ. Vui lòng liên hệ quản trị viên.",
+    );
+  }
   if (
     !["http:", "https:"].includes(u.protocol) ||
     u.username ||
@@ -79,7 +87,7 @@ export async function request<T>(
     throw new ApiError(
       timer.aborted
         ? "Yêu cầu quá thời gian chờ."
-        : "Không kết nối được API. Kiểm tra URL, mạng và cấu hình CORS.",
+        : "Không kết nối được hệ thống. Kiểm tra kết nối mạng rồi thử lại; nếu vẫn lỗi, hãy liên hệ quản trị viên.",
       0,
       0,
       method === "POST",
@@ -112,8 +120,12 @@ export async function request<T>(
       : 0;
     const detail = z.object({ error: z.string() }).safeParse(data);
     throw new ApiError(
-      (messages[response.status] ?? `API trả lỗi HTTP ${response.status}.`) +
-        (detail.success ? ` ${detail.data.error}` : ""),
+      (detail.success ? explainError(detail.data.error) : undefined) ??
+        (path === "/auth/login" && response.status === 401
+          ? "Tên đăng nhập hoặc mật khẩu không đúng, hoặc tài khoản đã bị khóa. Liên hệ quản trị viên nếu cần."
+          : (messages[response.status] ??
+            `API trả lỗi HTTP ${response.status}.`)) +
+          (detail.success ? ` ${detail.data.error}` : ""),
       response.status,
       Math.min(120000, Math.max(0, wait || 0)),
       method === "POST" && response.status >= 500,
@@ -129,7 +141,12 @@ export async function request<T>(
     );
   return parsed.data;
 }
-export type Session = { user?: import("./accounts").Account; base: string; readToken: string; writeToken: string };
+export type Session = {
+  user?: import("./accounts").Account;
+  base: string;
+  readToken: string;
+  writeToken: string;
+};
 export function createApi(s: Session) {
   const get = <T>(p: string, schema: z.ZodType<T>, signal?: AbortSignal) =>
     request(s.base, p, s.readToken || s.writeToken, schema, { signal });
@@ -144,7 +161,12 @@ export function createApi(s: Session) {
     ).toString();
   return {
     copilot: (
-      body: { question?: string; action?: string; conversationId?: string },
+      body: {
+        question?: string;
+        action?: string;
+        conversationId?: string;
+        language?: "vi" | "en";
+      },
       signal?: AbortSignal,
     ) =>
       request(
@@ -152,7 +174,7 @@ export function createApi(s: Session) {
         body.action ? "/ai/query" : "/ai/chat",
         s.readToken || s.writeToken,
         copilotSchema,
-        { method: "POST", body, signal, timeoutMs: 35000 },
+        { method: "POST", body, signal, timeoutMs: 65000 },
       ),
     machines: (signal?: AbortSignal) =>
       get("/machines", z.array(machineSchema), signal),

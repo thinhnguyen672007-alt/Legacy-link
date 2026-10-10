@@ -1,3 +1,5 @@
+import { tr, useLanguage } from "./language";
+import { LanguageToggle } from "./components/LanguageToggle";
 import { Accounts, PasswordChange } from "./pages/Accounts";
 import { roleLabel } from "./api/accounts";
 import { Component, Suspense, lazy, useEffect, type ReactNode } from "react";
@@ -5,7 +7,6 @@ import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
   Bell,
   BookOpen,
-  ExternalLink,
   LayoutList,
   LogOut,
   Settings2,
@@ -33,12 +34,13 @@ export class ErrorBoundary extends Component<
   render() {
     return this.state.failed ? (
       <main className="error-page">
-        <h1>Giao diện gặp lỗi</h1>
+        <h1>{tr("Giao diện gặp lỗi")}</h1>
         <p>
-          Tải lại trang để bắt đầu phiên mới. Nếu vừa gửi cấu hình, hãy đối
-          chiếu lịch sử thao tác trước khi gửi lại.
+          {tr(
+            "Tải lại trang để bắt đầu phiên mới. Nếu vừa gửi cấu hình, hãy đối chiếu lịch sử thao tác trước khi gửi lại.",
+          )}
         </p>
-        <button onClick={() => location.reload()}>Tải lại</button>
+        <button onClick={() => location.reload()}>{tr("Tải lại")}</button>
       </main>
     ) : (
       this.props.children
@@ -46,6 +48,7 @@ export class ErrorBoundary extends Component<
   }
 }
 export function App() {
+  useLanguage();
   const { session, disconnect } = useSession();
   const location = useLocation();
   useEffect(() => {
@@ -55,7 +58,7 @@ export function App() {
   return (
     <div className="app-shell">
       <a className="skip-link" href="#content">
-        Đến nội dung chính
+        {tr("Đến nội dung chính")}
       </a>
       <aside className="sidebar">
         <Link className="brand" to="/machines">
@@ -64,41 +67,41 @@ export function App() {
           </span>
           LEGACY<span>LINK</span>
         </Link>
-        <p className="sidebar-caption">Sổ vận hành</p>
-        <nav aria-label="Điều hướng chính">
+        <p className="sidebar-caption">{tr("Sổ vận hành")}</p>
+        <nav aria-label={tr("Điều hướng chính")}>
           <NavLink to="/machines">
             <LayoutList size={18} />
-            Thiết bị
+            {tr("Thiết bị")}
           </NavLink>
           <NavLink to="/alarms">
             <Bell size={18} />
-            Cảnh báo
+            {tr("Cảnh báo")}
           </NavLink>
           {session.writeToken && (
             <NavLink to="/commissioning">
               <Settings2 size={18} />
-              Cấu hình
+              {tr("Cấu hình")}
             </NavLink>
           )}
           {session.user?.role === "admin" && (
             <NavLink to="/accounts">
               <Users size={18} />
-              Nhân viên
+              {tr("Nhân viên")}
             </NavLink>
           )}
           {session.user && (
             <NavLink to="/password">
               <KeyRound size={18} />
-              Đổi mật khẩu
+              {tr("Đổi mật khẩu")}
             </NavLink>
           )}
         </nav>
         <div className="sidebar-bottom">
           <BookOpen size={19} />
           <p>
-            Dữ liệu rõ ràng.
+            {tr("Dữ liệu rõ ràng.")}
             <br />
-            Thao tác có kiểm chứng.
+            {tr("Thao tác có kiểm chứng.")}
           </p>
           <span>Factory Hacks 2026</span>
         </div>
@@ -106,20 +109,17 @@ export function App() {
       <Copilot />
       <div className="workspace">
         <header className="topbar">
-          <span className="endpoint">
-            <ExternalLink size={14} />
-            {session.base}
-          </span>
           <span className="session-role">
             {session.user
-              ? `${session.user.username} · ${roleLabel[session.user.role]}`
+              ? `${session.user.username} · ${tr(roleLabel[session.user.role])}`
               : session.writeToken
-                ? "Có quyền thao tác"
-                : "Phiên chỉ đọc"}
+                ? tr("Có quyền thao tác")
+                : tr("Phiên chỉ đọc")}
           </span>
+          <LanguageToggle />
           <button className="quiet" onClick={disconnect}>
             <LogOut size={16} />
-            Đăng xuất
+            {tr("Đăng xuất")}
           </button>
         </header>
         <main id="content" tabIndex={-1}>
@@ -127,7 +127,9 @@ export function App() {
             <PasswordChange />
           ) : (
             <>
-              <Suspense fallback={<p role="status">Đang mở màn hình…</p>}>
+              <Suspense
+                fallback={<p role="status">{tr("Đang mở màn hình…")}</p>}
+              >
                 <Routes>
                   <Route
                     path="/accounts"
@@ -135,7 +137,7 @@ export function App() {
                       session.user?.role === "admin" ? (
                         <Accounts />
                       ) : (
-                        <p>Không có quyền quản lý tài khoản.</p>
+                        <p>{tr("Không có quyền quản lý tài khoản.")}</p>
                       )
                     }
                   />
@@ -148,7 +150,9 @@ export function App() {
                     path="/commissioning"
                     element={
                       session.writeToken ? null : (
-                        <p>Cần quyền Technician để cấu hình thiết bị.</p>
+                        <p>
+                          {tr("Cần quyền Technician để cấu hình thiết bị.")}
+                        </p>
                       )
                     }
                   />
@@ -156,8 +160,10 @@ export function App() {
                     path="*"
                     element={
                       <>
-                        <h1>Không tìm thấy trang</h1>
-                        <Link to="/machines">Về danh sách thiết bị</Link>
+                        <h1>{tr("Không tìm thấy trang")}</h1>
+                        <Link to="/machines">
+                          {tr("Về danh sách thiết bị")}
+                        </Link>
                       </>
                     }
                   />
@@ -172,7 +178,9 @@ export function App() {
           )}
         </main>
         <footer>
-          Legacy-link · Số đo thật cần được đối chiếu với nguồn thiết bị · GMT+7
+          {tr(
+            "Legacy-link · Số đo thật cần được đối chiếu với nguồn thiết bị · GMT+7",
+          )}
         </footer>
       </div>
     </div>

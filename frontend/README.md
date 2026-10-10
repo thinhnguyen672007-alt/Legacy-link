@@ -1,5 +1,9 @@
 # Frontend Legacy-link
 
+## Demo bằng Docker Compose
+
+Trên máy Linux chạy `infrastructure/docker-compose.yml` profile `full`, frontend có sẵn tại `http://<IP-Wi-Fi-Linux>:8080`. API đi qua `/api` cùng địa chỉ web; đăng nhập bằng tài khoản admin đã tạo lần đầu, sau đó admin cấp tài khoản Viewer/Technician. Xem [hướng dẫn máy mới](../infrastructure/README.md). Phần bên dưới dành cho chạy Vite để phát triển và các mốc nghiệm thu trước khi frontend được đưa vào Compose.
+
 Ứng dụng tiếng Việt theo hướng **Sổ vận hành**: thiết bị, lịch sử số đo, cảnh báo, chẩn đoán và cấu hình preview → probe → apply. Nhánh `feature/frontend`; mốc demo dự kiến khoảng 20/10/2026, chạy trên máy backend Docker Compose.
 
 ## Chạy trên máy backend
@@ -11,7 +15,7 @@ npm ci
 npm run dev
 ```
 
-Mở **http://127.0.0.1:5173**. API mặc định **http://localhost:3000**; có thể nhập URL khác tại màn hình kết nối hoặc đặt `VITE_API_BASE_URL` trong `.env.local`. `.env.example` chỉ chứa URL, không chứa token.
+Mở **http://127.0.0.1:5173**. API mặc định **http://localhost:3000**; địa chỉ được cấu hình tự động, người dùng chỉ nhập tài khoản và mật khẩu. Người phát triển có thể đặt `VITE_API_BASE_URL` trong `.env.local`. `.env.example` chỉ chứa URL, không chứa token.
 
 Nhân viên đăng nhập bằng username/password. Admin tạo Viewer (chỉ xem) hoặc Technician (thao tác); màn hình Nhân viên chỉ dành cho Admin. Tài khoản mới phải đổi mật khẩu. Phiên chỉ ở RAM trình duyệt và hết hạn sau 8 giờ; đóng/tải lại trang cần đăng nhập lại. Khóa hoặc đổi quyền thu hồi phiên phía server. Xem [account setup](../backend/deploy/ACCOUNTS.md) để migrate và tạo Admin đầu tiên.
 

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../App";
@@ -108,4 +108,57 @@ it("temporary password blocks dashboard until change and requires fresh sign-in"
   await u.click(screen.getByRole("button", { name: "Lưu và đăng nhập lại" }));
   await screen.findByRole("heading", { name: "Chào mừng trở lại." });
   expect(calls.some((c) => c.path === "/auth/password")).toBe(true);
+});
+it("blocks oversized UTF-8 passwords before creating an employee", async () => {
+  const calls = setup();
+  const u = await signIn();
+  await u.click(await screen.findByRole("link", { name: "Nhân viên" }));
+  await u.type(screen.getByLabelText("Tên đăng nhập"), "employee");
+  fireEvent.change(screen.getByLabelText("Mật khẩu tạm"), {
+    target: { value: "ế".repeat(100) },
+  });
+  await u.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("256 byte");
+  expect(calls.some((c) => c.path === "/admin/users/create")).toBe(false);
+});
+it("sends only one create request when the form is submitted twice while pending", async () => {
+  setup();
+  const u = await signIn();
+  await u.click(await screen.findByRole("link", { name: "Nhân viên" }));
+  await u.type(screen.getByLabelText("Tên đăng nhập"), "employee");
+  await u.type(screen.getByLabelText("Mật khẩu tạm"), "temporary-password");
+  const fetchMock = vi.mocked(fetch);
+  const original = fetchMock.getMockImplementation()!;
+  let reply!: (r: Response) => void;
+  fetchMock.mockImplementation((url, init) =>
+    new URL(String(url)).pathname === "/admin/users/create"
+      ? new Promise<Response>((resolve) => {
+          reply = resolve;
+        })
+      : original(url, init),
+  );
+  const form = screen
+    .getByRole("button", { name: "Tạo tài khoản" })
+    .closest("form")!;
+  fireEvent.submit(form);
+  fireEvent.submit(form);
+  expect(
+    fetchMock.mock.calls.filter(
+      ([url]) => new URL(String(url)).pathname === "/admin/users/create",
+    ),
+  ).toHaveLength(1);
+  expect(screen.getByLabelText("Tên đăng nhập")).toBeDisabled();
+  await act(async () => {
+    reply(
+      new Response(
+        JSON.stringify({
+          id: "employee",
+          username: "employee",
+          role: "viewer",
+          disabled: false,
+          mustChangePassword: true,
+        }),
+      ),
+    );
+  });
 });

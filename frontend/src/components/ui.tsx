@@ -1,3 +1,4 @@
+import { tr, locale } from "../language";
 import {
   AlertCircle,
   CheckCircle2,
@@ -9,13 +10,13 @@ import {
 import type { ReactNode } from "react";
 export const stamp = (time?: string | number | null) =>
   time == null
-    ? "Chưa có"
-    : new Date(time).toLocaleString("vi-VN", {
+    ? tr("Chưa có")
+    : new Date(time).toLocaleString(locale(), {
         timeZone: "Asia/Ho_Chi_Minh",
         hour12: false,
       });
 export const number = (v: number) =>
-  new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 }).format(v);
+  new Intl.NumberFormat(locale(), { maximumFractionDigits: 3 }).format(v);
 const states: Record<string, [string, string]> = {
   online: ["Liên lạc được", "ok"],
   offline: ["Mất liên lạc", "muted"],
@@ -24,6 +25,7 @@ const states: Record<string, [string, string]> = {
   out_of_range: ["Ngoài khoảng dự kiến", "warn"],
   healthy: ["Bình thường", "ok"],
   read_error: ["Lỗi đọc", "bad"],
+  read_ok: ["Đọc thành công", "ok"],
   unknown: ["Chưa rõ", "muted"],
   stale: ["Báo cáo cũ", "warn"],
   backlog: ["Đang chờ xác nhận", "warn"],
@@ -50,7 +52,7 @@ export function Badge({ value }: { value?: string }) {
   return (
     <span className={`badge ${tone}`}>
       <Icon size={14} />
-      {label}
+      {tr(label)}
     </span>
   );
 }
@@ -84,15 +86,15 @@ export function QueryState({
     <>
       {error && (
         <Notice tone="bad">
-          {error.message}
+          {tr(error.message)}
           {updated
-            ? ` Dữ liệu bên dưới là bản gần nhất lúc ${stamp(updated)}.`
+            ? tr(" Dữ liệu bên dưới là bản gần nhất lúc {0}.", stamp(updated))
             : ""}
         </Notice>
       )}
       {loading && (
         <p className="loading" role="status">
-          Đang đọc dữ liệu…
+          {tr("Đang đọc dữ liệu…")}
         </p>
       )}
     </>
@@ -124,10 +126,10 @@ export function ApiState({
     <span className={`api-state ${error ? "bad" : ""}`}>
       {error ? <WifiOff size={15} /> : <Radio size={15} />}{" "}
       {error
-        ? "Không cập nhật được"
+        ? tr("Không cập nhật được")
         : updated
-          ? "Đã nhận phản hồi API"
-          : "Đang kết nối"}
+          ? tr("Đã nhận phản hồi API")
+          : tr("Đang kết nối")}
     </span>
   );
 }

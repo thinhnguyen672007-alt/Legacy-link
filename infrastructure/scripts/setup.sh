@@ -48,7 +48,8 @@ for name in "${MQTT_CONTAINER_NAME:-legacy-link-mosquitto}" "${POSTGRES_CONTAINE
   fi
 done
 # Build trước để lỗi tải dependency không làm ngừng hệ thống đang chạy.
-docker compose build backend-api backend-consumer
+docker compose build backend-init backend-api backend-consumer
+if [[ ",$COMPOSE_PROFILES," == *,full,* ]]; then docker compose build frontend; fi
 if [[ ",$COMPOSE_PROFILES," == *,maintenance,* ]]; then docker compose build retention; fi
 # Backup DB đang chạy trước mọi thay đổi. Lần cài đầu chưa có DB thì backup sau khi khởi tạo.
 backed_up=false
@@ -58,7 +59,7 @@ if [ -n "$(docker compose ps --status running -q postgres)" ]; then
 fi
 # Không dùng -c ghi đè toàn bộ passwd: công cụ giữ các user MQTT khác đã được tạo.
 bash scripts/setup-mosquitto-auth.sh
-docker compose stop backend-consumer backend-api api-gateway
+docker compose stop frontend backend-consumer backend-api api-gateway
 # Named volume được giữ; không có down -v/reset/xóa telemetry trong quy trình nâng cấp.
 docker compose up -d --wait --wait-timeout 90 postgres
 docker compose up -d --force-recreate --wait --wait-timeout 90 mosquitto
