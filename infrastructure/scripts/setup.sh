@@ -45,7 +45,9 @@ for arg in "$@"; do
     --seed) WANT_SEED=true ;;
     --seed-bench) WANT_BENCH=true ;;
     -h|--help)
-      sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      # In khối header (sau shebang, tới hết dòng === thứ hai) đọc trực tiếp từ file,
+      # không hardcode số dòng để help không bị cắt khi header dài ra.
+      awk 'NR==1{next} {print} /^# =+$/{n++; if(n==2) exit}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
