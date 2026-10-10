@@ -361,16 +361,22 @@ else
       exit 1
     }
 
-  # Xac nhan bang cach dem bang thuc te, khong tin log.
+  # Xac nhan bang cach dem bang thuc te, khong tin log. Danh sach khop schema.sql
+  # hien tai (schema version 4, C16): 10 bang C7-C10 + 5 bang C16.
   table_count="$(docker compose exec -T postgres \
     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
-    "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('telemetry','machine_state','alarms','device','register_map','register_override','config_request','service_run','ingestion_receipt','consumer_health')" \
+    "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('telemetry','machine_state','alarms','device','register_map','register_override','config_request','service_run','ingestion_receipt','consumer_health','schema_migrations','gateway_command_lease','control_operation','device_config_history','device_profile')" \
+    2>/dev/null | tr -d '[:space:]' || echo 0)"
+  schema_version="$(docker compose exec -T postgres \
+    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+    "SELECT coalesce(max(version),0) FROM schema_migrations" \
     2>/dev/null | tr -d '[:space:]' || echo 0)"
 
-  echo "[INFO]        Da nap schema. So bang trong database: ${table_count:-0}"
+  echo "[INFO]        Da nap schema. So bang: ${table_count:-0}/15, version=${schema_version:-0}"
 
-  if [ "${table_count:-0}" -ne 10 ]; then
-    echo "[ERROR]       Schema chua du 10 bang can cho backend hien tai." >&2
+  if [ "${table_count:-0}" -ne 15 ] || [ "${schema_version:-0}" -lt 4 ]; then
+    echo "[ERROR]       Schema chua du 15 bang/version 4 can cho backend hien tai." >&2
+    echo "[ERROR]       Xem loi SQL o tren, sua nguyen nhan roi chay lai setup.sh." >&2
     exit 1
   fi
 fi
@@ -435,7 +441,7 @@ echo ""
 echo "  Broker   : $MQTT_CONTAINER_NAME (port ${MQTT_PORT:-1883})"
 echo "  Database : $POSTGRES_USER@$POSTGRES_DB (port ${POSTGRES_PORT:-5432}, chi localhost)"
 if [ "${table_count:-0}" -gt 0 ]; then
-  echo "  Bang     : ${table_count} bang trong schema public"
+  echo "  Bang     : ${table_count}/15 bang (schema version ${schema_version:-0})"
 else
   echo "  Bang     : chua nap schema (checkout nay khong co backend/)"
 fi
