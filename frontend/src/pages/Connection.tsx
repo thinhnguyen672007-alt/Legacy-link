@@ -4,9 +4,10 @@ import { normalizeUrl } from "../api/client";
 import { useSession } from "../session";
 import { login } from "../api/accounts";
 import { AnimatedLoginBackground } from "../components/AnimatedLoginBackground";
+import { LanguageToggle } from "../components/LanguageToggle";
+import { tr, useLanguage } from "../language";
 import "../login.css";
 
-type Language = "vi" | "en";
 const copy = {
   vi: { first: "Hiểu rõ thiết bị.", active: "Chủ động", last: "vận hành.", description: "Nền tảng giám sát thông minh kết nối dữ liệu, con người và AI trong một trải nghiệm thống nhất.", welcome: "Chào mừng trở lại.", intro: "Đăng nhập để truy cập trung tâm điều hành.", username: "Tên đăng nhập", password: "Mật khẩu", userPlaceholder: "Nhập tên đăng nhập", passwordPlaceholder: "Nhập mật khẩu", note: "Tài khoản được quản lý bởi quản trị viên.", cta: "Đăng nhập & trải nghiệm", busy: "Đang kiểm tra…", entering: "Đang vào trung tâm điều hành", secure: "SECURE SESSION · Tài khoản do quản trị viên cấp", advanced: "Thiết lập kết nối", api: "Địa chỉ API", hint: "Nếu dùng máy khác, nhập IP máy backend. Backend cần cho phép origin hiện tại trong CORS. Trang HTTPS cần API HTTPS.", error: "Không thể đăng nhập. Vui lòng thử lại." },
   en: { first: "Know your machines.", active: "Take control.", last: "Operate smarter.", description: "An intelligent monitoring platform connecting data, people and AI in one unified experience.", welcome: "Welcome back.", intro: "Sign in to access your control center.", username: "Username", password: "Password", userPlaceholder: "Enter your username", passwordPlaceholder: "Enter your password", note: "Accounts are managed by your administrator.", cta: "Sign in & explore", busy: "Checking access…", entering: "Entering the control center", secure: "SECURE SESSION · Administrator-issued accounts", advanced: "Connection settings", api: "API address", hint: "On another computer, enter the backend IP. The backend must allow this origin in CORS. HTTPS pages require an HTTPS API.", error: "Unable to sign in. Please try again." },
@@ -17,7 +18,6 @@ export function Connection() {
   const [base, setBase] = useState(import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? `${location.origin}/api` : "http://localhost:3000"));
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [language, setLanguage] = useState<Language>("vi");
   const [busy, setBusy] = useState(false);
   const [entering, setEntering] = useState(false);
   const [error, setError] = useState("");
@@ -26,6 +26,7 @@ export function Connection() {
   const alive = useRef(true);
   const locked = useRef(false);
   const animations = useRef<Animation[]>([]);
+  const language = useLanguage();
   const c = copy[language];
   useEffect(() => {
     alive.current = true;
@@ -79,14 +80,14 @@ export function Connection() {
         <footer>LEGACY LINK × DENSO FACTORY HACKS</footer>
       </div>
       <div className="card-wrap"><section className={`login-card${busy && !entering ? " loading" : ""}`} ref={card} aria-labelledby="login-title" aria-busy={busy}>
-        <div className="card-top"><span className="secure"><span aria-hidden="true">◈</span> SECURE ACCESS</span><div className="language" role="group" aria-label="Ngôn ngữ / Language">{(["vi", "en"] as const).map(l => <button key={l} type="button" aria-pressed={language === l} disabled={busy} onClick={() => setLanguage(l)}>{l.toUpperCase()}</button>)}</div></div>
-        <h2 id="login-title">{c.welcome}</h2><p className="card-description">{c.intro}</p>
+        <div className="card-top"><span className="secure"><span aria-hidden="true">◈</span> SECURE ACCESS</span><LanguageToggle /></div>
+        <h2 id="login-title">{tr("Đăng nhập")}</h2><p className="card-description">{tr("Đăng nhập để truy cập trung tâm điều hành.")}</p>
         <form onSubmit={submit}>
-          <div className="field"><label htmlFor="login-username">{c.username}</label><input id="login-username" name="username" required autoComplete="username" spellCheck={false} value={username} disabled={busy} onChange={e => setUsername(e.target.value)} placeholder={c.userPlaceholder} /></div>
-          <div className="field"><label htmlFor="login-password">{c.password}</label><input id="login-password" name="password" type="password" required autoComplete="current-password" spellCheck={false} value={password} disabled={busy} onChange={e => setPassword(e.target.value)} placeholder={c.passwordPlaceholder} /></div>
+          <div className="field"><label htmlFor="login-username">{tr("Tên đăng nhập")}</label><input id="login-username" name="username" required autoComplete="username" spellCheck={false} value={username} disabled={busy} onChange={e => setUsername(e.target.value)} placeholder={c.userPlaceholder} /></div>
+          <div className="field"><label htmlFor="login-password">{tr("Mật khẩu")}</label><input id="login-password" name="password" type="password" required autoComplete="current-password" spellCheck={false} value={password} disabled={busy} onChange={e => setPassword(e.target.value)} placeholder={c.passwordPlaceholder} /></div>
           <p className="account-note">{c.note}</p>
           {error && <p className="error" role="alert">{error}</p>}
-          <button className="cta" aria-label={language === "vi" ? "Đăng nhập" : "Sign in"} disabled={busy} type="submit"><span>{entering ? c.entering : busy ? c.busy : c.cta}</span><ArrowUpRight className="cta-arrow" aria-hidden="true" /><span className="spinner" aria-hidden="true" /></button>
+          <button className="cta" aria-label={tr("Đăng nhập")} disabled={busy} type="submit"><span>{entering ? c.entering : busy ? c.busy : c.cta}</span><ArrowUpRight className="cta-arrow" aria-hidden="true" /><span className="spinner" aria-hidden="true" /></button>
           <p className="demo-note"><span aria-hidden="true">◆</span>{c.secure}</p>
           <details className="advanced"><summary>{c.advanced}</summary><label htmlFor="login-api">{c.api}</label><input id="login-api" type="url" required autoComplete="url" value={base} disabled={busy} onChange={e => setBase(e.target.value)} /><p>{c.hint}</p></details>
         </form>

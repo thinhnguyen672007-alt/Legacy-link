@@ -106,7 +106,7 @@ it("temporary password blocks dashboard until change and requires fresh sign-in"
     "new-password-123",
   );
   await u.click(screen.getByRole("button", { name: "Lưu và đăng nhập lại" }));
-  await screen.findByRole("heading", { name: "Chào mừng trở lại." });
+  await screen.findByRole("heading", { name: "Đăng nhập" });
   expect(calls.some((c) => c.path === "/auth/password")).toBe(true);
 });
 it("blocks oversized UTF-8 passwords before creating an employee", async () => {

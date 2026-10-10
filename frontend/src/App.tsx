@@ -7,8 +7,8 @@ import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
   Bell,
   BookOpen,
-  UserRound,
   Home,
+  UserRound,
   LayoutList,
   LogOut,
   Settings2,
@@ -82,64 +82,7 @@ export function App() {
             {tr("Cảnh báo")}
           </NavLink>
           {session.writeToken && (
-            <NavLink to="/commissioning" aria-label="Cấu hình">
-              <Settings2 size={18} />
-              {tr("Cấu hình")}
-            </NavLink>
-          )}
-          {session.user?.role === "admin" && (
-            <NavLink to="/accounts">
-              <Users size={18} />
-              {tr("Nhân viên")}
-            </NavLink>
-          )}
-          {session.user && (
-            <NavLink to="/password">
-              <KeyRound size={18} />
-              {tr("Đổi mật khẩu")}
-            </NavLink>
-          )}
-        </nav>
-        <div className="sidebar-bottom">
-          <BookOpen size={19} />
-          <p>
-            {tr("Dữ liệu rõ ràng.")}
-            <br />
-            {tr("Thao tác có kiểm chứng.")}
-          </p>
-          <span>Factory Hacks 2026</span>
-        </div>
-      </aside>
-      <Copilot />
-      <div className="workspace">
-        <header className="topbar">
-          <span
-            className="session-role"
-            title={session.user ? tr(roleLabel[session.user.role]) : tr("Phiên chỉ đọc")}
-          >
-            <span className="user-avatar">
-              <UserRound size={17} />
-            </span>
-            {session.user?.username || tr("Chỉ đọc")}
-          </span>
-          <LanguageToggle />
-          <button
-            className="quiet dashboard-logout"
-            aria-label={tr("Đăng xuất")}
-            title={tr("Đăng xuất")}
-            onClick={disconnect}
-          >
-            <LogOut size={16} />
-          <NavLink to="/machines">
-            <LayoutList size={18} />
-            {tr("Thiết bị")}
-          </NavLink>
-          <NavLink to="/alarms">
-            <Bell size={18} />
-            {tr("Cảnh báo")}
-          </NavLink>
-          {session.writeToken && (
-            <NavLink to="/commissioning" aria-label="Cấu hình">
+            <NavLink to="/commissioning">
               <Settings2 size={18} />
               {tr("Cấu hình")}
             </NavLink>
