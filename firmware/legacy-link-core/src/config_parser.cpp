@@ -72,6 +72,15 @@ static bool read_uint(JsonVariantConst value, uint32_t fallback,
   return out >= minimum && out <= maximum;
 }
 
+// Match backend validMetricKey before accepting a map that cannot be ingested.
+static bool valid_metric_key(const char *key) {
+  auto letter = [](char c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); };
+  if (!letter(key[0]) || !strcmp(key, "constructor") || !strcmp(key, "prototype")) return false;
+  for (const char *c = key + 1; *c; ++c)
+    if (!letter(*c) && !(*c >= '0' && *c <= '9') && *c != '_') return false;
+  return true;
+}
+
 static bool valid_alarm_code(const char *code) {
   return !strcmp(code, "OVERHEAT") || !strcmp(code, "OVERCURRENT") ||
          !strcmp(code, "OVERSPEED") || !strcmp(code, "VIBRATION");
@@ -172,6 +181,7 @@ bool parse_device_config(const char *json_payload, device_config_t *out) {
     if (!read_string(entry[endpoint_format ? "metric_key" : "key"], reg.key, sizeof(reg.key), "", true) ||
         !read_string(entry[endpoint_format ? "data_type" : "dataType"], reg.data_type, sizeof(reg.data_type), endpoint_format ? "UINT16" : "INT16") ||
         !read_string(entry["unit"], reg.unit, sizeof(reg.unit), "")) return false;
+    if (!valid_metric_key(reg.key)) return false;
     const bool wide = !strcmp(reg.data_type, "UINT32");
     if (strcmp(reg.data_type, "INT16") && strcmp(reg.data_type, "UINT16") && !wide) return false;
     const char *word_field = endpoint_format ? "word_order" : "wordOrder";

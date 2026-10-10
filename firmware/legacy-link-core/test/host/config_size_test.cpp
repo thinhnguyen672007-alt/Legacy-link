@@ -18,7 +18,7 @@ int main() {
   for (int i = 0; i < MAX_REGISTERS; ++i) {
     JsonObject reg = registers.createNestedObject();
     char key[MAX_REG_KEY_LEN];
-    snprintf(key, sizeof(key), "metric-long-name-%02d", i);
+    snprintf(key, sizeof(key), "metric_long_name_%02d", i);
     assert(strlen(key) == MAX_REG_KEY_LEN - 1);
     reg["key"] = key;
     reg["address"] = i;

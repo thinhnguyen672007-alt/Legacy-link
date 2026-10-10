@@ -57,6 +57,10 @@ int main() {
     rejected(json);
   }
 
+  for (const char *key : {"temp-value", "0temp", "_temp", "constructor", "prototype", "__proto__", "temp value"}) {
+    rejected(std::string(R"({"deviceId":"CNC-02","registerMap":[{"key":")") + key + R"(","address":0}]})");
+  }
+
   // A full supported map fits and applies; an extra register must not be truncated.
   DynamicJsonDocument doc(16384);
   doc["deviceId"] = "CNC-02";
