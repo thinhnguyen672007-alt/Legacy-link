@@ -9,12 +9,9 @@ import { login } from "../api/accounts";
 export function Connection() {
   const { connect, sessionError } = useSession();
   const pending = useRef(false);
-  const [base, setBase] = useState(
+  const base =
     import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.PROD
-        ? `${location.origin}/api`
-        : "http://localhost:3000"),
-  );
+    (import.meta.env.PROD ? `${location.origin}/api` : "http://localhost:3000");
   const [read, setRead] = useState("");
   const [write, setWrite] = useState("");
   const [busy, setBusy] = useState(false);
@@ -62,7 +59,7 @@ export function Connection() {
         <div className="connection-proof">
           <ShieldCheck size={22} />
           <span>
-            {tr("Kết nối trực tiếp API của đội.")}
+            {tr("Theo dõi thiết bị của đội.")}
             <br />
             {tr("Mỗi nhân viên có tài khoản và quyền riêng.")}
           </span>
@@ -79,19 +76,7 @@ export function Connection() {
             <LanguageToggle />
           </div>
           <h2>{tr("Đăng nhập")}</h2>
-          <p>{tr("Mở giao diện trên máy backend để dùng địa chỉ mặc định.")}</p>
-          <label>
-            {tr("Địa chỉ API")}
-            <input
-              disabled={busy}
-              type="url"
-              required
-              value={base}
-              onChange={(e) => setBase(e.target.value)}
-              placeholder="http://localhost:3000"
-              autoComplete="url"
-            />
-          </label>
+          <p>{tr("Đăng nhập để theo dõi thiết bị và cảnh báo.")}</p>
           <label>
             {tr("Tên đăng nhập")}
             <input
@@ -129,10 +114,8 @@ export function Connection() {
           <details>
             <summary>{tr("Không kết nối được?")}</summary>
             <p>
-              {tr("API Docker Compose cần hoạt động; origin")}{" "}
-              <code>{location.origin}</code>{" "}
               {tr(
-                " phải có trong CORS_ORIGINS. Nếu mở từ máy khác, localhost là máy đang dùng, hãy nhập IP máy backend. Trang HTTPS không gọi được API HTTP.",
+                "Kiểm tra kết nối mạng rồi thử lại. Nếu vẫn không đăng nhập được, hãy liên hệ quản trị viên.",
               )}
             </p>
           </details>

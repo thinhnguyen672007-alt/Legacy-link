@@ -296,14 +296,6 @@ code,
   border-bottom: 1px solid var(--line);
   background: #fff;
 }
-.endpoint {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
 .session-role {
   margin-left: auto;
   font-size: 12px;
@@ -964,10 +956,6 @@ tbody tr:hover {
     flex-wrap: wrap;
     min-height: 66px;
   }
-  .endpoint {
-    flex: 1;
-    min-width: 160px;
-  }
   .session-role {
     font-size: 10px;
   }
@@ -1320,9 +1308,6 @@ tbody tr:hover {
   margin-bottom: 24px;
 }
 @media (max-width: 760px) {
-  .topbar .endpoint {
-    flex-basis: 100%;
-  }
   .topbar .session-role {
     margin-left: 0;
     margin-right: auto;

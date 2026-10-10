@@ -7,7 +7,7 @@ describe("API boundary", () => {
   it.each(["", "192.168.110.12:8080/api", "http://"])(
     "explains malformed API URL %s",
     (url) => {
-      expect(() => normalizeUrl(url)).toThrow(/Địa chỉ API chưa hợp lệ/);
+      expect(() => normalizeUrl(url)).toThrow(/Cấu hình kết nối không hợp lệ/);
     },
   );
   it.each([

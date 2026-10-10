@@ -10,7 +10,7 @@ assert.ok(
   answer.results.some((r) => r.series?.some((s) => s.points.length)),
   "Capture must include actual chart points",
 );
-const base = process.env.INVESTIGATION_WEB_URL ?? "http://127.0.0.1:5175";
+const base = process.env.INVESTIGATION_WEB_URL ?? "http://localhost:8080";
 const user = {
   id: "browser-fixture",
   username: "viewer",
@@ -54,7 +54,7 @@ try {
       });
     });
     await page.goto(base);
-    await page.getByLabel("Địa chỉ API").fill(base + "/api");
+
     await page.getByLabel("Tên đăng nhập").fill("viewer");
     await page.getByLabel("Mật khẩu", { exact: true }).fill("fixture-password");
     await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();

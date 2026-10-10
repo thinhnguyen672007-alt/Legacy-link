@@ -37,7 +37,7 @@ export function normalizeUrl(input: string) {
     u = new URL(input.trim());
   } catch {
     throw new Error(
-      "Địa chỉ API chưa hợp lệ. Nhập đầy đủ http:// hoặc https://, ví dụ http://192.168.110.12:8080/api.",
+      "Cấu hình kết nối không hợp lệ. Vui lòng liên hệ quản trị viên.",
     );
   }
   if (
@@ -87,7 +87,7 @@ export async function request<T>(
     throw new ApiError(
       timer.aborted
         ? "Yêu cầu quá thời gian chờ."
-        : "Không kết nối được backend. Kiểm tra địa chỉ API, Wi-Fi và máy chạy Docker; nếu vẫn lỗi, nhờ quản trị viên kiểm tra quyền truy cập từ trang web này.",
+        : "Không kết nối được hệ thống. Kiểm tra kết nối mạng rồi thử lại; nếu vẫn lỗi, hãy liên hệ quản trị viên.",
       0,
       0,
       method === "POST",

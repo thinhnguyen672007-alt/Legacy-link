@@ -7,7 +7,6 @@ import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
   Bell,
   BookOpen,
-  ExternalLink,
   LayoutList,
   LogOut,
   Settings2,
@@ -110,10 +109,6 @@ export function App() {
       <Copilot />
       <div className="workspace">
         <header className="topbar">
-          <span className="endpoint">
-            <ExternalLink size={14} />
-            {session.base}
-          </span>
           <span className="session-role">
             {session.user
               ? `${session.user.username} · ${tr(roleLabel[session.user.role])}`
