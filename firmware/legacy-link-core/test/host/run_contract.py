@@ -41,6 +41,9 @@ def main():
         (work / 'ingestion').mkdir()
         identity = subprocess.check_output(['git', 'show', f'{revision}:backend/src/ingestion/identity.js'], cwd=repo)
         (work / 'ingestion' / 'identity.js').write_bytes(identity)
+        (work / 'control').mkdir()
+        control = subprocess.check_output(['git', 'show', f'{revision}:backend/src/control/validation.js'], cwd=repo)
+        (work / 'control' / 'validation.js').write_bytes(control)
         binary = work / 'messages'
         subprocess.run([
             os.environ.get('CXX', 'c++'), '-std=c++11', '-Wall', '-Wextra', '-Werror',
