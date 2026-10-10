@@ -72,6 +72,11 @@ graph TD
 
 ### 5. MQTT Topic Conventions & Payload Standards
 
+> **Outdated:** the topic names and payloads below predate the current contract
+> (there is no `commands`/`ack`; firmware receives `config` and reports over the
+> gateway `.../config/ack` topic). The live contract is in [`README.md`](../../README.md),
+> `backend/src/validation/` and `firmware/legacy-link-core/docs/backend-alignment.md`.
+
 | Topic Pattern | Direction | QoS | Description & Payload Example |
 | :--- | :---: | :---: | :--- |
 | `legacy-link/devices/{id}/telemetry` | Gateway $\to$ Broker | 0 or 1 | **Sensor Readings:** `{"device_id":"esp32_01","timestamp":1725400000,"data":{"temp":28.5,"pressure":101.3}}` |
@@ -179,6 +184,11 @@ Hệ thống được chia làm 3 tầng rõ rệt:
 ---
 
 ### 5. Quy chuẩn cấu trúc Topic MQTT (Topic Hierarchy)
+
+> **Đã lỗi thời:** tên topic và payload bên dưới không còn đúng contract hiện tại
+> (không có `commands`/`ack`; firmware nhận `config` và báo kết quả qua topic
+> `.../config/ack` của gateway). Contract đang dùng nằm ở [`README.md`](../../README.md),
+> `backend/src/validation/` và `firmware/legacy-link-core/docs/backend-alignment.md`.
 
 Việc đặt tên topic rõ ràng giúp hệ thống dễ mở rộng khi có hàng trăm thiết bị cùng kết nối:
 
