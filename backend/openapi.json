@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Legacy Link Backend API",
-    "version": "0.3.0",
-    "description": "API demo của Legacy Link. Response dạng JSON; thời điểm đo dùng milliseconds; ID database là chuỗi. Xem docs/backend-api-c10.md để triển khai và nối MQTT. C11–C15: Bearer token, GET dùng quyền đọc/ghi; POST cần quyền ghi. Metric theo catalog từng máy. Xem backend/deploy/README.md."
+    "version": "0.4.0",
+    "description": "API Legacy Link: token đọc cho GET, token ghi cho POST; timestamp đo là epoch milliseconds, ID DB là chuỗi. C16 bổ sung profile version, preview, lịch sử thao tác PostgreSQL, metrics, freshness. Xem deploy/README.md và docs/SO-TAY-HIEU-DU-AN-LEGACY-LINK.md. Rate limit mỗi socket IP/process: 300 GET và 30 thao tác/phút; 429 kèm Retry-After."
   },
   "servers": [
     {
@@ -423,6 +423,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -526,6 +536,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -639,6 +659,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -789,6 +819,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -961,6 +1001,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1133,6 +1183,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1249,6 +1309,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1352,6 +1422,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1465,6 +1545,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1597,6 +1687,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1739,6 +1839,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1852,6 +1962,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1965,6 +2085,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2081,6 +2211,16 @@
           },
           "403": {
             "description": "Không đủ quyền thao tác hoặc Origin không được phép"
+          },
+          "429": {
+            "description": "Quá số request; chờ Retry-After (giây)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2096,6 +2236,674 @@
             }
           }
         ]
+      }
+    },
+    "/profiles": {
+      "get": {
+        "summary": "Danh sách bản mới nhất của từng profile",
+        "responses": {
+          "200": {
+            "description": "Thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProfileSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 100
+            }
+          }
+        ]
+      }
+    },
+    "/profiles/import": {
+      "post": {
+        "summary": "Import profile thành revision mới, không gửi tới ESP32",
+        "responses": {
+          "201": {
+            "description": "Thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profiles/{id}/export": {
+      "get": {
+        "summary": "Xuất profile JSON; bỏ revision để lấy mới nhất",
+        "responses": {
+          "200": {
+            "description": "Thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            }
+          }
+        ]
+      }
+    },
+    "/config/preview": {
+      "post": {
+        "summary": "Kiểm tra cấu hình và chuẩn hóa; vẫn cần probe trước apply",
+        "responses": {
+          "200": {
+            "description": "Thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "config"
+                ],
+                "properties": {
+                  "config": {
+                    "$ref": "#/components/schemas/Config"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operations": {
+      "get": {
+        "summary": "Lịch sử thao tác PostgreSQL; GET từng ID để cập nhật timeout hoặc tiếp tục ghi catalog đã có ACK",
+        "responses": {
+          "200": {
+            "description": "Thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Operation"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "gatewayId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-F0-9]{12}$"
+            }
+          }
+        ]
+      }
+    },
+    "/system/metrics": {
+      "get": {
+        "summary": "Ảnh chụp counters từ heartbeat consumer, tối đa 100 consumer",
+        "responses": {
+          "200": {
+            "description": "Thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemMetrics"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Lỗi yêu cầu hoặc dịch vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -2176,6 +2984,19 @@
           "diagnostics": {
             "type": "object",
             "nullable": true
+          },
+          "dataFresh": {
+            "type": "boolean",
+            "description": "Số đo mới hơn max(5s,3 lần samplingIntervalMs); phụ thuộc đồng hồ gateway."
+          },
+          "readHealth": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "stale",
+              "healthy",
+              "read_error"
+            ]
           }
         },
         "required": [
@@ -2209,6 +3030,14 @@
           "messageId": {
             "type": "string",
             "nullable": true
+          },
+          "deliveryDelayMs": {
+            "type": "number",
+            "description": "receivedAt trừ timestamp, có thể âm khi clock lệch."
+          },
+          "delayed": {
+            "type": "boolean",
+            "description": "deliveryDelayMs > 5000; không chứng minh là replay."
           }
         },
         "required": [
@@ -2671,6 +3500,120 @@
           "to",
           "nextCursor"
         ]
+      },
+      "ProfileInput": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "id",
+          "name",
+          "config"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "config": {
+            "$ref": "#/components/schemas/Config"
+          }
+        }
+      },
+      "Profile": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProfileInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        ]
+      },
+      "Preview": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/Config"
+          },
+          "bytes": {
+            "type": "integer",
+            "description": "Kích thước config chuẩn hóa; validate còn tính dự phòng envelope lệnh MQTT."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requiresProbe": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      },
+      "ProfileSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SystemMetrics": {
+        "type": "object",
+        "properties": {
+          "consumers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "clientId": {
+                  "type": "string"
+                },
+                "ready": {
+                  "type": "boolean"
+                },
+                "heartbeatAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "stats": {
+                  "type": "object",
+                  "description": "Bộ đếm từ lúc process khởi động: counters, receiveToSaveMs histogram theo bucket riêng biệt, memory, mqtt queue/oversized/errors. Có thể rỗng trước heartbeat đầu tiên."
+                }
+              }
+            }
+          }
+        }
       }
     },
     "securitySchemes": {
