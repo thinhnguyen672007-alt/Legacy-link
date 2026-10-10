@@ -115,11 +115,15 @@ function registerIPC() {
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', focus);
+  app.on('second-instance', (_event, argv) => {
+    const url = argv.find(arg => arg.startsWith('legacylink-notify:'));
+    if (url) toast?.activateURL(url); else focus();
+  });
   app.on('before-quit', () => {quitting = true; poller.stop();});
   app.on('window-all-closed', () => {});
   app.whenReady().then(() => {
     app.setAppUserModelId(APP_ID);
+    if (process.platform === 'win32' && app.isPackaged && !app.setAsDefaultProtocolClient('legacylink-notify')) throw new Error('Notification activation registration failed');
     toast = createNotifications(Notification, {icon, iconURL: pathToFileURL(icon).href, failed: () => setStatus('Windows không gửi được thông báo')});
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, cb) => cb(false));
     session.defaultSession.setPermissionCheckHandler(() => false);

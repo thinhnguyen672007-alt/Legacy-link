@@ -13,8 +13,11 @@ test('Windows activation routes once by opaque tag even after timeout; unknown o
   const toast = createNotifications(Fake, {platform:'win32', icon:'icon', iconURL:'file:///icon', failed:()=>assert.fail()});
   toast('test','body',()=>clicks++);
   const n = instances[0]; n.emit('close');
+  toast.activateURL(`legacylink-notify://notification/${n.options.id}`);
   handler({type:'click',arguments:`type=click&tag=${n.options.id}`});
   n.emit('click'); assert.equal(clicks,1);
+  toast.activateURL('https://evil/notification/' + n.options.id);
+  toast.activateURL('legacylink-notify://notification/' + n.options.id + '?device=evil');
   handler({type:'click',arguments:'type=click&tag=unknown'}); assert.equal(clicks,1);
   let generation = 1; const original = generation;
   toast('old session','body',()=>{if(generation === original) clicks++;});
@@ -23,7 +26,7 @@ test('Windows activation routes once by opaque tag even after timeout; unknown o
 });
 test('toast XML escapes device content and embeds explicit activation tag', () => {
   const xml = toastXML('safe-id','<device & "name">',"value's",'file:///a&b');
-  assert.match(xml,/launch="type=click&amp;tag=safe-id"/);
+  assert.match(xml,/activationType="protocol" launch="legacylink-notify:\/\/notification\/safe-id"/);
   assert.match(xml,/&lt;device &amp; &quot;name&quot;&gt;/);
   assert.match(xml,/value&apos;s/);
   assert.match(xml,/file:\/\/\/a&amp;b/);
