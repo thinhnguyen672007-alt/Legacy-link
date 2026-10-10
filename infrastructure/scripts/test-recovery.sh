@@ -8,7 +8,7 @@ infra_root="$PWD"
 source ./scripts/operation-lock.sh
 operation_locked=false
 # shellcheck disable=SC1091
-source .env
+source ./scripts/load-env.sh
 export COMPOSE_PROFILES=full API_WRITE_TOKEN
 umask 077
 # Evidence lưu fixture và kết quả theo từng lần chạy; reports/ không được đưa lên Git.
@@ -27,8 +27,8 @@ run_dir=''
 # Token chỉ được truyền qua môi trường; không đặt giá trị token trong câu lệnh/log.
 probe() {
   docker compose run --rm -T --no-deps -e API_WRITE_TOKEN \
-    -v "$infra_root/scripts/delivery-check.cjs:/app/infra-delivery.cjs:ro" \
-    -v "$run_dir:/evidence" --entrypoint node backend-consumer \
+    -v "$infra_root/scripts/delivery-check.cjs:/app/infra-delivery.cjs:ro,z" \
+    -v "$run_dir:/evidence:z" --entrypoint node backend-consumer \
     /app/infra-delivery.cjs "$@"
 }
 # Gắn lại mạng hoặc bật đúng service đã bị ngắt; --wait chờ health thay vì chỉ chờ process Up.
@@ -83,7 +83,7 @@ for fault in "${faults[@]}"; do
     docker network disconnect "$network_name" "$consumer_id"
   else
     interrupted_service="$fault"
-    docker compose stop -t 10 "$fault"
+    docker compose stop -t 130 "$fault"
   fi
   # Trong outage phải thấy readiness lỗi và không có ACK committed cho mẫu chưa lưu.
   # Sau phục hồi phải nhận đúng ACK, đủ bản ghi, chống trùng và giữ lịch sử trước bài thử.

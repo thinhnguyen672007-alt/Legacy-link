@@ -69,7 +69,7 @@ async function readiness(expected) {
     // Ghi danh tính fixture trước INSERT: nếu lỗi giữa chừng vẫn biết phải dọn đúng thiết bị.
     // Topic retained riêng kiểm tra broker có giữ dữ liệu qua restart.
     fs.writeFileSync(`${dir}/fixture.json`,JSON.stringify(fixture));
-    await pool.query("INSERT INTO device(device_id,machine_type,gateway_id,name) VALUES($1,'INFRA-TEST',$2,'Temporary infra acceptance fixture')",[deviceId,gatewayId]);
+    await pool.query("INSERT INTO device(device_id,machine_type,gateway_id,name,applied_config) VALUES($1,'INFRA-TEST',$2,'Temporary infra acceptance fixture','{\"registerMap\":[{\"key\":\"temperature\"}]}')",[deviceId,gatewayId]);
     await connect();
     await client.publishAsync(fixture.retainedTopic,id,{qos:1,retain:true});
     console.log('PASS prepared 4 telemetry + 2 alarm samples; historical rows snapshotted');
@@ -131,7 +131,7 @@ async function readiness(expected) {
     await readiness(200);
     // Kiểm tra cả đường trình duyệt -> Nginx -> API, đọc dữ liệu và bảo vệ thao tác ghi.
     // Chỉ ACK một alarm của fixture; không đụng alarm thật của BENCH-01.
-    const history=await fetch(`http://api-gateway/machines/${f.deviceId}/telemetry?limit=20`);
+    const history=await fetch(`http://api-gateway/machines/${f.deviceId}/telemetry?limit=20`,{headers:{Authorization:`Bearer ${process.env.API_WRITE_TOKEN}`}});
     assert.equal(history.status,200);assert.equal((await history.json()).items.length,4);
     const alarm=(await pool.query('SELECT id FROM alarms WHERE device_id=$1 LIMIT 1',[f.deviceId])).rows[0];
     const url=`http://api-gateway/alarms/${alarm.id}/ack`;

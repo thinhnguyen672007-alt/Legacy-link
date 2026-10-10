@@ -88,35 +88,12 @@ trap 'exit 130' INT TERM
 #   nhánh `then` của if, tức là trong "điều kiện", nên lỗi của nó không kích
 #   hoạt -e. (Ngược lại, `source .env` không có if sẽ chết ngay.)
 # ------------------------------------------------------------------------------
-if [ -f .env ]; then
-  echo "[INFO] Da co .env, giu nguyen cau hinh hien tai."
-else
-  cp .env.example .env
-  echo "[INFO] Da tao .env tu .env.example."
-fi
-
-# Nạp .env để script tự lấy tên container, port, tài khoản. `set -u` ở trên có
-# nghĩa là biến chưa set sẽ báo lỗi ngay, nên `:-` là bắt buộc cho mọi biến.
-#
-# Vì sao `-u` KHÔNG làm hỏng `source`: file .env tự gán giá trị cho chính nó
-# (`FOO=bar` là gán, không phải đọc), nên không biến nào bị đọc trước khi gán.
+command -v node >/dev/null || { echo 'Can Node >=22.9 de chuan bi env' >&2; exit 1; }
+docker compose version >/dev/null || { echo 'Can Docker Compose v2 plugin' >&2; exit 1; }
+node scripts/prepare-env.mjs
 requested_profiles="${COMPOSE_PROFILES:-}"
-# shellcheck disable=SC1091
-source .env
+source ./scripts/load-env.sh
 export COMPOSE_PROFILES="${requested_profiles:-${COMPOSE_PROFILES:-full}}"
-# Nếu chưa có token, lấy 32 byte ngẫu nhiên rồi viết thành 64 ký tự hex trong .env.
-# Giữ token đã có để frontend không mất quyền sau mỗi lần setup; không in token ra log.
-if [[ ",$COMPOSE_PROFILES," == *,full,* ]] && [ -z "${API_WRITE_TOKEN:-}" ]; then
-  umask 077
-  API_WRITE_TOKEN="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
-  if grep -q '^API_WRITE_TOKEN=' .env; then
-    sed -i "s/^API_WRITE_TOKEN=.*/API_WRITE_TOKEN=$API_WRITE_TOKEN/" .env
-  else
-    printf '\nAPI_WRITE_TOKEN=%s\n' "$API_WRITE_TOKEN" >> .env
-  fi
-  chmod 600 .env
-  echo "[INFO] Da tao API_WRITE_TOKEN trong .env."
-fi
 if [ "$WANT_BENCH" = true ] && ! [[ "${BENCH_GATEWAY_ID:-}" =~ ^[A-F0-9]{12}$ ]]; then
   echo "[ERROR] --seed-bench can BENCH_GATEWAY_ID (12 ky tu HEX hoa doc tu USB)." >&2
   exit 1
@@ -315,53 +292,12 @@ BACKEND_DIR="$(cd .. 2>/dev/null && pwd || echo "")"
 SCHEMA="$BACKEND_DIR/backend/db/schema.sql"
 SEED="$BACKEND_DIR/backend/db/seed-demo.sql"
 
-echo "[INFO] Nap schema..."
+echo "[INFO] Chay migration co version..."
 
-if [ ! -d "$BACKEND_DIR/backend" ]; then
-  # Không phải lỗi: checkout riêng nhánh infra không co backend/. Broker va
-  # database van dung duoc, chi la chua co bang.
-  echo "[INFO]        Checkout khong co backend/ (chi co infrastructure/)."
-  echo "[INFO]        Bo qua buoc nap schema. Database se con rong."
-  echo "[INFO]        Khi can: chay lai script nay tu nhanh co backend/."
-elif [ -d "$SCHEMA" ]; then
-  # Trường hợp Docker (hoặc ai do) tạo nhầm thư mục thay vì file.
-  echo "[ERROR]       $SCHEMA la THU MUC, khong phai file." >&2
-  echo "[ERROR]       Xoa no roi chay lai script nay:" >&2
-  echo "[ERROR]         rm -rf '$SCHEMA'" >&2
-  exit 1
-elif [ ! -s "$SCHEMA" ]; then
-  # -s: file co noi dung khac rong. File rong hoac khong ton tai deu sai.
-  echo "[ERROR]       Khong tim thay schema hoac file rong: $SCHEMA" >&2
-  exit 1
-else
-  # `-v ON_ERROR_STOP=1` là mấu chốt:
-  # Mặc định psql gặp câu SQL lỗi vẫn TIẾP TỤC câu sau và thoát với mã 0 —
-  # nghĩa là script này sẽ báo thành công dù schema chỉ tạo được một nửa.
-  # Bắt buộc phải có.
-  #
-  # `< "$SCHEMA"` (redirect stdin) thay cho `-f "$SCHEMA"` (truyền đường dẫn):
-  # đường dẫn phía trong container khác với phía trên host, nên phải nạp
-  # qua stdin thay vì để psql tự mở file bên trong container.
-  docker compose exec -T postgres \
-    psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$SCHEMA" \
-    || {
-      echo "[ERROR] Nap schema that bai." >&2
-      exit 1
-    }
-
-  # Xac nhan bang cach dem bang thuc te, khong tin log.
-  table_count="$(docker compose exec -T postgres \
-    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
-    "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('telemetry','machine_state','alarms','device','register_map','register_override','config_request','service_run','ingestion_receipt','consumer_health')" \
-    2>/dev/null | tr -d '[:space:]' || echo 0)"
-
-  echo "[INFO]        Da nap schema. So bang trong database: ${table_count:-0}"
-
-  if [ "${table_count:-0}" -ne 10 ]; then
-    echo "[ERROR]       Schema chua du 10 bang can cho backend hien tai." >&2
-    exit 1
-  fi
-fi
+# Cùng image/code với runtime; CLI tự phát hiện DB mới hay cũ và chạy đúng migration.
+docker compose build backend-api backend-consumer
+docker compose run --rm -T --no-deps --entrypoint node backend-api scripts/migrate.mjs
+table_count="$(docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" | tr -d '[:space:]')"
 
 # ------------------------------------------------------------------------------
 # 9. Dữ liệu mẫu (tùy chọn)
