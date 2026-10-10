@@ -330,7 +330,6 @@ services:
   # nên chỉ đợi service_started để vẫn truy cập được live/ready và thấy lỗi thực tế.
   api-gateway:
     image: nginx:1.28-alpine
-    container_name: ${GATEWAY_CONTAINER_NAME:-legacy-link-gateway}
     profiles: ["full"]
     restart: unless-stopped
     logging: *default-logging

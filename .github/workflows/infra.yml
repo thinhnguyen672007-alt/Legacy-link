@@ -14,9 +14,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-      # Compose interpolation with the sample defaults; catches a broken service,
-      # profile or variable reference before someone runs setup.sh on a machine.
+      # compose interpolates ${API_READ_TOKEN:?Run scripts/prepare-env.mjs first}, so
+      # create a throwaway .env before validating, the same way setup.sh does.
+      - name: Prepare a sample environment
+        working-directory: infrastructure
+        run: node scripts/prepare-env.mjs
+
       - name: Validate the Compose file
         working-directory: infrastructure
         run: COMPOSE_PROFILES=full docker compose config --quiet
@@ -27,12 +34,8 @@ jobs:
             bash -n "$script"
           done
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
       - name: Check Node script syntax
         run: |
-          for script in infrastructure/scripts/*.cjs; do
+          for script in infrastructure/scripts/*.cjs infrastructure/scripts/*.mjs; do
             node --check "$script"
           done
