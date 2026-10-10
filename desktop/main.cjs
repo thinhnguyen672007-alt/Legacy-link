@@ -3,11 +3,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
 const {AlarmPoller, normalizeServer} = require('./alarms.cjs');
+const {createNotifications} = require('./notifications.cjs');
 const APP_ID = 'vn.legacylink.desktop';
 let win, setup, tray, server = '', quitting = false, hiddenHint = false, pending, state = 'Cần đăng nhập';
 const setupURL = pathToFileURL(path.join(__dirname, 'setup.html')).href;
 const icon = path.join(__dirname, 'assets/icon.png');
-const activeNotifications = new Set();
+let toast;
 const preferences = {preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true};
 const configPath = () => path.join(app.getPath('userData'), 'server.json');
 function trusted(event, local = false) {
@@ -19,19 +20,6 @@ function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 function focus() {if (win && !win.isDestroyed()) {win.show(); win.restore(); win.focus();} else openSetup();}
-function toast(title, body, click) {
-  if (!Notification.isSupported()) {setStatus('Windows không hỗ trợ thông báo'); return;}
-  const n = new Notification({title, body, icon});
-  // Keep callbacks alive while Windows retains a toast in Action Center.
-  activeNotifications.add(n);
-  if (activeNotifications.size > 100) {
-    const oldest = activeNotifications.values().next().value;
-    oldest.close(); activeNotifications.delete(oldest);
-  }
-  n.once('click', () => {activeNotifications.delete(n); click();});
-  n.once('failed', () => {activeNotifications.delete(n); setStatus('Windows không gửi được thông báo');});
-  n.show();
-}
 function testToast() {toast('Legacy Link · THÔNG BÁO THỬ', 'Đây là thông báo thử Windows, không phải cảnh báo ESP32.', focus);}
 function setStatus(value, expiredToken) {
   state = value; refreshTray(); send('status', {text: value, expiredToken});
@@ -132,6 +120,7 @@ else {
   app.on('window-all-closed', () => {});
   app.whenReady().then(() => {
     app.setAppUserModelId(APP_ID);
+    toast = createNotifications(Notification, {icon, iconURL: pathToFileURL(icon).href, failed: () => setStatus('Windows không gửi được thông báo')});
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, cb) => cb(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     try {server = normalizeServer(JSON.parse(fs.readFileSync(configPath(), 'utf8')).server);} catch {}

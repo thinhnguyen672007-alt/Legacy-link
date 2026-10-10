@@ -1,6 +1,6 @@
 # Legacy Link Windows
 
-Electron shell sử dụng web/backend Linux hiện có. Cài `Legacy-Link-Setup-0.1.0-x64.exe`, nhập URL web Linux (ví dụ `http://192.168.1.13:8080`), đăng nhập bằng tài khoản đã cấp. Không nhập `/api`; localhost trên Windows là Windows, không phải Linux.
+Electron shell sử dụng web/backend Linux hiện có. Cài `Legacy-Link-Setup-0.1.2-x64.exe`, nhập URL web Linux (ví dụ `http://192.168.1.13:8080`), đăng nhập bằng tài khoản đã cấp. Không nhập `/api`; localhost trên Windows là Windows, không phải Linux.
 
 Bấm X ẩn xuống khay và tiếp tục theo dõi; menu khay có Mở dashboard, Thử thông báo, Đổi máy chủ, Thoát. Mở app lần hai focus instance cũ. Token chỉ ở RAM; mở lại/reload cần đăng nhập. Chỉ URL được lưu. IP đổi thì đổi URL; backend phải cho phép origin web mới trong CORS.
 
