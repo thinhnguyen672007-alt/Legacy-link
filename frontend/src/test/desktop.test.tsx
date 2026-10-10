@@ -26,3 +26,14 @@ it('session sync, two notification targets and matching expiry',async()=>{
  act(()=>status({text:'Cần đăng nhập',expiredToken:'session-token-123456'}));expect(screen.getByTestId('session')).toHaveTextContent('no');
  r.unmount();expect(remove).toHaveBeenCalled();
 });
+it('alarm filter follows repeated notification navigation on the same page',async()=>{
+ const {Alarms} = await import('../pages/Alarms');
+ const {useNavigate} = await import('react-router-dom');
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({items:[],nextCursor:null,from:0,to:Date.now()}),{status:200})));
+ function Page(){const navigate=useNavigate();return <><button onClick={()=>navigate('/alarms?device=BENCH-02&desktopEvent=2')}>Next target</button><Alarms/></>;}
+ render(<MemoryRouter initialEntries={['/alarms?device=BENCH-01&desktopEvent=1']}><SessionProvider><Page/></SessionProvider></MemoryRouter>);
+ expect(screen.getByLabelText('Mã thiết bị')).toHaveValue('BENCH-01');
+ fireEvent.click(screen.getByText('Next target'));
+ await waitFor(()=>expect(screen.getByLabelText('Mã thiết bị')).toHaveValue('BENCH-02'));
+ vi.unstubAllGlobals();
+});

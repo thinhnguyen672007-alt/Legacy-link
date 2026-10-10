@@ -1,13 +1,42 @@
 {
-  "name": "legacy-link-desktop", "version": "0.1.0", "private": true,
-  "description": "Legacy-link Windows desktop", "author": "Legacy-link team",
-  "main": "main.cjs", "scripts": { "start": "electron .", "test": "node --test test/*.test.cjs", "dist:win": "electron-builder --win nsis --x64 --publish never" },
-  "devDependencies": { "electron": "44.7.0", "electron-builder": "26.15.3" },
+  "name": "legacy-link-desktop",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Legacy-link Windows desktop",
+  "author": "Legacy-link team",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "dist:win": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3"
+  },
   "build": {
-    "appId": "vn.legacylink.desktop", "productName": "Legacy Link",
-    "directories": { "output": "dist" },
-    "files": ["*.cjs", "setup.html", "setup.js", "assets/**"],
-    "win": { "target": "nsis", "icon": "assets/icon.ico", "artifactName": "Legacy-Link-Setup-${version}-${arch}.${ext}" },
-    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true }
+    "appId": "vn.legacylink.desktop",
+    "productName": "Legacy Link",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "*.cjs",
+      "setup.html",
+      "setup.js",
+      "assets/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico",
+      "artifactName": "Legacy-Link-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
