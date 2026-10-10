@@ -7,12 +7,15 @@
 - Stack demo đang chạy trên máy phát triển Linux (Docker + Compose v2). Không dùng ESP32 thật.
 - Database demo đang ở schema cũ (10 bảng, trước C16) khi bắt đầu; backend trong repo đã lên
   schema version 4 nên phần việc chính là nâng cấp và kiểm chứng lại.
+- Đây là ghi chép theo thời điểm, chạy trên bản trước khi hợp nhất với `main`. Sau hợp nhất,
+  `setup.sh` migrate qua `backend/scripts/migrate.mjs` và probe dùng readiness của chính
+  backend; các bước "lúc kiểm tra" bên dưới mô tả đúng lần chạy đó, không phải code hiện tại.
 
 ## Kết quả
 
 | Bài kiểm tra | Kết quả và bằng chứng |
 | --- | --- |
-| Nâng cấp schema | `setup.sh` backup DB rồi nạp `schema.sql`: từ 10 bảng lên **15/15 bảng, version=4** |
+| Nâng cấp schema | `setup.sh` (bản lúc kiểm tra) backup DB rồi nạp `schema.sql`: từ 10 bảng lên **15/15 bảng, version=4** |
 | API khởi động | Trước sửa, `backend-api` crash-loop vì thiếu `API_READ_TOKEN`/`API_WRITE_TOKEN`. Sau khi nối token, cả 5 dịch vụ healthy và `/health/ready` có `schema:true` |
 | Ma trận xác thực | GET không token 401; GET token đọc 200; Origin lạ 403; preflight 204; POST không token 401; POST token ghi tới được API (404 cho id không tồn tại) |
 | Đọc có xác thực | `status.sh` xác nhận GET `/machines` qua gateway bằng `API_READ_TOKEN` trả 200 |
@@ -39,9 +42,11 @@ Bằng chứng cục bộ (Git bỏ qua):
 3. **Harness nghiệm thu lệch C11:** thiết bị giả `INFRA-TEST` không có metric trong catalog
    nên backend trả `metric_not_configured`. Đã đăng ký metric fixture và dọn khi kết thúc.
 4. **Watchdog cắt drain:** wrapper force-kill sau 7 giây trong khi deadline drain của backend
-   là 15 giây. Đã đọc `SHUTDOWN_TIMEOUT_MS` và đặt `stop_grace_period: 25s`.
-5. **Kiểm tra schema lỗi thời:** probe và `setup.sh` vẫn đếm 10 bảng; đã yêu cầu đủ 15 bảng
-   và `schema_migrations >= 4`.
+   là 15 giây. Đã đọc `SHUTDOWN_TIMEOUT_MS` và đặt `stop_grace_period` dài hơn deadline
+   (bản sau hợp nhất: 130 giây).
+5. **Kiểm tra schema lỗi thời (bản lúc kiểm tra):** probe và `setup.sh` vẫn đếm 10 bảng; đã
+   nâng lên đủ 15 bảng và `schema_migrations >= 4`. Sau hợp nhất, việc kiểm tra schema do
+   `backend/src/db/schema-version.js` và `scripts/migrate.mjs` đảm nhiệm.
 
 ## Phần chưa thể chốt
 
