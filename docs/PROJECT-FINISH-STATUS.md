@@ -67,3 +67,15 @@ Nghiệm thu bổ sung: API Docker mới xử lý hoàn tất câu diễn đạt
 ### 2026-10-10 — Clean connection UI and AI DENSO naming
 
 Bỏ ô địa chỉ API và hướng dẫn IP/CORS khỏi đăng nhập, bỏ URL ở topbar; production tiếp tục tự dùng `/api` cùng origin. Đổi tên launcher/dialog/accessibility labels sang AI DENSO trong VI/EN, dọn CSS/copy không còn dùng và cập nhật browser script/README. 80 frontend tests, lint/build qua; detector không có lỗi non-advisory. Browser kiểm tra desktop localhost và mobile IP LAN: login request tự chọn cùng origin, không còn URL trong phần hỗ trợ/topbar, tên VI/EN đúng, không tràn ngang. Login được bootstrap bằng read token để kiểm tra giao diện và đọc backend; không kiểm thử lại mật khẩu tài khoản thật. Đã cập nhật riêng container frontend.
+
+### 2026-10-11 — Windows app đang triển khai
+
+Nhánh `feat/windows-app` từ main `2ecc859` (PR #80). Có Electron shell/NSIS, setup URL, tray/single instance, polling main process, bridge session/router, Windows Actions artifact + checksum. Đã chạy 10 desktop logic tests và 88 frontend tests; lint/build frontend qua. Frontend live đã cập nhật riêng để có bridge. Chưa nghiệm thu installer/notification trên VM tại mốc ghi này. ESP32 khác mạng theo xác nhận người dùng, không coi lịch sử hoặc toast thử là alarm phần cứng mới. Chi tiết workflow tại `WINDOWS-APP-HANDOFF.md` và `desktop/README.md`.
+
+## Windows — tiến độ 2026-10-11
+
+- Đã triển khai Electron shell trên `feat/windows-app`, PR [#81](https://github.com/thinhnguyen672007-alt/Legacy-link/pull/81), chưa merge. Code 0.1.3 nguồn `8305396d13bbd8b12ab789322b6fdee318614669`; 12 desktop tests, 89 frontend tests, lint/build và Actions đạt. Đã deploy riêng frontend bridge, giữ nguyên backend/dữ liệu/Windows VM.
+- [Tải artifact 0.1.3](https://github.com/thinhnguyen672007-alt/Legacy-link/actions/runs/38088154883/artifacts/11683370850): installer NSIS Windows x64, manifest/SHA256; cần GitHub login, giữ 30 ngày, chưa ký số. Đã tải qua browser và cài trên VM.
+- Đăng nhập thật/dữ liệu lịch sử, X/tray, single instance, logout, Quit/lưu URL và mất mạng/phục hồi đã kiểm ở 0.1.0–0.1.1. Bản 0.1.3 đã xác nhận bấm toast thử trong Action Center mở lại app. Xem [nghiệm thu từng phiên bản](WINDOWS-APP-VALIDATION.md).
+- Còn kiểm áp dụng lại URL và đăng nhập trên 0.1.3, quay video gốc/x5, gửi Messenger đúng hai cuộc trò chuyện. Hiện cần bỏ trạng thái phím Win bị giữ trong VM; không đóng bàn phím ảo.
+- ESP32 khác mạng: alarm mới từ thiết bị thật chưa nghiệm thu. Không dùng toast thử để khẳng định phần cứng hoạt động.

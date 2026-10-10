@@ -1,3 +1,4 @@
+import { DesktopControls } from "./desktop";
 import { tr, useLanguage } from "./language";
 import { LanguageToggle } from "./components/LanguageToggle";
 import { Accounts, PasswordChange } from "./pages/Accounts";
@@ -63,7 +64,7 @@ export function App() {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
   const wallpaper = <div className={`ll-login ll-morph-surface${session || collapsing ? " collapsed" : ""}`} aria-hidden="true"><AnimatedLoginBackground /></div>;
-  if (!session) return <>{wallpaper}<Connection onEntering={() => setCollapsing(true)} onAbort={() => setCollapsing(false)} /></>;
+  if (!session) return <><DesktopControls />{wallpaper}<Connection onEntering={() => setCollapsing(true)} onAbort={() => setCollapsing(false)} /></>;
   return (
     <>{wallpaper}<div className="app-shell">
       <a className="skip-link" href="#content">
@@ -137,6 +138,7 @@ export function App() {
             <LogOut size={16} />
           </button>
         </header>
+        <DesktopControls />
         <main id="content" tabIndex={-1}><DashboardTransition pathname={location.pathname}>
           {session.user?.mustChangePassword ? (
             <PasswordChange />
