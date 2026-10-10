@@ -1,3 +1,5 @@
+import { Accounts, PasswordChange } from "./pages/Accounts";
+import { roleLabel } from "./api/accounts";
 import { Component, Suspense, lazy, useEffect, type ReactNode } from "react";
 import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
@@ -7,6 +9,8 @@ import {
   LayoutList,
   LogOut,
   Settings2,
+  Users,
+  KeyRound,
   Unplug,
 } from "lucide-react";
 import { useSession } from "./session";
@@ -70,10 +74,24 @@ export function App() {
             <Bell size={18} />
             Cảnh báo
           </NavLink>
-          <NavLink to="/commissioning">
-            <Settings2 size={18} />
-            Cấu hình
-          </NavLink>
+          {session.writeToken && (
+            <NavLink to="/commissioning">
+              <Settings2 size={18} />
+              Cấu hình
+            </NavLink>
+          )}
+          {session.user?.role === "admin" && (
+            <NavLink to="/accounts">
+              <Users size={18} />
+              Nhân viên
+            </NavLink>
+          )}
+          {session.user && (
+            <NavLink to="/password">
+              <KeyRound size={18} />
+              Đổi mật khẩu
+            </NavLink>
+          )}
         </nav>
         <div className="sidebar-bottom">
           <BookOpen size={19} />
@@ -93,33 +111,65 @@ export function App() {
             {session.base}
           </span>
           <span className="session-role">
-            {session.writeToken ? "Có quyền thao tác" : "Phiên chỉ đọc"}
+            {session.user
+              ? `${session.user.username} · ${roleLabel[session.user.role]}`
+              : session.writeToken
+                ? "Có quyền thao tác"
+                : "Phiên chỉ đọc"}
           </span>
           <button className="quiet" onClick={disconnect}>
             <LogOut size={16} />
-            Ngắt kết nối
+            Đăng xuất
           </button>
         </header>
         <main id="content" tabIndex={-1}>
-          <Suspense fallback={<p role="status">Đang mở màn hình…</p>}>
-            <Routes>
-              <Route path="/" element={<Machines />} />
-              <Route path="/machines" element={<Machines />} />
-              <Route path="/machines/:id" element={<MachineDetail />} />
-              <Route path="/alarms" element={<Alarms />} />
-              <Route path="/commissioning" element={null} />
-              <Route
-                path="*"
-                element={
-                  <>
-                    <h1>Không tìm thấy trang</h1>
-                    <Link to="/machines">Về danh sách thiết bị</Link>
-                  </>
-                }
-              />
-            </Routes>
-          </Suspense>
-          <Commissioning active={location.pathname === "/commissioning"} />
+          {session.user?.mustChangePassword ? (
+            <PasswordChange />
+          ) : (
+            <>
+              <Suspense fallback={<p role="status">Đang mở màn hình…</p>}>
+                <Routes>
+                  <Route
+                    path="/accounts"
+                    element={
+                      session.user?.role === "admin" ? (
+                        <Accounts />
+                      ) : (
+                        <p>Không có quyền quản lý tài khoản.</p>
+                      )
+                    }
+                  />
+                  <Route path="/password" element={<PasswordChange />} />
+                  <Route path="/" element={<Machines />} />
+                  <Route path="/machines" element={<Machines />} />
+                  <Route path="/machines/:id" element={<MachineDetail />} />
+                  <Route path="/alarms" element={<Alarms />} />
+                  <Route
+                    path="/commissioning"
+                    element={
+                      session.writeToken ? null : (
+                        <p>Cần quyền Technician để cấu hình thiết bị.</p>
+                      )
+                    }
+                  />
+                  <Route
+                    path="*"
+                    element={
+                      <>
+                        <h1>Không tìm thấy trang</h1>
+                        <Link to="/machines">Về danh sách thiết bị</Link>
+                      </>
+                    }
+                  />
+                </Routes>
+              </Suspense>
+              {session.writeToken && (
+                <Commissioning
+                  active={location.pathname === "/commissioning"}
+                />
+              )}
+            </>
+          )}
         </main>
         <footer>
           Legacy-link · Số đo thật cần được đối chiếu với nguồn thiết bị · GMT+7

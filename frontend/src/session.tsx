@@ -1,5 +1,6 @@
 import {
   createContext,
+  useEffect,
   useContext,
   useMemo,
   useState,
@@ -7,6 +8,7 @@ import {
 } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ApiError, createApi, type Session } from "./api/client";
+import { accountsApi } from "./api/accounts";
 const Context = createContext<{
   session: Session | null;
   connect: (s: Session) => void;
@@ -23,6 +25,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         },
       }),
   );
+  useEffect(() => {
+    if (!session?.user) return;
+    const timer = setInterval(() => {
+      void accountsApi(session)
+        .me()
+        .catch((error) => {
+          if (error instanceof ApiError && error.status === 401) {
+            client.clear();
+            setSession(null);
+          }
+        });
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [session, client]);
   const clear = () => {
     void client.cancelQueries();
     client.clear();
@@ -36,6 +52,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           setSession(s);
         },
         disconnect: () => {
+          if (session?.user)
+            void accountsApi(session)
+              .logout()
+              .catch(() => {});
           clear();
           setSession(null);
         },

@@ -1271,3 +1271,12 @@ tbody tr:hover {
 .copilot-panel .copilot-note { color: #b9c7e0; font-size: 13px; }
 .copilot-panel textarea { width: 100%; min-height: 70px; background: #12162a; color: white; border: 1px solid #73849e; }
 @media (max-width: 600px) { .copilot-panel { inset: 0; width: 100%; border-radius: 0; } .copilot-launch { bottom: 12px; right: 12px; } }
+.account-panel { max-width: 680px; margin: 24px auto; }
+.account-form { display: grid; gap: 14px; max-width: 480px; margin: 24px 0 32px; }
+.account-form label { display: grid; gap: 6px; }
+.account-form button { justify-self: start; }
+
+@media (max-width: 760px) {
+  .sidebar nav { overflow-x: auto; }
+  .sidebar nav a { flex: 0 0 auto; white-space: nowrap; }
+}

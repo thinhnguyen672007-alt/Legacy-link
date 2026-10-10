@@ -23,7 +23,7 @@ export class ApiError extends Error {
   }
 }
 const messages: Record<number, string> = {
-  401: "Token không hợp lệ hoặc đã hết hạn. Hãy kết nối lại.",
+  401: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Hãy đăng nhập lại.",
   403: "Không có quyền thao tác hoặc origin chưa được cho phép.",
   404: "Không tìm thấy dữ liệu yêu cầu.",
   409: "Thiết bị đang có thao tác khác. Kiểm tra lịch sử trước khi thử lại.",
@@ -129,7 +129,7 @@ export async function request<T>(
     );
   return parsed.data;
 }
-export type Session = { base: string; readToken: string; writeToken: string };
+export type Session = { user?: import("./accounts").Account; base: string; readToken: string; writeToken: string };
 export function createApi(s: Session) {
   const get = <T>(p: string, schema: z.ZodType<T>, signal?: AbortSignal) =>
     request(s.base, p, s.readToken || s.writeToken, schema, { signal });

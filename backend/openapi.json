@@ -4,6 +4,7 @@
     "title": "Legacy Link Backend API",
     "version": "0.6.0",
     "description": "API Legacy Link: token đọc cho GET, token ghi cho POST; timestamp đo là epoch milliseconds, ID DB là chuỗi. C16 bổ sung profile version, preview, lịch sử thao tác PostgreSQL, metrics, freshness. Xem deploy/README.md và docs/SO-TAY-HIEU-DU-AN-LEGACY-LINK.md. Rate limit mỗi socket IP/process: 300 GET và 30 thao tác/phút; 429 kèm Retry-After. Thêm deliveryHealth và diagnostics.delivery để quan sát queue ESP32; không cần endpoint riêng. AI: POST /ai/chat và /ai/query chỉ đọc, chấp nhận token đọc; Gemini chỉ chọn tool. UNDERHEAT dùng lowAlarm riêng, yêu cầu đơn vị nhiệt độ."
+    "description": "API Legacy Link: token đọc cho GET, token ghi cho POST; timestamp đo là epoch milliseconds, ID DB là chuỗi. C16 bổ sung profile version, preview, lịch sử thao tác PostgreSQL, metrics, freshness. Xem deploy/README.md và docs/SO-TAY-HIEU-DU-AN-LEGACY-LINK.md. Rate limit mỗi socket IP/process: 300 GET và 30 thao tác/phút; 429 kèm Retry-After. Thêm deliveryHealth và diagnostics.delivery để quan sát queue ESP32; không cần endpoint riêng."
   },
   "servers": [
     {
@@ -2910,6 +2911,47 @@
       "post": {
         "summary": "Câu hỏi tiếng Việt: Gemini chọn công cụ; backend xác minh dữ liệu",
         "description": "Chấp nhận read hoặc write bearer token. Chỉ gửi question hoặc action. Context giữ ID kết quả 10 phút, tối đa 200 phiên/process. Model tối đa 5 câu/phút/process, 1 đồng thời; 1 request/câu, không retry. Timeout provider 12s, tổng tools 8s. Không có key/hết quota thì fallback minh bạch. Không thực thi SQL, URL hoặc điều khiển máy.",
+    "/auth/login": {
+      "post": {
+        "summary": "Sign in with an employee account",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "token",
+                    "user",
+                    "expiresInSeconds"
+                  ],
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/Account"
+                    },
+                    "expiresInSeconds": {
+                      "type": "integer",
+                      "example": 28800
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission denied or password change required"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
         "requestBody": {
           "required": true,
           "content": {
@@ -2990,6 +3032,192 @@
       "post": {
         "summary": "AI Copilot chỉ đọc: quick action không dùng Gemini",
         "description": "Chấp nhận read hoặc write bearer token. Chỉ gửi question hoặc action. Context giữ ID kết quả 10 phút, tối đa 200 phiên/process. Model tối đa 5 câu/phút/process, 1 đồng thời; 1 request/câu, không retry. Timeout provider 12s, tổng tools 8s. Không có key/hết quota thì fallback minh bạch. Không thực thi SQL, URL hoặc điều khiển máy.",
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "writeOnly": true
+                  }
+                },
+                "required": [
+                  "username",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "summary": "Get current employee",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission denied or password change required"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Revoke current session",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission denied or password change required"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        }
+      }
+    },
+    "/auth/password": {
+      "post": {
+        "summary": "Change password and revoke all sessions",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission denied or password change required"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "currentPassword": {
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 12,
+                    "writeOnly": true
+                  }
+                },
+                "required": [
+                  "currentPassword",
+                  "password"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "summary": "List accounts; administrator only",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Account"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission denied or password change required"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        }
+      }
+    },
+    "/admin/users/create": {
+      "post": {
+        "summary": "Create viewer or technician; administrator only",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission denied or password change required"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
         "requestBody": {
           "required": true,
           "content": {
@@ -3010,6 +3238,20 @@
                       "offline",
                       "summary",
                       "alerts"
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 12,
+                    "writeOnly": true
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "viewer",
+                      "technician"
                     ]
                   }
                 },
@@ -3048,6 +3290,95 @@
           },
           "503": {
             "description": "Nguồn dữ liệu không khả dụng"
+                  "username",
+                  "password",
+                  "role"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users/{id}": {
+      "post": {
+        "summary": "Update account and revoke sessions; administrator only",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission denied or password change required"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "viewer",
+                      "technician"
+                    ]
+                  },
+                  "disabled": {
+                    "type": "boolean"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 12,
+                    "writeOnly": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/admin/audit": {
+      "get": {
+        "summary": "Latest 200 audit entries; administrator only",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission denied or password change required"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         }
       }
@@ -3893,6 +4224,36 @@
                 }
               }
             }
+      "Account": {
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "role",
+          "disabled",
+          "mustChangePassword"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "viewer",
+              "technician",
+              "admin"
+            ]
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "mustChangePassword": {
+            "type": "boolean"
           }
         }
       }

@@ -10,7 +10,7 @@ try {
   if (!exists)
     await client.query(readFileSync(new URL('../db/schema.sql', import.meta.url), 'utf8'));
   else
-    for (const file of ['migrate-c7-c8-c9.sql', 'migrate-c10.sql', 'migrate-c16.sql'])
+    for (const file of ['migrate-c7-c8-c9.sql', 'migrate-c10.sql', 'migrate-c16.sql', 'migrate-accounts.sql'])
       await client.query(readFileSync(new URL('../db/' + file, import.meta.url), 'utf8'));
   const status = await schemaStatus(client);
   if (!status.ready) throw new Error('Schema chưa hoàn chỉnh: ' + JSON.stringify(status));

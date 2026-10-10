@@ -13,7 +13,7 @@ npm run dev
 
 Mở **http://127.0.0.1:5173**. API mặc định **http://localhost:3000**; có thể nhập URL khác tại màn hình kết nối hoặc đặt `VITE_API_BASE_URL` trong `.env.local`. `.env.example` chỉ chứa URL, không chứa token.
 
-Người vận hành nhập token đọc và tùy chọn token thao tác vào form. Token nằm trong bộ nhớ, không lưu localStorage/sessionStorage, URL hay bundle. Ngắt kết nối hoặc tải lại trang sẽ xóa phiên. Nếu đang có lệnh cấu hình, cần ghi nhớ operation ID và kiểm tra lịch sử sau khi kết nối lại; tải lại trang không hủy lệnh đã tới thiết bị.
+Nhân viên đăng nhập bằng username/password. Admin tạo Viewer (chỉ xem) hoặc Technician (thao tác); màn hình Nhân viên chỉ dành cho Admin. Tài khoản mới phải đổi mật khẩu. Phiên chỉ ở RAM trình duyệt và hết hạn sau 8 giờ; đóng/tải lại trang cần đăng nhập lại. Khóa hoặc đổi quyền thu hồi phiên phía server. Xem [account setup](../backend/deploy/ACCOUNTS.md) để migrate và tạo Admin đầu tiên.
 
 Để xem bản build trên cùng origin:
 
@@ -55,7 +55,7 @@ API fixture độc lập để xem/test giao diện:
 npm run test:fixtures
 ```
 
-Trong UI nhập API **http://127.0.0.1:4319**, token đọc `fixture-read`, token thao tác `fixture-write`. Mở frontend bằng **127.0.0.1:5173** đúng origin fixture cho phép. Thiết bị/profile có nhãn **MÔ PHỎNG**. Không có ESP32/DB thật phía sau fixture; không dùng kết quả này làm bằng chứng phần cứng. UI không tự chuyển sang fixture khi API thật lỗi. Dừng bằng Ctrl+C sau test.
+Trong UI nhập API **http://127.0.0.1:4319**, username `viewer` hoặc `technician`, password `fixture-password` (chỉ fixture). Mở frontend bằng **127.0.0.1:5173** đúng origin fixture cho phép. Thiết bị/profile có nhãn **MÔ PHỎNG**. Không có ESP32/DB thật phía sau fixture; không dùng kết quả này làm bằng chứng phần cứng. UI không tự chuyển sang fixture khi API thật lỗi. Dừng bằng Ctrl+C sau test.
 
 Script kiểm tra đọc API thật (không ghi hoặc in token):
 
@@ -83,3 +83,8 @@ Hoặc đặt `LEGACY_LINK_API_URL`, `LEGACY_LINK_READ_TOKEN` trong môi trườ
 - [Hướng thiết kế](docs/surface-brief.md)
 
 P1 quản lý/import/export profile đầy đủ, hệ thống nâng cao; P2 hiệu ứng bổ sung chưa triển khai. CI/root manifest/deploy ngoài frontend chưa thay đổi. Nhánh `feature/frontend` dùng PR vào `main`; hướng dẫn nghiệm thu thật nằm trong báo cáo bên dưới.
+
+## Employee accounts
+
+Account setup and migration: [backend/deploy/ACCOUNTS.md](../backend/deploy/ACCOUNTS.md).
+Production builds default to the same-origin `/api` proxy; Vite development defaults to `http://localhost:3000`. The Docker image accepts `API_UPSTREAM` (for example `backend-api:3000`) and forwards Authorization unchanged. Set CORS_ORIGINS to the browser's actual origin on the backend. A frontend-only deployment without the updated backend/schema cannot sign in with accounts.

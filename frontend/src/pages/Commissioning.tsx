@@ -213,7 +213,7 @@ export function Commissioning({ active }: { active: boolean }) {
       </ol>
       {!session?.writeToken && (
         <Notice>
-          Phiên chỉ đọc. Cần token thao tác để preview, đọc thử và áp dụng.
+          Phiên chỉ đọc. Cần quyền Technician để kiểm tra, đọc thử và áp dụng.
         </Notice>
       )}
       {uncertain && (
