@@ -39,4 +39,4 @@ services:
 networks:
   legacy:
     external: true
-    name: ${LEGACY_NETWORK:-legacy-link_default}
+    name: ${LEGACY_NETWORK:-legacy-link-net}
