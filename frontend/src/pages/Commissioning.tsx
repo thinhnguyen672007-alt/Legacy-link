@@ -216,13 +216,6 @@ export function Commissioning({ active }: { active: boolean }) {
           Phiên chỉ đọc. Cần quyền Technician để kiểm tra, đọc thử và áp dụng.
         </Notice>
       )}
-      {uncertain && (
-        <Notice tone="bad">
-          Chưa xác định được kết quả gửi lệnh. Không gửi lại tự động. Xem lịch
-          sử thao tác và trạng thái gateway trước khi tiếp tục.
-        </Notice>
-      )}
-      {error && <Notice tone="bad">{error}</Notice>}
       <div className="commission-grid">
         <form
           className="surface section"
@@ -748,6 +741,14 @@ export function Commissioning({ active }: { active: boolean }) {
               Gateway <span className="mono">{gateway || "chưa chọn"}</span>
             </p>
             <Badge value={g?.online ? "online" : "unknown"} />
+            {error && <Notice tone="bad">{error}</Notice>}
+            {uncertain && (
+              <Notice tone="bad">
+                Chưa xác định được kết quả gửi lệnh. Xem lịch sử thao tác và
+                trạng thái gateway trước khi gửi lại.
+              </Notice>
+            )}
+            <QueryState error={op.error} loading={false} />
             {preview ? (
               <>
                 <p>
@@ -783,7 +784,7 @@ export function Commissioning({ active }: { active: boolean }) {
               </p>
             )}
             <QueryState
-              error={op.error}
+              error={null}
               loading={!!(applyId || probeId) && op.isPending}
             />
             {op.data && <OperationResult op={op.data} />}
@@ -1024,9 +1025,11 @@ export function OperationResult({ op }: { op: Operation }) {
     <div className="operation-result">
       <strong className={bad ? "text-bad" : ""}>{phaseNames[op.phase]}</strong>
       <code>{op.id}</code>
-      <p className="help">
-        HTTP 202 chỉ là đã tiếp nhận. Theo dõi kết quả cuối từ gateway.
-      </p>
+      {!terminal(op) && (
+        <p className="help">
+          Backend đã nhận lệnh; đang chờ kết quả từ gateway.
+        </p>
+      )}
       {op.error && <Notice tone="bad">{op.error}</Notice>}
       {op.readings?.map((r) => (
         <div className="probe-row" key={r.key}>
@@ -1036,7 +1039,7 @@ export function OperationResult({ op }: { op: Operation }) {
               ? r.value == null
                 ? "Không có giá trị"
                 : number(r.value)
-              : `Lỗi ${r.errorCode}`}
+              : "Không đọc được"}
           </span>
           <Badge
             value={
@@ -1047,6 +1050,18 @@ export function OperationResult({ op }: { op: Operation }) {
                   : "healthy"
             }
           />
+          {!r.success && (
+            <p className="probe-detail text-bad">
+              Không đọc được {r.key} tại địa chỉ thô {r.address} (mã Modbus{" "}
+              {r.errorCode}). {modbusReadError(r.errorCode)}
+            </p>
+          )}
+          {r.success && r.withinRange === false && (
+            <p className="probe-detail help">
+              Số đo đã đọc được nhưng nằm ngoài khoảng dự kiến. Kiểm tra giá trị
+              nhỏ nhất/lớn nhất, hệ số scale và đơn vị của {r.key}.
+            </p>
+          )}
         </div>
       ))}
       {op.kind === "apply" && op.phase === "applied" && (
@@ -1064,5 +1079,21 @@ export function OperationResult({ op }: { op: Operation }) {
         </>
       )}
     </div>
+  );
+}
+function modbusReadError(code: number) {
+  const messages: Record<number, string> = {
+    1: "Thiết bị không hỗ trợ hàm đọc này. Kiểm tra lựa chọn 03/04 theo tài liệu thiết bị.",
+    2: "Thiết bị từ chối địa chỉ hoặc số thanh ghi cần đọc. Kiểm tra địa chỉ thô, hàm đọc 03/04 và số thanh ghi theo kiểu dữ liệu trong tài liệu thiết bị hoặc simulator.",
+    3: "Thiết bị từ chối tham số yêu cầu đọc. Kiểm tra hàm đọc và kiểu dữ liệu.",
+    4: "Thiết bị báo không xử lý được yêu cầu đọc. Kiểm tra trạng thái thiết bị rồi đọc thử lại.",
+    224: "Địa chỉ slave trong phản hồi không khớp. Kiểm tra địa chỉ slave đã chọn.",
+    225: "Hàm đọc trong phản hồi không khớp yêu cầu. Kiểm tra cấu hình Modbus và thiết bị đang kết nối.",
+    226: "Không nhận đủ phản hồi trong thời gian chờ. Kiểm tra nguồn thiết bị, dây kết nối, địa chỉ slave, baud rate và parity.",
+    227: "Phản hồi bị lỗi kiểm tra dữ liệu (CRC). Kiểm tra dây kết nối, nhiễu và thông số truyền thông Modbus.",
+  };
+  return (
+    messages[code] ??
+    "Chưa có mô tả cho mã lỗi này. Đối chiếu mã với log gateway và tài liệu Modbus của thiết bị."
   );
 }

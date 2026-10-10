@@ -751,6 +751,11 @@ tbody tr:hover {
   font-size: 12px;
   flex-wrap: wrap;
 }
+.probe-detail {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 .operation-history {
   display: grid;
   gap: 7px;
