@@ -65,7 +65,7 @@ int main() {
 
   modbus_result_t readings[MAX_REGISTERS] = {};
   for (int i = 0; i < MAX_REGISTERS; ++i) {
-    snprintf(readings[i].key, sizeof(readings[i].key), "metric-long-name-%02d", i);
+    snprintf(readings[i].key, sizeof(readings[i].key), "metric_long_name_%02d", i);
     readings[i].success = true;
     readings[i].scaled_value = 123456.75f;
   }

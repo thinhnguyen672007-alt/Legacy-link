@@ -37,9 +37,11 @@ the write. Until a save succeeds, a reset may restore the previous saved config.
 Flash storage is not an offline telemetry or alarm queue. Alarm suppression
 state resets at boot; an ongoing alarm may be reported again after restart.
 
-A retained MQTT config is authoritative when received and can replace a newer
-Serial config or the saved one. Keep the retained message current when changing
-device assignments; identical redelivery is harmless. Factory erase clears NVS.
+A valid retained legacy config without command guards can replace a newer Serial
+or saved config. Guarded commands must match the current boot/profile and remain
+unexpired; an old retained control command can therefore be rejected after reboot.
+NVS restoration validates the saved machine settings without re-executing the old
+command deadline. Keep retained configuration current. Factory erase clears NVS.
 
 ## Configuration acknowledgement contract
 
@@ -68,9 +70,10 @@ or config version. A successful response looks like:
 }
 ```
 
-`result` is `applied`, `unchanged`, or `rejected`. Reasons are `ok`,
+`result` is `received`, `applied`, `unchanged`, or `rejected`. Reasons include `ok`,
 `storage_error`, `invalid_payload`, `invalid_config`, `device_id_mismatch`,
-`out_of_memory`, `apply_failed`, or `busy`. `deviceId` and `persisted` describe
+`out_of_memory`, `apply_failed`, `busy`, `stale_command`, `invalid_probe`, and
+`report_publish_failed`. `deviceId` and `persisted` describe
 the **active** configuration, including on rejection; absent active config means
 no device ID and `persisted: false`. Malformed payloads and callback-level
 rejections may lack `requestId`. `timestamp` is omitted if the clock is not
@@ -83,8 +86,8 @@ application. Send **one request at a time per gateway**, subscribe before sendin
 match the request ID, and retry the same config if the result is not received.
 Do not assume every burst request receives an ACK. A successful publish does
 not prove backend receipt. Broker ACLs must allow the gateway to publish this
-topic and the provisioning service to subscribe. The backend still needs a
-publisher/ACK consumer; this firmware does not call the HTTP catalog endpoint.
+topic and the provisioning service to subscribe. The backend control service consumes these replies; this firmware does not call
+the HTTP catalog endpoint. See [control guards](backend-alignment.md#control-commands-and-local-verification).
 
 ## Polling and network behavior
 
@@ -98,7 +101,8 @@ so old/new maps never share one telemetry payload.
 `samplingIntervalMs` is the target start-to-start scan interval, not a deadline.
 If reads exceed it, the next scan starts after the current one completes. Failed
 reads are omitted, and an all-failed scan sends no telemetry. Readings in a scan
-are sequential, not simultaneous; the payload timestamp is publication time.
+are sequential, not simultaneous; the payload timestamp is the end of collection, before enqueueing. Retries
+preserve that timestamp.
 Alarms are evaluated after the complete scan. With 16 absent registers and the
 library's 2-second response timeout, a scan can take about 32 seconds and delay
 alarm evaluation accordingly. Choose the map and interval for the equipment.
@@ -107,7 +111,12 @@ The host regression test simulates this 32-second wait and checks network-servic
 gaps of at most 10 ms. This is not a physical timing guarantee: MQTT connection
 and socket reads can block, UART traffic and OS scheduling affect timing, and
 there is no hard real-time or machine shutdown function. MQTT socket read timeout
-is set to one second. Telemetry/alarms are QoS 0 with no offline history queue.
+is set to one second. Telemetry/alarms use MQTT QoS 0 plus bounded RAM outboxes
+(32 telemetry samples, 8 alarms). Samples remain until a matching application
+`committed` ACK; broker write success alone does not remove them. Full queues
+reject new samples, rejected heads remain queued, and reset/power loss clears
+RAM. Sampling continues while offline, but samples need valid epoch time before
+they can enter the delivery queue. See [USB inspection](usb-inspection.md).
 
 Retained online status means the gateway is connected, not that Modbus reads
 succeed. The retained Last Will reports unexpected disconnection after broker
@@ -133,6 +142,8 @@ complete, record firmware/backend versions and verify:
 6. Remove power and confirm retained offline status after the broker timeout;
    restore power/Wi-Fi and check NTP, identity and retained config behavior.
 
-Backend coordination remains necessary: include alarms in the catalog output,
-agree on supported low-alarm codes, route catalog configs to MQTT and consume
-ACKs. Current backend `9a7afa6` accepts torque but omits alarms from catalog mapping.
+Backend coordination remains necessary for registered devices/metrics, supported
+alarm codes, commissioning operations and ACK ingestion. Use the exact tested
+revision in the [local validation report](local-validation-2026-10-10.md) and run
+contract tests again when backend changes. Host and contract checks do not prove
+physical recovery or database deduplication on the integrated deployment.
