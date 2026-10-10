@@ -6,6 +6,16 @@
 TestSerial Serial, Serial2;
 TestEsp ESP;
 unsigned long test_millis = 0;
+static bool injected = false;
+static void inject_while_probing() {
+  if (injected) return;
+  injected = true;
+  const std::string before = pending_config;
+  mqttClient.receive(config_topic, R"({"requestId":"competing"})");
+  assert(config_pending && before == pending_config);
+  DynamicJsonDocument ack(1024); assert(!deserializeJson(ack, config_ack));
+  assert(ack["reason"] == "busy" && ack["requestId"] == "competing");
+}
 int main() {
   setup();
   const char *active = R"({"deviceId":"A","requestId":"apply-a","registerMap":[{"key":"temperature","address":0,"scale":0.1}]})";
@@ -57,5 +67,27 @@ int main() {
   publish_gateway_state();
   assert(!deserializeJson(failed, mqttClient.published.back().payload));
   assert(failed["restored"] == true && failed["configRequestId"] == "apply-a");
+  modbus_error() = 0; modbus_wait_ms() = 100;
+  modbus_wait_hook() = inject_while_probing;
+  mqttClient.receive(probe_topic, probe); loop();
+  modbus_wait_hook() = nullptr;
+  assert(injected && !config_pending);
+  assert(!memcmp(&before, &global_device_config, sizeof(before)));
+  // A multi-register probe expires during its first slow transaction.
+  DynamicJsonDocument slow(4096); assert(!deserializeJson(slow, probe));
+  slow["expiresAt"] = current_epoch_ms() + 50;
+  slow["registerMap"].as<JsonArray>().add(slow["registerMap"][0]);
+  slow["registerMap"][1]["key"] = "second";
+  std::string slowPayload; serializeJson(slow, slowPayload);
+  mqttClient.published.clear();
+  const unsigned calls = modbus_read_calls();
+  run_probe(slowPayload.c_str());
+  assert(modbus_read_calls() == calls + 1);
+  assert(Serial2.last_baud_rate == before.baud_rate);
+  assert(saved_config_blob() == flash);
+  for (const auto &msg : mqttClient.published)
+    assert(msg.topic != std::string(probe_topic) + "/result");
+  assert(!deserializeJson(rejected, config_ack));
+  assert(rejected["reason"] == "stale_command");
   std::cout << "Probe isolation, raw signed values, read failures and boot evidence passed.\n";
 }

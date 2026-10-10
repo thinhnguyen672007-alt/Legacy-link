@@ -557,16 +557,42 @@ void run_probe(const char *payload) {
     queue_config_ack("rejected", "invalid_probe", request_id);
     return;
   }
+  uint64_t expires_at = 0;
+  {
+    DynamicJsonDocument command(8192);
+    if (deserializeJson(command, payload) || !command_deadline_valid(command, current_epoch_ms())) {
+      queue_config_ack("rejected", "stale_command", request_id);
+      return;
+    }
+    expires_at = command["expiresAt"] | uint64_t(0);
+  }
+  const uint64_t started_epoch = current_epoch_ms();
+  const uint32_t started_ms = millis();
+  // Keep large workspaces off the ESP32 loop stack.
+  std::unique_ptr<modbus_result_t[]> results(new (std::nothrow) modbus_result_t[MAX_REGISTERS]{});
+  std::unique_ptr<device_config_t> fallback;
+  if (!is_config_valid) fallback.reset(new (std::nothrow) device_config_t{});
+  if (!results || (!is_config_valid && !fallback)) {
+    queue_config_ack("rejected", "out_of_memory", request_id);
+    return;
+  }
+  if (fallback) { fallback->baud_rate = 9600; fallback->stop_bits = 1; }
   // Temporarily switch UART settings; never replace global config, NVS or alarms.
-  device_config_t fallback = {};
-  fallback.baud_rate = 9600; fallback.stop_bits = 1;
   apply_uart_config(candidate.get());
-  modbus_result_t results[MAX_REGISTERS] = {};
-  for (uint8_t i = 0; i < candidate->register_count; ++i)
+  bool expired = false;
+  for (uint8_t i = 0; i < candidate->register_count; ++i) {
     modbus_read_one(candidate.get(), i, &results[i]);
-  apply_uart_config(is_config_valid ? &global_device_config : &fallback);
+    // A transaction cannot be interrupted; stop before starting the next one.
+    // Monotonic elapsed time also protects against an NTP clock step backwards.
+    expired = expires_at && (current_epoch_ms() >= expires_at ||
+        expires_at <= started_epoch ||
+        static_cast<uint32_t>(millis() - started_ms) >= expires_at - started_epoch);
+    if (expired) break;
+  }
+  apply_uart_config(is_config_valid ? &global_device_config : fallback.get());
   reset_poll_cycle();
-  send_read_report(*candidate, results, request_id);
+  if (expired) queue_config_ack("rejected", "stale_command", request_id);
+  else send_read_report(*candidate, results.get(), request_id);
 }
 
 void poll_modbus_step() {
