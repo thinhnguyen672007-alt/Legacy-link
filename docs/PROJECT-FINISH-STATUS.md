@@ -26,10 +26,11 @@ Mốc nguồn: `main` tại `8364b1e` (PR #71). Nhánh triển khai: `feature/de
 - Agent trên máy 1 báo đã sửa MQTT host firmware từ IP máy 1 `192.168.110.128` sang máy 2 `192.168.110.12:1883`, nạp lại và xác nhận Wi-Fi/MQTT/NTP, 18 Modbus reads thành công/0 lỗi. Gateway `643C60A7DBCC`, device `BENCH-01`, sampling 2000 ms. Không đổi credentials. Agent đã dừng `acceptance-monitor.py` để giải phóng serial; simulator vẫn chạy.
 - Đối chiếu trực tiếp trên máy 2 lúc `2026-10-10T13:23:43Z`: API ready 200; gateway online, `dataFresh=true`, `readHealth=healthy`, `deliveryHealth=healthy`, age 2s. DB tăng từ 324 lên 406 số đo; ba mẫu lúc 13:23:37/39/41 UTC có nhiệt độ 81.6/77.3/72.9, dòng 1.50/1.47/1.45, rpm 1785/1759/1723. Firmware diagnostics báo telemetry committed 82, pending 0; alarm committed 4, pending 0, không failedEnqueues. DB có OVERHEAT high lúc 13:22:57 và critical lúc 13:23:01 UTC. Đây là chứng cứ Modbus/ESP32 → broker → consumer → DB → API đang hoạt động; chưa thay cho xác nhận UI/ACK/commissioning/recovery.
 - Source checkout chính đã được thao tác khác chuyển về `main`; stack vẫn dùng images đã build từ chặng A. Tiếp tục tài liệu/code trên worktree `/home/james/Projects/Hackathon DENSON/Legacy-link-demo` của nhánh `feature/demo-compose`, không tự đổi checkout đang dùng của người khác. `.env` live và bind mounts vẫn nằm tại repo gốc `Legacy-link-/infrastructure/`; không chạy Compose từ worktree trống cấu hình vào stack live.
+- Người dùng xác nhận thấy cảnh báo mới và bấm ACK trên UI máy 2. Đối chiếu DB/audit: Admin ACK các cảnh báo BENCH-01, gồm ID 46 high, 47 critical, 48 high; acknowledged_at được lưu lúc 13:26:42–43 UTC, audit accepted. API vẫn online/dataFresh/readHealth/deliveryHealth healthy, age 1s. Backend live chưa có GEMINI_API_KEY; nghiệm thu Copilot hiện phải ghi chế độ rules, không ghi Gemini pass.
 
 ## Bước tiếp theo
 
-Chặng B: trên web máy 2 mở Cảnh báo, xác minh OVERHEAT mới của BENCH-01 và ACK một cảnh báo bằng Admin/Technician. Tiếp tục nghiệm thu commissioning/Copilot và outage ngắn có phối hợp máy 1; chưa stop broker hoặc flash lại chỉ để thử. Nhân viên đăng nhập vẫn cần người dùng xác nhận. Sau gate B mới chốt chuyển sang desktop Windows.
+Chặng B: trên web máy 2 mở AI Copilot, thử quick action Máy quá nóng và kiểm tra chế độ rules cùng dữ liệu BENCH-01. Tiếp tục nghiệm thu commissioning và outage ngắn có phối hợp máy 1; chưa stop broker hoặc flash lại chỉ để thử. Nhân viên đăng nhập vẫn cần người dùng xác nhận. Sau gate B mới chốt chuyển sang desktop Windows.
 
 ## Quy tắc cập nhật
 
