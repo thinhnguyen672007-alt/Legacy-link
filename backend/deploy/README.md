@@ -6,7 +6,7 @@ Code thay đổi ở local, không tự push, không tự thay broker/database �
 ## 1. Chạy bằng Node trong máy Thịnh
 
 ```bash
-cd /home/nguyenvuducthinh/Legacy-link/backend
+cd /path/to/Legacy-link/backend
 npm ci
 ```
 
@@ -81,7 +81,7 @@ const machines = await api.machines();
 6. Consumer đang chạy ngoài Compose phải dừng trước khi dùng cùng `MQTT_CLIENT_ID`, tránh hai tiến trình đá kết nối của nhau.
 
 ```bash
-cd /home/nguyenvuducthinh/Legacy-link/backend
+cd /path/to/Legacy-link/backend
 docker compose --env-file .env.compose config --quiet
 docker compose --env-file .env.compose build
 docker compose --env-file .env.compose run --rm api npm run db:migrate
@@ -111,7 +111,7 @@ ACL dựa vào username đã xác thực, không tin clientId do client tự kha
 ## 4. Kiểm thử và CI
 
 ```bash
-cd /home/nguyenvuducthinh/Legacy-link/backend
+cd /path/to/Legacy-link/backend
 npm test
 npm run test:integration
 npm run test:security

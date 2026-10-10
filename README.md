@@ -12,8 +12,9 @@ Modbus RTU machine / OpenModSim
 ```
 
 **Status:** firmware, backend and infrastructure are implemented. Physical
-OpenModSim -> ESP32 -> MQTT telemetry and alarms have been tested. Frontend code
-is not yet included; database/API/frontend acceptance and real CNC/RS-485 checks
+OpenModSim -> ESP32 -> MQTT telemetry and alarms have been tested, and so has
+outage recovery from a real ESP32 against real PostgreSQL, broker and HTTP API.
+Frontend code is not yet included; frontend acceptance and real CNC/RS-485 checks
 remain to be completed. See the [hardware reports](#validation).
 
 ## Components
@@ -22,8 +23,7 @@ remain to be completed. See the [hardware reports](#validation).
 | --- | --- |
 | [`firmware/legacy-link-core/`](firmware/legacy-link-core/README.md) | PlatformIO ESP32 firmware, configuration examples, host and hardware tests |
 | [`backend/`](backend/) | MQTT consumer, payload validation, PostgreSQL storage and HTTP API |
-| [`infrastructure/`](infrastructure/README.md) | Mosquitto and PostgreSQL Docker Compose services, setup scripts and runbook |
-| [`tests/`](tests/) | Placeholder for cross-component tests |
+| [`infrastructure/`](infrastructure/README.md) | Mosquitto, PostgreSQL and the backend image in Docker Compose, setup scripts and runbook |
 
 - **Firmware:** Modbus holding/input registers (FC03/FC04), INT16/UINT16/UINT32,
   scaling, Wi-Fi reconnection, NTP time, retained status and offline Last Will.
@@ -32,9 +32,11 @@ remain to be completed. See the [hardware reports](#validation).
 - **Backend:** validates telemetry/status/alarm messages, stores measurements and
   alarms, maintains latest machine state, and combines shared register maps with
   per-device overrides.
-- **Infrastructure:** authenticated MQTT broker and PostgreSQL. Both Compose
-  profiles, `broker` and `full`, currently start the same infrastructure services;
-  backend and HTTP API run separately.
+- **Infrastructure:** authenticated MQTT broker and PostgreSQL. Profile `broker`
+  starts only those two, so the backend runs from your own terminal. Profile
+  `full` additionally starts `backend-consumer`, `backend-api` and an Nginx
+  `api-gateway` that publishes port 3000 and rejects writes without the token,
+  putting the whole stack in one `docker compose up`.
 
 ## Quick start
 
@@ -179,8 +181,11 @@ python3 firmware/legacy-link-core/test/host/run_contract.py --backend-ref origin
 Fetch `origin/main` before the contract check. Host tests use address/undefined
 behavior sanitizers; in environments where LeakSanitizer cannot run, set
 `ASAN_OPTIONS=detect_leaks=0`. [GitHub Actions](.github/workflows/build.yml) builds
-ESP32 firmware, runs thirteen host test executables and checks generated MQTT payloads
+ESP32 firmware, runs fifteen host test executables and checks generated MQTT payloads
 against backend validators for pushes/PRs to `main` and `dev`.
+[`.github/workflows/backend.yml`](.github/workflows/backend.yml) additionally runs the
+backend unit, PostgreSQL/MQTT integration, security, Nginx proxy suites and the
+Docker image build whenever `backend/` changes.
 
 Physical evidence:
 
@@ -188,9 +193,14 @@ Physical evidence:
   USB/config persistence, Mosquitto Last Will/recovery and signed Modbus telemetry.
 - [October 8](firmware/legacy-link-core/docs/hardware-validation-2026-10-08.md):
   OpenModSim telemetry, high/critical alarms, repeat suppression and rearming.
+- [October 10](docs/physical-acceptance-2026-10-10.md): real ESP32 on a Python Modbus
+  RTU slave. Consumer, database and broker outages each drained the RAM outbox back to
+  zero, 68 captured telemetry IDs reconciled to exactly one database row each, and
+  high -> critical -> rearm produced exactly three alarm events.
 
-Next milestones: verify database/API delivery, integrate the team's frontend,
-and validate the target machine's register map and industrial RS-485 connection.
+Still untested on hardware: Wi-Fi outage, ACK loss after COMMIT, queue overflow and
+rejected-head recovery, controlled power-off cold boot, profile A/B through the API,
+dashboard rendering, and TLS with dedicated gateway ACLs.
 
 ## License
 
