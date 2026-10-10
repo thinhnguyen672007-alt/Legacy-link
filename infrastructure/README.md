@@ -50,4 +50,4 @@ bash scripts/verify-backup.sh backups/TEN_FILE.dump
 docker compose logs --since 5m backend-api backend-consumer
 ```
 
-[Env và token](docs/environment.md) · [Runbook](docs/runbook.md) · [Maintenance](docs/maintenance.md) · [Bàn giao frontend](../docs/FRONTEND-HANDOFF.md).
+[Env và token](docs/environment.md) · [Runbook](docs/runbook.md) · [Maintenance](docs/maintenance.md) · [Nghiệm thu hạ tầng 2026-10-10](docs/acceptance-2026-10-10.md) · [Bàn giao frontend](../docs/FRONTEND-HANDOFF.md).

@@ -12,7 +12,7 @@ if (!Number.isInteger(shutdownMs) || shutdownMs < 1 || shutdownMs > 120000) thro
 const child = spawn(process.execPath, [mode === 'api' ? 'src/http/server.js' : 'src/index.js'], { stdio: 'inherit' });
 let stopping = false, unhealthy = 0, interval, grace, force, probe;
 // Khi dừng, ngừng kiểm tra mới rồi gửi SIGTERM cho Node đóng MQTT/DB sạch.
-// Chờ lâu hơn deadline của backend 5 giây để không giết worker đang COMMIT.
+// Chờ lâu hơn deadline drain của backend 5 giây để không giết worker đang COMMIT.
 // stopping ngăn hai yêu cầu dừng tạo hai vòng cleanup chồng nhau.
 function stop(code) {
   if (stopping) return;

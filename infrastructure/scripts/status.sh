@@ -3,7 +3,9 @@
 # Không in .env hoặc token. Nếu một bước lỗi, script trả lỗi để tránh hiểu nhầm là sẵn sàng.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-export COMPOSE_PROFILES=full
+# Nạp .env qua parser an toàn (không thực thi .env như shell) để lấy token đọc.
+if [ -f .env ]; then source scripts/load-env.sh; fi
+export COMPOSE_PROFILES="${COMPOSE_PROFILES:-full}"
 # Up chỉ cho biết container đang chạy. Hai bước sau kiểm tra nó có làm việc được không.
 docker compose ps
 # Consumer phải truy vấn được schema và có heartbeat mới cho biết MQTT đã subscribe.
@@ -14,6 +16,13 @@ docker compose exec -T backend-api node -e 'fetch("http://127.0.0.1:3000/health/
 # Đây là đường đi gateway -> API; khả năng máy khác truy cập LAN còn tùy IP/firewall.
 docker compose exec -T api-gateway wget -q -O - http://127.0.0.1/health/ready
 printf '\n[PASS] API gateway routes readiness successfully.\n'
+# Đường frontend thật đi qua gateway và cần token đọc. Token thiếu/sai phải lộ ra ở đây,
+# không chỉ ở lúc demo. wget trả lỗi khi backend từ chối (401/403).
+if [ -n "${API_READ_TOKEN:-}" ]; then
+  docker compose exec -T -e TOKEN="$API_READ_TOKEN" api-gateway \
+    sh -c 'wget -q -O /dev/null --header="Authorization: Bearer $TOKEN" http://127.0.0.1/machines'
+  printf '[PASS] Authenticated read through the gateway (API_READ_TOKEN accepted).\n'
+fi
 docker compose exec -T postgres sh -c 'exec psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
 -- Chỉ đọc số lượng, không tạo mẫu giả. Có dữ liệu cũ không đồng nghĩa ESP32 đang gửi.
 -- Thiết bị phải được đăng ký riêng; lịch sử telemetry không thay thế bảng device.
