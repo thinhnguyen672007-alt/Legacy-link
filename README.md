@@ -163,7 +163,9 @@ received, applied, flash-saved and restored-after-restart evidence separately.
 team frontend can distinguish gateway contact from fresh machine measurements.
 Run the updated schema, firmware, consumer and `npm run start:http`; see the
 [API contract and curl demo](docs/commissioning-demo.md). This contribution does
-not include a frontend. Physical commissioning acceptance remains pending.
+not include a frontend. The probe/apply flow has been exercised on a real ESP32
+with a Modbus simulator (see the October 10 reports); commissioning on real
+CNC/RS-485 hardware remains pending.
 
 ## Firmware delivery recovery
 
@@ -186,7 +188,7 @@ python3 firmware/legacy-link-core/test/host/run_contract.py --backend-ref origin
 Fetch `origin/main` before the contract check. Host tests use address/undefined
 behavior sanitizers; in environments where LeakSanitizer cannot run, set
 `ASAN_OPTIONS=detect_leaks=0`. [GitHub Actions](.github/workflows/build.yml) builds
-ESP32 firmware, runs fifteen host test executables and checks generated MQTT payloads
+ESP32 firmware, runs seventeen host test executables and checks generated MQTT payloads
 against backend validators for pushes/PRs to `main` and `dev`.
 [`.github/workflows/backend.yml`](.github/workflows/backend.yml) additionally runs the
 backend unit, PostgreSQL/MQTT integration, security, Nginx proxy suites and the
@@ -202,10 +204,13 @@ Physical evidence:
   RTU slave. Consumer, database and broker outages each drained the RAM outbox back to
   zero, 68 captured telemetry IDs reconciled to exactly one database row each, and
   high -> critical -> rearm produced exactly three alarm events.
+- [October 10 firmware bench](firmware/legacy-link-core/docs/physical-acceptance-2026-10-10.md):
+  ACK loss after COMMIT (replayed with one stored row), queue full at 32 slots,
+  rejected-head retention, profile A/B through probe/apply, read-failure diagnostics
+  and a physical power cycle with the RAM outbox correctly lost.
 
-Still untested on hardware: Wi-Fi outage, ACK loss after COMMIT, queue overflow and
-rejected-head recovery, controlled power-off cold boot, profile A/B through the API,
-dashboard rendering, and TLS with dedicated gateway ACLs.
+Still untested on hardware: a Wi-Fi-only outage, cold-boot Last Will timing, per-gateway
+broker ACLs/TLS, real RS-485/CNC wiring, and dashboard rendering.
 
 ## License
 
