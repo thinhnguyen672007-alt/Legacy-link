@@ -73,7 +73,10 @@ npm start
 
 Edit `.env` before starting: match `MQTT_URL`, `MQTT_USERNAME`, `MQTT_PASSWORD`,
 `MQTT_QOS` and `DATABASE_URL` to the running services. For a remote broker, replace
-localhost with its reachable LAN address. Keep credentials out of Git.
+localhost with its reachable LAN address. Also set two different `API_READ_TOKEN` and
+`API_WRITE_TOKEN` values (at least 32 characters each) — the API refuses to start
+without them — and list the frontend origins in `CORS_ORIGINS`. Keep credentials out
+of Git.
 
 Start the HTTP API in another terminal:
 
@@ -84,15 +87,17 @@ node src/http/server.js
 
 | GET endpoint (port 3000) | Returns |
 | --- | --- |
-| `/health` | Process liveness (`OK`), not a database readiness check |
+| `/health` | Process liveness (`{"status":"alive"}`), not a database readiness check |
 | `/machines` | Catalog devices with online state and latest metrics |
 | `/catalog?deviceId=esp32-01` | Device configuration with merged `registerMap` |
 | `/hello?name=demo` | Basic HTTP connectivity check |
 
-A device must exist in the catalog to appear in `/machines`. The current catalog
-response does not include alarm settings; use an alarm-enabled JSON profile for
-the demo. Firmware receives configuration over MQTT or Serial, rather than fetching
-this HTTP endpoint automatically.
+Health is public; the data endpoints require `Authorization: Bearer <API_READ_TOKEN>`
+and return 401 without it. A device must exist in the catalog to appear in
+`/machines`. The catalog response includes each register's `wordOrder` and a nested
+`alarm` object when both a threshold and a code are configured. Firmware receives
+configuration over MQTT or Serial, rather than fetching this HTTP endpoint
+automatically.
 
 ### 3. Configure and flash ESP32
 
