@@ -8,7 +8,7 @@ if [[ ! -f "$json_include/ArduinoJson.h" ]]; then
 fi
 binary="$(mktemp /tmp/legacy-link-config-test.XXXXXX)"
 trap 'rm -f "$binary"' EXIT
-tests=(config_parser_test gateway_test alarm_test network_test endpoint_test config_size_test polling_test recovery_test rs485_test probe_test deadline_test telemetry_queue_test delivery_test outage_test health_test inspection_test)
+tests=(config_parser_test gateway_test alarm_test network_test endpoint_test config_size_test polling_test recovery_test rs485_test probe_test deadline_test telemetry_queue_test delivery_test outage_test health_test inspection_test profile_backlog_test)
 if (( $# )); then
   for requested in "$@"; do
     if [[ ! " ${tests[*]} " == *" $requested "* ]]; then
