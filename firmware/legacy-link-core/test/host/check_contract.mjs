@@ -12,6 +12,7 @@ for (const kind of ['telemetry', 'status', 'alarm']) {
 const messages = (await readFile(captureFile, 'utf8')).trim().split('\n').map(JSON.parse);
 const counts = { telemetry: 0, status: 0, alarm: 0 };
 const { validateReadings } = await import(pathToFileURL(path.join(validationDir, '../control/validation.js')));
+const { parseDiagnostics } = await import(pathToFileURL(path.join(validationDir, 'diagnostics.js')));
 let readReports = 0;
 const expectedMap = { registerMap: [
   { key: 'temperature', address: 0 }, { key: 'current', address: 1 }, { key: 'rpm', address: 2 },
@@ -21,6 +22,13 @@ const statuses = [];
 for (const message of messages) {
   if (message.topic.endsWith('/diagnostics') || message.topic.endsWith('/probe/result')) {
     const report = JSON.parse(message.payload);
+    if (message.topic.endsWith('/diagnostics')) {
+      const diagnostics = parseDiagnostics('BENCH-01', report);
+      assert.equal(diagnostics.delivery.storage, 'RAM');
+      assert.equal(diagnostics.delivery.telemetry.pending, 1);
+      assert.equal(diagnostics.delivery.alarm.capacity, 8);
+      assert.throws(() => parseDiagnostics('wrong-device', report));
+    }
     const rows = validateReadings(report.readings, expectedMap);
     assert.equal(rows.length, 3);
     assert.equal(message.retained, false);

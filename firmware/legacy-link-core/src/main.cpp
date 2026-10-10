@@ -48,6 +48,8 @@ static bool restored_at_boot = false;
 static char device_config_topic[80];
 static bool pending_device_config = false;
 static constexpr size_t CONFIG_BUFFER_SIZE = MAX_CONFIG_PAYLOAD_BYTES + 1;
+// Report chứa rawWords + trạng thái queue, lớn hơn lệnh config. Thêm 2 KiB có giới hạn.
+static constexpr size_t REPORT_BUFFER_SIZE = 6144;
 static char pending_config[CONFIG_BUFFER_SIZE];
 static bool config_pending = false;
 static AlarmMonitor alarm_monitor;
@@ -534,6 +536,32 @@ void add_reading(JsonArray rows, const register_config_t &reg, const modbus_resu
   }
 }
 
+// Read-only bench diagnostics. No credentials or payload values are exposed.
+template<size_t N>
+void describe_outbox(JsonObject target, const DeliveryQueue<N> &queue) {
+  target["pending"] = queue.size();
+  target["capacity"] = N;
+  target["highWater"] = queue.highWater();
+  target["committed"] = queue.committed();
+  target["failedEnqueues"] = queue.dropped();
+  const auto *head = queue.front();
+  if (head) {
+    target["headId"] = head->id;
+    target["deviceId"] = head->device;
+    target["attempts"] = head->attempts;
+    target["rejection"] = head->rejection;
+  }
+}
+// Cùng bộ đếm trên USB và MQTT để frontend thấy backlog mà không cắm cáp.
+void describe_delivery(JsonObject target) {
+  target["storage"] = "RAM"; // Khởi động lại sẽ mất mẫu chưa ACK; không tuyên bố lưu bền.
+  target["bootId"] = boot_id;
+  target["clockReady"] = current_epoch_ms() != 0;
+  target["freeHeapBytes"] = ESP.getFreeHeap();
+  describe_outbox(target.createNestedObject("telemetry"), telemetry_queue);
+  describe_outbox(target.createNestedObject("alarm"), alarm_queue);
+}
+
 void send_read_report(const device_config_t &cfg, modbus_result_t *results,
                       const char *request_id = nullptr) {
   if (!mqttClient.connected()) return;
@@ -546,14 +574,15 @@ void send_read_report(const device_config_t &cfg, modbus_result_t *results,
   doc["samplingIntervalMs"] = cfg.sampling_interval_ms;
   doc["configRequestId"] = active_request_id;
   if (request_id) { doc["requestId"] = request_id; doc["result"] = "completed"; }
+  else describe_delivery(doc.createNestedObject("delivery"));
   JsonArray rows = doc.createNestedArray("readings");
   for (uint8_t i = 0; i < cfg.register_count; ++i) add_reading(rows, cfg.registers[i], results[i]);
   char topic[96];
   if (request_id) snprintf(topic, sizeof(topic), "legacy-link/gateways/%s/probe/result", gateway_id);
   else snprintf(topic, sizeof(topic), "legacy-link/devices/%s/diagnostics", cfg.device_id);
-  std::unique_ptr<char[]> payload(new (std::nothrow) char[4096]);
-  if (!payload || doc.overflowed() || measureJson(doc) >= 4096) return;
-  serializeJson(doc, payload.get(), 4096);
+  std::unique_ptr<char[]> payload(new (std::nothrow) char[REPORT_BUFFER_SIZE]);
+  if (!payload || doc.overflowed() || measureJson(doc) >= REPORT_BUFFER_SIZE) return;
+  serializeJson(doc, payload.get(), REPORT_BUFFER_SIZE);
   mqttClient.publish(topic, payload.get(), false);
 }
 
@@ -622,22 +651,6 @@ void poll_modbus_step() {
   send_read_report(global_device_config, poll_results);
 }
 
-// Read-only bench diagnostics. No credentials or payload values are exposed.
-template<size_t N>
-void describe_outbox(JsonObject target, const DeliveryQueue<N> &queue) {
-  target["pending"] = queue.size();
-  target["capacity"] = N;
-  target["highWater"] = queue.highWater();
-  target["committed"] = queue.committed();
-  target["failedEnqueues"] = queue.dropped();
-  const auto *head = queue.front();
-  if (head) {
-    target["headId"] = head->id;
-    target["deviceId"] = head->device;
-    target["attempts"] = head->attempts;
-    target["rejection"] = head->rejection;
-  }
-}
 size_t delivery_health_json(char *output, size_t capacity) {
   StaticJsonDocument<2048> doc;
   doc["gatewayId"] = gateway_id;
@@ -769,7 +782,7 @@ void setup() {
   modbus_init(1); // Bind UART and optional RS-485 direction callbacks; no poll yet.
   modbus_set_idle_callback(service_modbus_wait);
   // Include MQTT header and topic overhead in addition to the config payload.
-  if (!mqttClient.setBufferSize(CONFIG_BUFFER_SIZE + 128)) {
+  if (!mqttClient.setBufferSize(REPORT_BUFFER_SIZE + 128)) {
     Serial.println("[MQTT] Failed to allocate configuration receive buffer");
   }
   restore_saved_configuration();
