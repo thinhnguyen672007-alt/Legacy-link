@@ -274,3 +274,6 @@ Chuyển màu nền/chữ của nút và liên kết kéo dài 0.15s, chỉ khi 
 Nguồn thực thi: `src/styles.css`, `src/main.tsx`, `src/components/ui.tsx`, `src/App.tsx` và `src/pages/`. Hướng đã duyệt: `docs/surface-brief.md`; ràng buộc sản phẩm: `PRODUCT.md`. Sidecar giữ source pointers tới selector/thành phần và metadata mở rộng.
 
 Không có lỗi còn tồn tại được chuẩn hóa thành quy tắc trong lượt tài liệu này. Tham chiếu nền chưa định nghĩa của bản chụp cấu hình đã được gỡ khỏi implementation trước khi ghi tài liệu.
+
+## AI Investigation workspace
+The existing DENSO Copilot palette is retained intentionally: dark purple #19162e, deep navy #111c35/#12162a, neon green #00ed48 and electric blue #66e1ff/#44d9ff, with foreground #f5f7ff and secondary #bdc9e0. The expanded workspace uses columns at desktop width, a single mobile column, locally scrolling history tables, evidence anchors and actual point charts. Model interpretation and database facts are separately labeled. Verdict: ready for demo, browser verified at 1440×1000 and 390×844; no exported raster assets added. Detector found no non-advisory failures; palette advisories document this intentional dark section within the existing light app.

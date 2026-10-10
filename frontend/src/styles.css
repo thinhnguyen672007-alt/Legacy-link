@@ -1335,3 +1335,8 @@ tbody tr:hover {
     min-height: 36px;
   }
 }
+
+.investigation-controls { display: flex; align-items: center; gap: 8px; }
+.investigation-controls button { flex-shrink: 0; }
+.copilot-panel.investigation-expanded { left: 24px; right: 24px; width: auto; max-width: 1400px; margin-inline: auto; }
+@media (max-width: 600px) { .copilot-panel.investigation-expanded { inset: 0; } .copilot-panel header { flex-wrap: wrap; } }

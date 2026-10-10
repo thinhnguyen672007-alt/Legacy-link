@@ -8,19 +8,17 @@ afterEach(() => vi.unstubAllGlobals());
 it.each(["   ", "  Kiểm tra BENCH-01  "])(
   "trims the question and does not submit blank input: %s",
   async (question) => {
-    const fetch = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            conversationId: "fixture",
-            mode: "rules",
-            text: "Fixture answer",
-            notice: null,
-            results: [],
-          }),
-        ),
-      );
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          conversationId: "fixture",
+          mode: "rules",
+          text: "Fixture answer",
+          notice: null,
+          results: [],
+        }),
+      ),
+    );
     vi.stubGlobal("fetch", fetch);
     render(
       <MemoryRouter>
@@ -48,13 +46,11 @@ it.each(["   ", "  Kiểm tra BENCH-01  "])(
   },
 );
 it("Nút UNDERHEAT gọi API và hiển thị lỗi thật, không sinh máy giả", async () => {
-  const fetch = vi
-    .fn()
-    .mockResolvedValue(
-      new Response(JSON.stringify({ error: "Database không khả dụng" }), {
-        status: 503,
-      }),
-    );
+  const fetch = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ error: "Database không khả dụng" }), {
+      status: 503,
+    }),
+  );
   vi.stubGlobal("fetch", fetch);
   render(
     <MemoryRouter>
@@ -71,51 +67,51 @@ it("Nút UNDERHEAT gọi API và hiển thị lỗi thật, không sinh máy gi�
   );
   expect(fetch).toHaveBeenCalledWith(
     "/ai/query",
-    expect.objectContaining({ body: JSON.stringify({ action: "underheat" }) }),
+    expect.objectContaining({
+      body: JSON.stringify({ action: "underheat", language: "vi" }),
+    }),
   );
 });
 it("Panel render số đo từ API, link máy theo ID và thông báo bộ quy tắc", async () => {
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            conversationId: "demo",
-            mode: "rules",
-            text: "Backend đã kiểm tra",
-            notice: "Chưa cấu hình Gemini",
-            results: [
-              {
-                tool: "get_devices_by_temperature_status",
-                source: "database",
-                queriedAt: new Date().toISOString(),
-                devices: [
-                  {
-                    deviceId: "BENCH-01",
-                    name: "Bench",
-                    gatewayOnline: true,
-                    dataFresh: true,
-                    temperatures: [
-                      {
-                        metricKey: "temperature",
-                        unit: "°C",
-                        value: 19,
-                        low: 20,
-                        high: 80,
-                        status: "underheat",
-                        reason: null,
-                        measuredAt: new Date().toISOString(),
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          }),
-        ),
+    vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          conversationId: "demo",
+          mode: "rules",
+          text: "Backend đã kiểm tra",
+          notice: "Chưa cấu hình Gemini",
+          results: [
+            {
+              tool: "get_devices_by_temperature_status",
+              source: "database",
+              queriedAt: new Date().toISOString(),
+              devices: [
+                {
+                  deviceId: "BENCH-01",
+                  name: "Bench",
+                  gatewayOnline: true,
+                  dataFresh: true,
+                  temperatures: [
+                    {
+                      metricKey: "temperature",
+                      unit: "°C",
+                      value: 19,
+                      low: 20,
+                      high: 80,
+                      status: "underheat",
+                      reason: null,
+                      measuredAt: new Date().toISOString(),
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
       ),
+    ),
   );
   render(
     <MemoryRouter>

@@ -161,7 +161,12 @@ export function createApi(s: Session) {
     ).toString();
   return {
     copilot: (
-      body: { question?: string; action?: string; conversationId?: string },
+      body: {
+        question?: string;
+        action?: string;
+        conversationId?: string;
+        language?: "vi" | "en";
+      },
       signal?: AbortSignal,
     ) =>
       request(
@@ -169,7 +174,7 @@ export function createApi(s: Session) {
         body.action ? "/ai/query" : "/ai/chat",
         s.readToken || s.writeToken,
         copilotSchema,
-        { method: "POST", body, signal, timeoutMs: 35000 },
+        { method: "POST", body, signal, timeoutMs: 65000 },
       ),
     machines: (signal?: AbortSignal) =>
       get("/machines", z.array(machineSchema), signal),
