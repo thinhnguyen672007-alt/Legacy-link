@@ -66,9 +66,12 @@ static modbus_result_t poll_results[MAX_REGISTERS];
 static bool reading_seen[MAX_REGISTERS] = {};
 static uint32_t successful_reads = 0, failed_reads = 0;
 static uint32_t read_report_drops = 0;
+static bool delivery_report_dirty = false;
+static bool have_complete_scan = false;
 
 void invalidate_readings() {
   memset(reading_seen, 0, sizeof(reading_seen));
+  have_complete_scan = false;
 }
 
 void reset_poll_cycle() {
@@ -372,12 +375,15 @@ void accept_ingestion_ack(DeliveryQueue<N> &queue, const JsonDocument &ack) {
   if (!sample || !device || !id || strcmp(sample->device, device) || strcmp(sample->id, id)) return;
   const char *status = json_text(ack["status"], 16);
   if (!status) return;
-  if (!strcmp(status, "committed")) queue.acknowledge(device, id);
+  if (!strcmp(status, "committed")) {
+    if (queue.acknowledge(device, id)) delivery_report_dirty = true;
+  }
   else if (!strcmp(status, "rejected")) {
     const char *reason = json_text(ack["reason"], 128);
     if (!reason) reason = "rejected";
     if (strcmp(reason, sample->rejection)) Serial.printf("[OUTBOX] Rejected %s: %s; retained for retry\r\n", id, reason);
     strlcpy(sample->rejection, reason, sizeof(sample->rejection));
+    delivery_report_dirty = true;
   }
 }
 
@@ -650,9 +656,21 @@ void poll_modbus_step() {
   if (poll_results[poll_index].success) ++successful_reads; else ++failed_reads;
   if (++poll_index < global_device_config.register_count) return;
   poll_active = false;
+  have_complete_scan = true;
   alarm_monitor.evaluate(&global_device_config, poll_results, poll_index, current_epoch_ms(), publish_alarm);
   publish_telemetry(&global_device_config, poll_results, poll_index);
   send_read_report(global_device_config, poll_results);
+}
+
+// The scan report usually precedes its ingestion ACK. Refresh delivery state
+// afterwards, otherwise a healthy stream can remain labelled backlog forever.
+void flush_delivery_report() {
+  static uint32_t last_attempt = 0;
+  if (!delivery_report_dirty || !have_complete_scan || poll_active ||
+      !is_config_valid || !mqttClient.connected() ||
+      static_cast<uint32_t>(millis() - last_attempt) < 1000) return;
+  last_attempt = millis();
+  if (send_read_report(global_device_config, poll_results)) delivery_report_dirty = false;
 }
 
 size_t delivery_health_json(char *output, size_t capacity) {
@@ -877,6 +895,7 @@ void loop() {
     last_gateway_report = millis();
     publish_gateway_state();
   }
+  flush_delivery_report();
   // At most one register transaction per iteration; network service continues
   // inside the transaction through ModbusMaster's idle hook.
   poll_modbus_step();
