@@ -116,7 +116,7 @@ it("connects, renders real response including zero, clears session on disconnect
   ).toBeInTheDocument();
   await u.click(screen.getByRole("button", { name: "Đăng xuất" }));
   expect(
-    screen.getByRole("heading", { name: "Đăng nhập" }),
+    screen.getByRole("heading", { name: "Chào mừng trở lại." }),
   ).toBeInTheDocument();
   expect(screen.getByLabelText("Tên đăng nhập")).toHaveValue("");
   expect(localStorage.length).toBe(0);
