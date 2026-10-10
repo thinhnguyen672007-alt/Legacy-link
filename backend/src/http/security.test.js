@@ -34,3 +34,11 @@ test('C15 handler thật chặn thiếu quyền trước tác dụng phụ, CORS
   assert.equal(preflight.headers['Access-Control-Allow-Origin'],'http://localhost:5173');
   assert.equal((await request('GET','/health/live')).statusCode,200);
 });
+
+test('AI POST chỉ đọc: read token được vào đúng hai endpoint, vẫn cấm sửa cấu hình', () => {
+  const policy = createSecurity(securitySettings(env));
+  const req = { method: 'POST', headers: { authorization: `Bearer ${env.API_READ_TOKEN}` } };
+  const res = { setHeader() {} };
+  for (const path of ['/ai/chat', '/ai/query']) assert.doesNotThrow(() => policy(req, res, path));
+  for (const path of ['/ai/exec', '/ai/chat/extra', '/gateways/643C60A7DBCC/apply']) assert.throws(() => policy(req, res, path), { status: 403 });
+});

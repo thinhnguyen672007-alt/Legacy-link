@@ -1,5 +1,8 @@
 // Khởi động HTTP API. File này nối các hàm vào handler; không tự viết thêm một bộ endpoint khác.
 import http from 'node:http';
+import { createTools } from '../ai/tools.js';
+import { createCopilot } from '../ai/service.js';
+import { createGemini } from '../ai/gemini.js';
 import { createRateLimit } from './rate-limit.js';
 import { listProfiles, importProfile, exportProfile, previewConfig } from '../db/profiles.js';
 import { operationStore } from '../db/operations.js';
@@ -9,7 +12,7 @@ import { createHttpHandler } from './handler.js';
 import { httpSettings } from './settings.js';
 import { closePool } from '../db/pool.js';
 import { getCatalog } from '../db/catalog.js';
-import { listMachines, getMachine } from '../db/machines.js';
+import { listMachines, getMachine, listCopilotMachines } from '../db/machines.js';
 import { telemetryHistory, listAlarms, acknowledgeAlarm } from '../db/dashboard.js';
 import { databaseReadiness, consumerMetrics as systemMetrics } from '../db/health.js';
 import { getConfigRequest } from '../db/config-request.js';
@@ -21,6 +24,7 @@ import { createSecurity, securitySettings } from './security.js';
 const settings = httpSettings();
 const security = createSecurity(securitySettings());
 const rateLimit = createRateLimit();
+const copilot = createCopilot({ runTool: createTools({ listMachines: listCopilotMachines, getMachine, getCatalog, telemetryHistory, listAlarms }), model: createGemini() });
 const controls = startControlService();
 const publisher = startPublisher();
 // Kiểm tra toàn hệ thống: database, consumer nhận MQTT, kết nối gửi và kết nối cấu hình.
@@ -53,6 +57,7 @@ async function readiness() {
 // Chỉ dùng một handler chung: API đang chạy cũng chính là API được kiểm thử.
 const server = http.createServer(
   createHttpHandler({
+    copilot,
     security,
     rateLimit,
     systemMetrics,

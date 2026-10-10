@@ -71,6 +71,12 @@ export function createHttpHandler(deps) {
           const result = await readiness();
           send(res, result.ready ? 200 : 503, result);
         });
+      else if (path === '/ai/chat' || path === '/ai/query')
+        selected = route('POST', async () => {
+          const body = await readBody(req);
+          if (path === '/ai/query' && body?.action === undefined) throw new ControlError('AI query cần quick action');
+          return deps.copilot(body, req.headers.authorization ?? req.socket?.remoteAddress ?? '');
+        });
       else if (path === '/profiles')
         selected = route('GET', () =>
           deps.listProfiles(integer(params.get('limit'), 'limit', 100, 1, 200))

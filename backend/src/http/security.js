@@ -41,6 +41,6 @@ export function createSecurity(settings) {
       res.setHeader('WWW-Authenticate', 'Bearer');
       throw new ControlError('Authentication required', 401);
     }
-    if (!['GET', 'HEAD'].includes(req.method) && !writer) throw new ControlError('Write permission required', 403);
+    if (!['GET', 'HEAD'].includes(req.method) && !(req.method === 'POST' && ['/ai/chat', '/ai/query'].includes(path)) && !writer) throw new ControlError('Write permission required', 403);
   };
 }
