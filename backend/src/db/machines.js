@@ -24,7 +24,7 @@ const GATEWAY_TTL_SECONDS = 90;
 //
 //   INNER JOIN  -> no bien mat khoi danh sach            (sai — may van ton tai!)
 //   LEFT JOIN   -> no van hien, gatewayOnline = false    (dung)
-async function readMachines(deviceId = null) {
+async function readMachines(deviceId = null, limit = null) {
   const result = await pool.query(
     `
     SELECT
@@ -38,9 +38,9 @@ async function readMachines(deviceId = null) {
     FROM device d
     LEFT JOIN machine_state s ON s.device_id = d.device_id
     WHERE ($1::text IS NULL OR d.device_id=$1)
-    ORDER BY d.device_id
+    ORDER BY d.device_id LIMIT $2
   `,
-    [deviceId]
+    [deviceId, limit]
   );
 
   return result.rows.map(toMachine);
@@ -103,3 +103,6 @@ export const listMachines = () => readMachines();
 export async function getMachine(deviceId) {
   return (await readMachines(deviceId))[0] ?? null;
 }
+
+// Lấy dư một máy để AI biết có bị cắt danh sách, tránh tải toàn nhà máy.
+export const listCopilotMachines = () => readMachines(null, 101);
