@@ -24,7 +24,8 @@ const GATEWAY_TTL_SECONDS = 90;
 //   INNER JOIN  -> no bien mat khoi danh sach            (sai — may van ton tai!)
 //   LEFT JOIN   -> no van hien, gatewayOnline = false    (dung)
 async function readMachines(deviceId = null) {
-  const result = await pool.query(`
+  const result = await pool.query(
+    `
     SELECT
       d.device_id,
       d.name,
@@ -37,7 +38,9 @@ async function readMachines(deviceId = null) {
     LEFT JOIN machine_state s ON s.device_id = d.device_id
     WHERE ($1::text IS NULL OR d.device_id=$1)
     ORDER BY d.device_id
-  `, [deviceId]);
+  `,
+    [deviceId]
+  );
 
   return result.rows.map(toMachine);
 }
@@ -64,9 +67,7 @@ function toMachine(row) {
   // Thieu dieu kien 2: mot thiet bi chet im lang se hien online mai mai.
   // Thieu dieu kien 1: phai cho het 90 giay moi hien offline, du broker da biet.
   const gatewayOnline =
-    row.online === true &&
-    lastSeenMs !== null &&
-    now - lastSeenMs < GATEWAY_TTL_SECONDS * 1000;
+    row.online === true && lastSeenMs !== null && now - lastSeenMs < GATEWAY_TTL_SECONDS * 1000;
 
   return {
     deviceId: row.device_id,
@@ -77,9 +78,19 @@ function toMachine(row) {
     lastSeenAt: row.last_seen_at,
     metrics: row.last_metrics,
     lastTelemetryAt: row.last_telemetry_at,
-    lastMeasurementAt: row.last_telemetry_ts == null ? null : new Date(Number(row.last_telemetry_ts)).toISOString(),
+    lastMeasurementAt:
+      row.last_telemetry_ts == null ? null : new Date(Number(row.last_telemetry_ts)).toISOString(),
     dataAgeSeconds: lastDataMs === null ? null : Math.max(0, Math.round((now - lastDataMs) / 1000)),
     diagnostics: row.diagnostics,
+    dataFresh:
+      lastDataMs !== null && now - lastDataMs <= Math.max(5000, row.sampling_interval_ms * 3),
+    readHealth: !row.diagnostics
+      ? 'unknown'
+      : now - row.diagnostics.timestamp > Math.max(5000, row.sampling_interval_ms * 3)
+        ? 'stale'
+        : row.diagnostics.readings.every((r) => r.success)
+          ? 'healthy'
+          : 'read_error',
     samplingIntervalMs: row.sampling_interval_ms,
     gatewayId: row.gateway_id,
     configRequestId: row.config_request_id,
@@ -87,4 +98,6 @@ function toMachine(row) {
 }
 
 export const listMachines = () => readMachines();
-export async function getMachine(deviceId) { return (await readMachines(deviceId))[0] ?? null; }
+export async function getMachine(deviceId) {
+  return (await readMachines(deviceId))[0] ?? null;
+}
