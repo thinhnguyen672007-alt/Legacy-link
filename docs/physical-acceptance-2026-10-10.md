@@ -4,6 +4,11 @@ Firmware: `d46ba1a`, with ignored site Wi-Fi/broker settings rebuilt and uploade
 Backend: C16 from `11306a9`, built locally. Schema migration reported version 4.
 Device: BENCH-01; gateway: 643C60A7DBCC. Transport: authenticated plaintext MQTT.
 
+> **Cập nhật:** xem thêm
+> [firmware bench record](../firmware/legacy-link-core/docs/physical-acceptance-2026-10-10.md),
+> chạy sau đó và bổ sung bằng chứng cho mất ACK sau COMMIT, queue đầy, rejected head,
+> profile A/B và power cycle. Danh sách "Not tested" bên dưới chỉ thuộc lần chạy này.
+
 ## Scope
 
 A real ESP32 reads a Python Modbus RTU slave through CH340 and physical UART
