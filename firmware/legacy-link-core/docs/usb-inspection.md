@@ -62,3 +62,18 @@ provide a destructive queue-clear shortcut.
 Read counters cover normal sampling, not temporary probes. Report drops include
 failed local writes, disconnected sends and report allocation/size failures;
 they do not prove that a successful MQTT write reached the backend.
+
+## Delivery state on the machine API
+
+With the matching backend diagnostics support, normal MQTT read reports include
+`delivery`: boot ID, RAM storage type, clock readiness, free heap and both queue
+summaries. The USB commands remain available independently. After a committed
+or rejected ingestion ACK, firmware refreshes the report using the last complete
+scan, at most once per second. It never publishes a partly collected map as a
+complete scan. This allows the API to return to `healthy` after ACK instead of
+permanently displaying the in-flight sample as `backlog`.
+
+Report payloads have a separate 6,144-byte budget; incoming configuration remains
+limited to 4,095 bytes. Successful report publication is still a QoS 0 local write,
+not a durable backend receipt. An older backend can ignore the optional delivery
+object; the new machine API needs the matching backend change (`4914d4b` or later).

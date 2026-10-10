@@ -37,10 +37,18 @@ def main():
     with tempfile.TemporaryDirectory(prefix='legacy-link-contract-') as temp:
         work = Path(temp)
         (work / 'package.json').write_text(json.dumps({'type': 'module'}), encoding='utf8')
-        for name in ['shared', 'telemetry', 'status', 'alarm', 'diagnostics']:
+        for name in ['shared', 'telemetry', 'status', 'alarm']:
             source = source_file(f'backend/src/validation/{name}.js')
             (work / 'validation').mkdir(exist_ok=True)
             (work / 'validation' / f'{name}.js').write_bytes(source)
+        diagnostics_path = 'backend/src/validation/diagnostics.js'
+        has_diagnostics = (repo / diagnostics_path).is_file() if working_tree else subprocess.run(
+            ['git', 'cat-file', '-e', f'{revision}:{diagnostics_path}'], cwd=repo,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        if has_diagnostics:
+            (work / 'validation' / 'diagnostics.js').write_bytes(source_file(diagnostics_path))
+        else:
+            print('This backend revision has no delivery diagnostics validator; checking read reports only.', flush=True)
         (work / 'ingestion').mkdir()
         identity = source_file('backend/src/ingestion/identity.js')
         (work / 'ingestion' / 'identity.js').write_bytes(identity)

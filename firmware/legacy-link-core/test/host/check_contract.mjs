@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 
 const [validationDir, captureFile] = process.argv.slice(2);
 const validators = {};
@@ -12,7 +13,8 @@ for (const kind of ['telemetry', 'status', 'alarm']) {
 const messages = (await readFile(captureFile, 'utf8')).trim().split('\n').map(JSON.parse);
 const counts = { telemetry: 0, status: 0, alarm: 0 };
 const { validateReadings } = await import(pathToFileURL(path.join(validationDir, '../control/validation.js')));
-const { parseDiagnostics } = await import(pathToFileURL(path.join(validationDir, 'diagnostics.js')));
+const diagnosticsPath = path.join(validationDir, 'diagnostics.js');
+const parseDiagnostics = existsSync(diagnosticsPath) ? (await import(pathToFileURL(diagnosticsPath))).parseDiagnostics : null;
 let readReports = 0;
 const expectedMap = { registerMap: [
   { key: 'temperature', address: 0 }, { key: 'current', address: 1 }, { key: 'rpm', address: 2 },
@@ -22,7 +24,7 @@ const statuses = [];
 for (const message of messages) {
   if (message.topic.endsWith('/diagnostics') || message.topic.endsWith('/probe/result')) {
     const report = JSON.parse(message.payload);
-    if (message.topic.endsWith('/diagnostics')) {
+    if (parseDiagnostics && message.topic.endsWith('/diagnostics')) {
       const diagnostics = parseDiagnostics('BENCH-01', report);
       assert.equal(diagnostics.delivery.storage, 'RAM');
       assert.equal(diagnostics.delivery.telemetry.pending, 1);

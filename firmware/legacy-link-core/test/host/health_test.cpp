@@ -42,5 +42,21 @@ int main() {
   assert(telemetry_queue.size()==1);
   assert(telemetry_queue.acknowledge("BENCH-01","boot-1"));
   assert(telemetry_queue.committed()==1 && telemetry_queue.highWater()==1);
+  assert(apply_runtime_config(R"({"deviceId":"BENCH-01","registerMap":[{"key":"temperature","address":1}]})"));
+  poll_modbus_step();
+  assert(have_complete_scan && !poll_active && telemetry_queue.size() == 1);
+  const std::string id = telemetry_queue.front()->id;
+  mqttClient.receive("legacy-link/gateways/123456789ABC/ingestion/ack",
+    "{\"schemaVersion\":1,\"deviceId\":\"BENCH-01\",\"kind\":\"telemetry\",\"messageId\":\"" + id + "\",\"status\":\"committed\"}");
+  assert(delivery_report_dirty && telemetry_queue.size() == 0);
+  test_millis += 1000;
+  mqttClient.published.clear(); flush_delivery_report();
+  assert(!delivery_report_dirty && mqttClient.published.size() == 1);
+  DynamicJsonDocument report(8192); assert(!deserializeJson(report, mqttClient.published.back().payload));
+  assert(report["delivery"]["telemetry"]["pending"] == 0);
+  delivery_report_dirty = true; poll_active = true; test_millis += 1000;
+  flush_delivery_report(); assert(mqttClient.published.size() == 1);
+  poll_active = false; invalidate_readings();
+  flush_delivery_report(); assert(mqttClient.published.size() == 1);
   std::cout << "Read-only USB delivery health tests passed.\n";
 }
