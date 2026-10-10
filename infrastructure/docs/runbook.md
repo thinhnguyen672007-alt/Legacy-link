@@ -6,23 +6,6 @@ Các lệnh chạy trong `infrastructure/`. Máy mới xem README; máy đang ch
 bash scripts/setup.sh
 ```
 
-Dùng cùng lệnh sau khi kéo code mới. Script giữ `.env`, build hai tiến trình Node22,
-dừng worker trước migration, backup DB, nạp schema, bật đủ dịch vụ và chờ healthy.
-Không tự pull Git; người vận hành chọn revision cần chạy.
-Không xóa volume. Setup làm gián đoạn ingestion trong lúc nâng cấp.
-Nếu build lỗi, worker cũ chưa bị dừng. Nếu migration lỗi, worker giữ trạng thái dừng
-để tránh ghi vào schema dở dang: đọc lỗi, sửa nguyên nhân rồi chạy lại setup.
-
-Dừng dịch vụ bằng `docker compose stop` tôn trọng `stop_grace_period` 25 giây; watchdog
-đọc `SHUTDOWN_TIMEOUT_MS` (mặc định 15 giây) trước khi SIGKILL. Nhờ đó consumer kịp drain
-mẫu đã nhận và gửi nốt ACK thay vì bị cắt giữa chừng.
-
-Database có 15 bảng (schema version 4): 10 bảng dữ liệu `telemetry`, `machine_state`,
-`alarms`, `device`, `register_map`, `register_override`, `config_request`, `service_run`,
-`ingestion_receipt`, `consumer_health`, cộng 5 bảng C16 `schema_migrations`,
-`gateway_command_lease`, `control_operation`, `device_config_history`, `device_profile`.
-Schema được lấy trực tiếp từ `../backend/db/schema.sql`; infra không giữ bản sao SQL.
-Setup kiểm tra đủ 15 bảng và version 4 sau khi nạp, không chỉ đếm một phần danh sách.
 Thứ tự: kiểm tra env/Compose/tên container → build → backup DB đang chạy → chuẩn bị broker → dừng consumer/API → khởi động dependency → migration có version → seed nếu yêu cầu → bật dịch vụ → kiểm tra health. Build lỗi thì chưa dừng worker. Migration lỗi thì dừng quy trình; đọc lỗi và phục hồi theo backup, không chạy code mới vào schema dở dang.
 
 Migration thuộc `backend/scripts/migrate.mjs`, readiness thuộc `backend/src/db/schema-version.js`. Không đếm cố định 10 bảng hay nạp riêng schema cũ nữa. Schema hiện tại là version 4.

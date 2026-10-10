@@ -8,23 +8,15 @@ want_seed=false
 want_bench=false
 for arg in "$@"; do
   case "$arg" in
-    --seed) WANT_SEED=true ;;
-    --seed-bench) WANT_BENCH=true ;;
+    --seed) want_seed=true ;;
+    --seed-bench) want_bench=true ;;
     -h|--help)
       # In khối header (sau shebang, tới hết dòng === thứ hai) đọc trực tiếp từ file,
       # không hardcode số dòng để help không bị cắt khi header dài ra.
       awk 'NR==1{next} {print} /^# =+$/{n++; if(n==2) exit}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
-    *)
-      echo "[ERROR] Khong hieu tham so: '$arg'" >&2
-      echo "        Dung: $0 [--seed] [--seed-bench] | $0 --help" >&2
-      exit 2
-      ;;
-    --seed) want_seed=true;;
-    --seed-bench) want_bench=true;;
-    --help|-h) echo 'Usage: bash scripts/setup.sh [--seed | --seed-bench]'; exit 0;;
-    *) echo "Unknown option: $arg" >&2; exit 2;;
+    *) echo "Unknown option: $arg" >&2; exit 2 ;;
   esac
 done
 if [ "$want_seed" = true ] && [ "$want_bench" = true ]; then
@@ -104,11 +96,6 @@ echo "[SUCCESS] Ha tang da san sang."
 echo ""
 echo "  Broker   : $MQTT_CONTAINER_NAME (port ${MQTT_PORT:-1883})"
 echo "  Database : $POSTGRES_USER@$POSTGRES_DB (port ${POSTGRES_PORT:-5432}, chi localhost)"
-if [ "${table_count:-0}" -gt 0 ]; then
-  echo "  Bang     : ${table_count}/15 bang (schema version ${schema_version:-0})"
-else
-  echo "  Bang     : chua nap schema (checkout nay khong co backend/)"
-fi
 echo ""
 if [[ ",$COMPOSE_PROFILES," == *,full,* ]]; then
   # 0.0.0.0 là địa chỉ bind chứ không phải URL mở được; in localhost cho người đọc dễ bấm.

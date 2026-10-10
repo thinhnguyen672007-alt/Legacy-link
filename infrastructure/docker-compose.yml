@@ -245,13 +245,11 @@ services:
     # Wrapper infra giám sát readiness, sau đó chạy đúng entrypoint consumer của backend.
     command: ["node", "/app/infra-run.cjs", "consumer"]
     restart: unless-stopped
+    profiles: ["full"]
+    # init: dọn tiến trình con của wrapper. stop_grace_period dài hơn deadline drain
+    # của backend (15s) cộng biên, nếu không Docker SIGKILL sẽ cắt drain.
     init: true
     stop_grace_period: 130s
-    profiles: ["full"]
-    # init: dọn tiến trình con của wrapper. stop_grace_period phải dài hơn deadline
-    # drain của backend (15s) cộng biên, nếu không Docker SIGKILL sẽ cắt drain.
-    init: true
-    stop_grace_period: 25s
     logging: *default-logging
     volumes:
       - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z
@@ -292,9 +290,8 @@ services:
     profiles: ["full"]
     restart: unless-stopped
     init: true
-    stop_grace_period: 25s
-    logging: *default-logging
     stop_grace_period: 130s
+    logging: *default-logging
     command: ["node", "/app/infra-run.cjs", "api"]
     volumes:
       - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z

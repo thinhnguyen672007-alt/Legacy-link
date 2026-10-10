@@ -50,17 +50,4 @@ bash scripts/verify-backup.sh backups/TEN_FILE.dump
 docker compose logs --since 5m backend-api backend-consumer
 ```
 
-Seed này dành cho BENCH-01/simulator, không tự đổi commissioning đã có.
-`--seed` riêng là dữ liệu máy mẫu, không thay thế đăng ký ESP32 thật.
-
-## Tài liệu
-
-- [Runbook: env, health, restart, backup/restore, demo](docs/runbook.md)
-- [Nghiệm thu hạ tầng 2026-10-10](docs/acceptance-2026-10-10.md)
-- [Backend API](../docs/backend-api-c10.md)
-- [Hợp đồng gửi bù và giới hạn firmware](../docs/telemetry-delivery.md)
-
-**Onboarding** là quá trình một người/máy mới bắt đầu dùng dự án.
-“Đo thời gian onboarding” là bấm giờ từ lúc bắt đầu cấu hình repo đến lúc
-mẫu telemetry đầu tiên xuất hiện qua API; chưa có số đo phần cứng thì chưa công bố số.
-[Env và token](docs/environment.md) · [Runbook](docs/runbook.md) · [Maintenance](docs/maintenance.md) · [Bàn giao frontend](../docs/FRONTEND-HANDOFF.md).
+[Env và token](docs/environment.md) · [Runbook](docs/runbook.md) · [Maintenance](docs/maintenance.md) · [Nghiệm thu hạ tầng 2026-10-10](docs/acceptance-2026-10-10.md) · [Bàn giao frontend](../docs/FRONTEND-HANDOFF.md).

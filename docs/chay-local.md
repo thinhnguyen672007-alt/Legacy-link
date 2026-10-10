@@ -47,16 +47,6 @@ Nếu consumer/HTTP đang chạy trong terminal, Ctrl+C ở các terminal đó t
 
 Migration là file SQL bổ sung bảng/cột cần thiết cho code mới. Nó không xóa số đo/cảnh báo đã có. Bật PostgreSQL trước rồi chạy từ thư mục gốc repo:
 
-```bash
-docker exec -i legacy-link-postgres psql -v ON_ERROR_STOP=1 -U legacy_admin -d legacy_link < backend/db/migrate-c7-c8-c9.sql
-docker exec -i legacy-link-postgres psql -v ON_ERROR_STOP=1 -U legacy_admin -d legacy_link < backend/db/migrate-c10.sql
-docker exec -i legacy-link-postgres psql -v ON_ERROR_STOP=1 -U legacy_admin -d legacy_link < backend/db/migrate-c16.sql
-```
-
-Ba lệnh trên dành cho database đã có schema cũ, đúng tình trạng local lúc kiểm tra.
-Cách gọn hơn là chạy một lệnh trong `backend/` (tự nhận DB rỗng hay đã có và kiểm tra
-version): `npm run db:migrate`; kết quả mong đợi `Migration thành công, version=4`.
-Nếu database hoàn toàn mới, chạy file schema đầy đủ thay cho ba migration:
 Sau khi đã cấu hình `backend/.env` và chạy `npm ci` ở bước 3, dùng runner duy nhất:
 
 ```bash
