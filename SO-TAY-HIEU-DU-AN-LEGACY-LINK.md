@@ -2126,3 +2126,156 @@ curl -i http://127.0.0.1:3000/health/ready
 Mong đợi API/consumer running và HTTP 200 với ready=true. Hai chương trình đã chạy thì không mở thêm `npm start`/`npm run start:http`. Trước buổi test có ngắt dịch vụ, cả đội thống nhất bước đang làm; xem log consumer/API và quan sát ACK/queue cùng lúc, không chỉ nhìn đèn LED.
 
 Log kiểm chứng local được giữ ngoài repo ở `/home/nguyenvuducthinh/Documents/Codex/2026-10-06/li/outputs/non-frontend-acceptance-2026-10-10/`. Không đưa env, credential, dump DB hoặc evidence có dữ liệu thật lên Git. Bài stack cuối có thêm dữ liệu nền trước outage để kiểm tra giữ lịch sử không phải phép so sánh hai database rỗng; đồng thời thử setup lại và chặn project khác tiếp quản container.
+
+# 38. UNDERHEAT xuyên suốt và AI Copilot dùng Gemini free tier — 10/10/2026
+
+## 38.1. Chốt phạm vi lần này
+
+Làm UNDERHEAT thật từ cấu hình đến ESP32, MQTT, database và giao diện. Đồng thời dựng AI P0 theo hướng tiết kiệm quota: Gemini hiểu câu hỏi và chọn công cụ, backend tự truy xuất và kiểm tra dữ liệu. Không triển khai P2, app desktop, tài khoản nhân viên/giám đốc hay quyền phê duyệt cấu hình trong thay đổi này. Các phần đó vẫn còn phải làm; không được gọi toàn dự án là “100%”. Không push hoặc merge remote trong lần triển khai này.
+
+## 38.2. Vấn đề gốc của UNDERHEAT
+
+Trước đây có `alarm_low` trong database và firmware có khả năng so sánh ngưỡng thấp, nhưng hợp đồng cấu hình chuẩn chưa giữ `lowAlarm`, catalog chưa gửi ngưỡng thấp, backend chưa chấp nhận mã UNDERHEAT. Từng mảnh có sẵn không có nghĩa cả đường đi hoạt động. Ví dụ: DB có ngưỡng 20 nhưng ESP32 không nhận được thì không có cảnh báo; hoặc ESP32 gửi UNDERHEAT nhưng backend từ chối mã thì cảnh báo không được lưu.
+
+Cách sửa là dùng cùng một định nghĩa: **UNDERHEAT = số đo nhiệt độ hợp lệ thấp hơn ngưỡng thấp đã cấu hình cho máy đó**. Đây là vi phạm ngưỡng, chưa chứng minh hỏng máy. Máy đang nghỉ có thể lạnh một cách bình thường; hệ thống chưa có trạng thái sản xuất đủ tin cậy để tự loại bỏ cảnh báo khi nghỉ.
+
+Ví dụ sau CHỈ minh họa, không phải cấu hình khuyến nghị cho mọi máy:
+
+```json
+{
+  "key": "temperature",
+  "address": 1,
+  "functionCode": 3,
+  "dataType": "INT16",
+  "scale": 0.1,
+  "unit": "C",
+  "wordOrder": "HIGH_FIRST",
+  "metricType": "temperature",
+  "alarm": { "threshold": 80, "hysteresis": 2, "code": "OVERHEAT", "severity": "high" },
+  "lowAlarm": { "threshold": 20, "hysteresis": 3, "code": "UNDERHEAT", "severity": "high" }
+}
+```
+
+- 19°C: thấp hơn 20 → phát sinh UNDERHEAT.
+- 20°C: bằng ngưỡng → không phát sinh lần đầu, vì so sánh là `<`.
+- Đã báo ở 19, lên 21 rồi xuống 19: chưa báo thêm, vì chưa hồi phục đủ.
+- Lên 23 (=20+3), rồi xuống 19: được báo lần mới.
+- Lỗi đọc, NaN hay chưa đồng bộ thời gian không được tạo cảnh báo giả hoặc hồi phục giả.
+
+Khoảng 3°C gọi là hysteresis: khoảng hồi phục để tránh cảnh báo lặp khi số đo dao động. Alarm monitor có sẵn giữ trạng thái từng ngưỡng; parser mới nối cấu hình chuẩn vào đúng ngưỡng thấp. UNDERHEAT không được đặt vào `alarm` cao. Ngưỡng thấp phải nhỏ hơn ngưỡng cao nếu cùng khai báo; hysteresis phải không âm và trong miền số ESP32 xử lý được. Đơn vị UNDERHEAT phải là đơn vị nhiệt độ được hỗ trợ (C/°C/degC/℃/F/°F/K), không phải A hay rpm.
+
+## 38.3. Đi qua file nào?
+
+Đường cấu hình:
+
+1. `frontend/src/pages/Commissioning.tsx`: người dùng khai báo loại số đo, đơn vị, ngưỡng thấp và độ hồi phục; đây là bản nháp, chưa tác động máy.
+2. `frontend/src/api/schema.ts`: giữ `lowAlarm` và `metricType` khi đọc/kiểm tra JSON; trước đây trường chưa khai báo có thể bị loại khỏi dữ liệu.
+3. `backend/src/control/validation.js`: kiểm tra cấu hình, giữ ngưỡng thấp trong bản chuẩn hóa, giới hạn payload 4095 byte. Config mới vẫn phải đi qua preview/probe/apply như trước.
+4. `backend/src/db/catalog.js`: lấy `alarm_low` hiệu lực từ bản loại máy và phần ghi đè của máy; nếu có applied_config thì lấy cấu hình đã áp dụng. `db/provisioning.js` và profile dùng validator chung nên cũng giữ trường mới mà không cần một đường ghi riêng.
+5. `firmware/legacy-link-core/src/config_parser.cpp`: hiểu lowAlarm, từ chối cấu hình sai, nối vào `reg.low_alarm`.
+6. `firmware/legacy-link-core/src/alarm_monitor.cpp` (logic có sẵn): kiểm tra `< threshold`, giữ trạng thái và hồi phục tại `threshold+hysteresis`.
+7. `firmware/legacy-link-core/src/main.cpp` (đường gửi có sẵn): gửi UNDERHEAT vào hàng đợi alarm có ID riêng; cơ chế gửi lại/ACK không phải viết lại.
+
+Đường cảnh báo:
+
+ESP32 → topic alarm MQTT → consumer/ingestion → `backend/src/validation/alarm.js` chấp nhận UNDERHEAT → transaction `backend/src/db/ingestion.js` → bảng alarms + receipt → COMMIT → ACK ứng dụng → ESP32 bỏ sự kiện đã lưu. Frontend đọc qua `db/dashboard.js` → HTTP handler → màn hình cảnh báo/Copilot. Cùng ID và nội dung gửi lại không tạo bản ghi mới; cùng ID nhưng nội dung khác vẫn bị từ chối.
+
+Không cần migration mới: schema đang có alarm_low. Không tự điền một ngưỡng thấp cho tất cả máy và không sửa seed thành cấu hình thực tế của đội. Sau cập nhật code, firmware cũ vẫn chưa hiểu lowAlarm; phải build/nạp bản mới rồi probe/apply cấu hình ngưỡng mong muốn.
+
+## 38.4. AI biết máy lạnh bằng cách nào?
+
+`frontend/src/components/Copilot.tsx` → `frontend/src/api/client.ts` → POST `/ai/chat` hoặc `/ai/query` → `backend/src/http/handler.js` → `backend/src/ai/service.js` → `backend/src/ai/tools.js` → các hàm DB có sẵn (`machines.js`, `catalog.js`, `dashboard.js`).
+
+Quick action như “Nhiệt độ thấp” gửi action=underheat: bỏ qua Gemini hoàn toàn. Câu hỏi tự nhiên gọi `ai/gemini.js` với SDK chính thức `@google/genai`; model trả tên công cụ và tham số. Backend kiểm tra tên/ID/khoảng thời gian, mới đọc dữ liệu. Không cho model gửi SQL hoặc điều khiển máy. Không gửi toàn bộ telemetry lên Gemini. Trong bản này, Gemini không nhận kết quả tool để viết thêm đoạn diễn giải: lời giải thích và bảng số đo do backend/UI tạo. Đây là lựa chọn P0 để giảm lượt gọi và tránh đưa số đo nhà máy ra ngoài không cần thiết.
+
+Các công cụ hiện có:
+
+- get_factory_summary: danh sách trạng thái gateway và nhiệt độ, tối đa 100 máy.
+- get_devices_by_temperature_status: lọc overheat/underheat/offline/stale/unknown/normal.
+- get_device_status: đọc lại một máy theo ID chính xác.
+- get_device_telemetry_history: tối đa 60 phút, 100 mẫu gần nhất; trả min/max/thay đổi của mẫu đã đọc.
+- get_recent_alerts: tối đa 50 sự kiện trong giờ qua; không gọi chúng là cảnh báo đang hoạt động.
+
+Nguồn thật là database. Nhận diện thanh ghi nhiệt độ dựa trên metricType hoặc mã nhiệt độ trong config; không đoán chỉ vì tên có chữ temp. Kiểm tra kết nối, độ mới, số đo hữu hạn, lỗi đọc, đơn vị và ngưỡng. Thiếu một ngưỡng vẫn kết luận được vi phạm ngưỡng còn lại; nhưng không đủ cơ sở nói normal. Thiếu cả hai → unknown. Gateway offline → không nói nhiệt độ hiện tại là bình thường chỉ dựa trên mẫu cuối.
+
+Context chỉ giữ danh sách ID từ kết quả trước trong 10 phút, tối đa 200 phiên/process. Ví dụ “máy đầu tiên” dựa trên danh sách vừa trả; lần sau vẫn đọc database mới. Context không giữ telemetry để dùng lại như số đo hiện tại. Phiên gắn với dấu băm token, không lưu token gốc. Restart backend làm mất context; các tài khoản cá nhân chưa có nên chưa có quyền theo từng người/nhà máy.
+
+## 38.5. Free tier và lý do chưa làm P2 ngay
+
+P2 gồm diễn giải dài bằng LLM, báo cáo tự động, phân tích hội thoại nhiều bước, biểu đồ nâng cao và gợi ý chủ động. Chọn P2 được demo phong phú hơn, nhưng phải đánh đổi:
+
+1. Nhiều request và token hơn → sớm đụng giới hạn phút/ngày; các lượt AI dùng chung quota project.
+2. Nhiều vòng hỏi model/tool → phản hồi chậm hơn và dễ timeout khi mạng không ổn định.
+3. Báo cáo định kỳ/gợi ý tự động có thể tiêu quota trước khi ban giám khảo hỏi.
+4. Lịch sử cần đối chiếu cấu hình từng thời điểm; nếu đơn vị/ngưỡng từng đổi thì phân tích ngây thơ có thể sai.
+5. Tốn thời gian kiểm thử tình huống thiếu dữ liệu, sai ngữ cảnh, chart sai và quota hết; P0 cần ổn định trước.
+
+Không phải mọi P2 đều cần tiền: biểu đồ từ dữ liệu backend và điều hướng bằng ID có thể không gọi model thêm. Vì vậy nên chọn P2 ít phụ thuộc quota sau khi P0 đã nghiệm thu, không bật toàn bộ chỉ vì “free”.
+
+Biện pháp bản hiện tại: một request Gemini/câu, tối đa 4 tools, model timeout 12 giây, tổng đọc tools 8 giây; không retry model (SDK mặc định có retry nên đã đặt attempts=1). Giới hạn ứng dụng 5 câu Gemini/phút/process, 1 model request đồng thời; đây KHÔNG phải quota Google đảm bảo. Ngoài ra HTTP vẫn giới hạn POST 30/phút/socket. Câu hỏi bị giới hạn hoặc lỗi Gemini dùng bộ quy tắc dự phòng có thông báo; không giả vờ Gemini vẫn chạy. Quick action không tốn Gemini. Bộ quy tắc chỉ hiểu các ý định cơ bản, không hứa hiểu mọi câu nói.
+
+Model cấu hình qua GEMINI_MODEL, ví dụ gemini-3.5-flash-lite; phải kiểm tra model khả dụng và quota của project trong AI Studio. Không nhân key để né quota. Key nằm ở backend, không ở Vite/browser. Prompt gửi ra Internet gồm câu hỏi và ID ngữ cảnh; không gồm token hệ thống hay lịch sử số đo. Tuy vậy người dùng có thể tự nhập thông tin nhạy cảm trong câu hỏi: không đưa dữ liệu nội bộ bí mật vào free tier. Chính sách free tier của Google khác paid tier về sử dụng dữ liệu.
+
+Tài liệu chính thức đã đối chiếu:
+
+- https://ai.google.dev/gemini-api/docs/libraries
+- https://ai.google.dev/gemini-api/docs/function-calling
+- https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite
+- https://ai.google.dev/gemini-api/docs/rate-limits
+- https://ai.google.dev/gemini-api/docs/pricing
+
+## 38.6. Cách bật và thử lần sau
+
+Đặt GEMINI_API_KEY trong `backend/.env` riêng của máy và GEMINI_MODEL theo model project dùng được. Không gửi key vào chat, không commit. `.env.example` chỉ có key rỗng. Docker Compose truyền key/model cho backend-api, không truyền frontend. Dùng Docker phải sửa env file mà Compose đang dùng, rồi rebuild/recreate đúng backend-api theo quy trình infra; chỉ sửa backend/.env không tự đổi env container.
+
+Nếu chạy host: database và broker phải bật, consumer phải chạy để cập nhật số đo, API phải chạy để frontend truy vấn. Để thấy code API mới cần khởi động lại API trong lúc đội đã thống nhất không có phiên test. Không chạy thêm API thứ hai trên cùng cổng. Chưa có key vẫn chạy được quick actions và bộ quy tắc cơ bản.
+
+Dùng frontend kết nối API như trước, mở “AI Copilot · Hỏi về máy”, thử nút Nhiệt độ thấp. Muốn có UNDERHEAT thật, nạp firmware mới rồi preview/probe/apply một ngưỡng thấp có cơ sở; dùng simulator hoặc ESP32 tạo số đo dưới ngưỡng. Không chỉnh DB máy đang chạy bằng SQL chỉ để biến trạng thái thành bất thường.
+
+Ví dụ script kiểm tra (token đọc phải do bạn đặt trong biến môi trường local):
+
+```bash
+curl -sS http://127.0.0.1:3000/ai/query \
+  -H "Authorization: Bearer $API_READ_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"underheat"}'
+```
+
+Kết quả rỗng nghĩa là không tìm thấy máy phù hợp trong phạm vi đã kiểm tra, KHÔNG tự chứng minh mọi máy đều bình thường. Đọc cả offline/stale/unknown và truncated. Giá trị đo và thời điểm truy vấn là hai thời điểm khác nhau; panel không tự cập nhật dữ liệu cũ trong lịch sử chat.
+
+## 38.7. Giới hạn cần nói đúng khi thuyết trình
+
+- Cảnh báo là sự kiện quá khứ. ACK người dùng chỉ xác nhận đã xem, không khẳng định máy đã hồi phục.
+- Trạng thái nhiệt độ Copilot là snapshot so ngưỡng; trạng thái chống lặp trong ESP32 có hysteresis. Không đồng nhất hai khái niệm.
+- Gateway có kết nối không chứng minh máy đang sản xuất.
+- Phân tích lịch sử mới thống kê tập mẫu giới hạn; chưa đối chiếu config revision/đơn vị từng mẫu. UI ghi rõ chưa xác minh đơn vị lịch sử. Không dùng nó để chứng minh nguyên nhân hỏng hoặc tổng số lần vượt ngưỡng cũ.
+- Chưa có P2 report/chart tự động, so sánh máy chuyên biệt, gợi ý chủ động, login/RBAC cá nhân hoặc desktop notifications.
+- Không có key thật của đội nên Gemini live/quota thực tế CHƯA được nghiệm thu. Test SDK dùng HTTP giả lập chỉ chứng minh adapter gửi/đọc function call đúng cấu trúc.
+- Host firmware test/build không thay cho nạp ESP32 và thử nguồn điện/RS-485 thật.
+
+## 38.8. Câu hỏi để tự kiểm tra bản chất
+
+1. Tại sao có alarm_low trong DB mà trước đây vẫn chưa có UNDERHEAT xuyên suốt? Vì từng tầng phải giữ và hiểu cùng hợp đồng; một tầng bỏ trường hoặc từ chối mã làm đứt cả luồng.
+2. Có thể dùng ngưỡng 20 cho mọi máy không? Không. Ngưỡng phụ thuộc máy, chế độ vận hành, đơn vị và yêu cầu kỹ thuật.
+3. Nhiệt độ 19 chứng minh máy hỏng chưa? Chưa. Chỉ chứng minh thấp hơn ngưỡng 20 đang cấu hình nếu số đo còn mới và đọc hợp lệ.
+4. Tại sao không gửi cảnh báo mỗi giây? Sự kiện lặp gây nhiễu. Hysteresis và trạng thái từng ngưỡng giúp báo lần mới sau một lần hồi phục đủ.
+5. Mất ACK sau khi DB lưu thì sao? ESP32 gửi lại cùng ID, backend đối chiếu receipt và không ghi trùng rồi ACK lại.
+6. Mất Internet có mất giám sát nhiệt độ không? Quick action/backend rules vẫn đọc DB nếu backend/DB còn hoạt động; Gemini tự nhiên có thể không dùng được. Mất MQTT thì số đo sẽ cũ, phải hiển thị đúng.
+7. Gemini nói máy bình thường mà card backend nói stale thì tin ai? Tin dữ liệu và quy tắc backend. Trong bản này model chỉ chọn tool, không được tạo kết luận số đo.
+8. Token đọc có gọi POST AI được không? Có ở đúng /ai/chat và /ai/query, vì đó là truy vấn chỉ đọc. Không vì vậy được POST apply hoặc ACK cảnh báo.
+9. Vì sao chỉ giữ ID máy trong context? Để hiểu câu hỏi tiếp theo nhưng không sử dụng lại số đo cũ như dữ liệu mới.
+10. P2 có nhất thiết phải trả phí không? Không; nhưng nhiều vòng LLM và báo cáo định kỳ làm tiêu quota. Chart tính từ DB có thể không tăng request model.
+11. Tại sao chưa tuyên bố Gemini đã chạy thật? Vì test mock không chứng minh key/quota/model của project đội dùng được.
+12. Nếu demo hết quota thì trình bày sao? Nói rõ Gemini bị giới hạn; dùng nút đọc dữ liệu/backend rules. Không gọi dữ liệu demo là dữ liệu thật.
+
+## 38.9. Kết quả kiểm chứng local của thay đổi này
+
+- Backend `npm test`: 14 tệp kiểm thử qua, gồm logic AI/UNDERHEAT và adapter SDK với HTTP giả lập.
+- Integration: 28 nhóm PASS, dùng PostgreSQL/MQTT riêng; có UNDERHEAT qua QoS0 MQTT → validator → SQL → ACK → HTTP, gửi lại sau mất ACK vẫn một sự kiện; quick action AI đọc SQL thật bằng token đọc.
+- Frontend: 31 tests PASS, ESLint PASS, TypeScript/Vite build PASS; có kiểm tra nút UNDERHEAT gọi API, token đọc và lỗi API thật không tạo dữ liệu giả.
+- Firmware: 17 host tests PASS; kiểm tra lại alarm/endpoint sau siết mã UNDERHEAT. Contract có 26 message thực sự do serializer firmware tạo, được validator backend local chấp nhận. PlatformIO build esp32dev PASS; chưa flash board.
+- Security integration TLS/ACL PASS; proxy Nginx giữ Authorization/CORS và JSON POST AI bằng read token PASS. Proxy chờ 30s, trước timeout frontend 35s; ngân sách AI tối đa 12s model + 8s tools.
+- Dependency backend: `npm audit fix --omit=dev` cập nhật bản vá ip-address; audit báo 0 vulnerabilities tại thời điểm chạy.
+- Gemini live chưa test: backend/.env chưa có key. Không gọi Google bằng key thật hoặc giả vờ test mock là nghiệm thu provider.
+
+Log kiểm chứng nằm ngoài repo ở thư mục outputs/ai-underheat-2026-10-10 của workspace Codex. Các tests integration tự tạo/xóa container riêng, không dùng DB demo. Dịch vụ API đang chạy của đội không được tự restart; muốn dùng code mới phải restart API có phối hợp, rebuild frontend/stack theo cách triển khai hiện có.
