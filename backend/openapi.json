@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Legacy Link Backend API",
-    "version": "0.4.0",
-    "description": "API Legacy Link: token đọc cho GET, token ghi cho POST; timestamp đo là epoch milliseconds, ID DB là chuỗi. C16 bổ sung profile version, preview, lịch sử thao tác PostgreSQL, metrics, freshness. Xem deploy/README.md và docs/SO-TAY-HIEU-DU-AN-LEGACY-LINK.md. Rate limit mỗi socket IP/process: 300 GET và 30 thao tác/phút; 429 kèm Retry-After."
+    "version": "0.5.0",
+    "description": "API Legacy Link: token đọc cho GET, token ghi cho POST; timestamp đo là epoch milliseconds, ID DB là chuỗi. C16 bổ sung profile version, preview, lịch sử thao tác PostgreSQL, metrics, freshness. Xem deploy/README.md và docs/SO-TAY-HIEU-DU-AN-LEGACY-LINK.md. Rate limit mỗi socket IP/process: 300 GET và 30 thao tác/phút; 429 kèm Retry-After. Thêm deliveryHealth và diagnostics.delivery để quan sát queue ESP32; không cần endpoint riêng."
   },
   "servers": [
     {
@@ -2983,7 +2983,8 @@
           },
           "diagnostics": {
             "type": "object",
-            "nullable": true
+            "nullable": true,
+            "description": "Báo cáo readings và delivery tùy chọn: storage=RAM, bootId, clockReady, freeHeapBytes, telemetry/alarm {pending,capacity,highWater,committed,failedEnqueues,headId?,deviceId?,attempts?,rejection?}. Bộ đếm reset khi ESP32 khởi động lại. Firmware cũ có thể không gửi delivery."
           },
           "dataFresh": {
             "type": "boolean",
@@ -2997,6 +2998,18 @@
               "healthy",
               "read_error"
             ]
+          },
+          "deliveryHealth": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "stale",
+              "rejected",
+              "loss_observed",
+              "backlog",
+              "healthy"
+            ],
+            "description": "Tình trạng gửi dữ liệu từ báo cáo firmware gần nhất; failedEnqueues tính từ boot. healthy không chứng minh mọi mẫu lịch sử được thu thập."
           }
         },
         "required": [

@@ -728,6 +728,34 @@ try {
   passed(
     'C16 same consumer/API reconnect to broker with verified subscriptions, readiness and fresh committed ACK'
   );
+  // Cắt riêng đường nhận ACK sau COMMIT; đây không chỉ là gửi trùng bình thường.
+  const ackTopic = `legacy-link/gateways/${t.gatewayId}/ingestion/ack`;
+  await publisher.unsubscribeAsync(ackTopic);
+  const lostAck = { ...t, messageId: 'lost-ack:committed', timestamp: Date.now() };
+  const ackCount = acks.length;
+  await send(lostAck);
+  await waitFor(async () => (await pool.query('SELECT count(*)::int n FROM telemetry WHERE message_id=$1', [`${t.gatewayId}:${lostAck.messageId}`])).rows[0].n === 1, 'COMMIT while ACK receiver disconnected');
+  await sleep(250);
+  assert.equal(acks.length, ackCount, 'sender must not receive the first ACK');
+  await publisher.subscribeAsync(ackTopic, {qos:1});
+  await acked(lostAck);
+  assert.equal((await pool.query('SELECT count(*)::int n FROM telemetry WHERE message_id=$1', [`${t.gatewayId}:${lostAck.messageId}`])).rows[0].n, 1);
+  passed('application ACK lost after COMMIT: exact replay receives committed ACK and leaves one row');
+
+  const box = {capacity:32,pending:1,highWater:3,committed:20,failedEnqueues:0,attempts:2};
+  const report = {schemaVersion:1,deviceId:t.deviceId,gatewayId:t.gatewayId,timestamp:Date.now(),configRequestId:'test-profile',samplingIntervalMs:2000,
+    readings:[{key:'temperature',address:0,success:false,errorCode:226,sampledAt:Date.now()}],
+    delivery:{storage:'RAM',bootId:'integration-boot',clockReady:true,freeHeapBytes:45000,telemetry:box,alarm:{...box,capacity:8,pending:0}}};
+  await publisher.publishAsync(`legacy-link/devices/${t.deviceId}/diagnostics`,JSON.stringify(report),{qos:0});
+  await waitFor(async()=>{
+    const machine=await (await request(`/machines/${t.deviceId}`)).json();
+    return machine.diagnostics?.delivery?.bootId==='integration-boot';
+  },'firmware delivery diagnostics stored and exposed through HTTP');
+  const machine=await (await request(`/machines/${t.deviceId}`)).json();
+  assert.equal(machine.deliveryHealth,'backlog');
+  assert.equal(machine.diagnostics.delivery.telemetry.pending,1);
+  passed('MQTT delivery diagnostics -> database -> authenticated machine API');
+
   if (process.env.BENCHMARK_SAMPLES) {
     await stop(worker);
     Object.assign(process.env, { INGESTION_CONCURRENCY: '4', INGESTION_CAPACITY: '256' });

@@ -29,3 +29,5 @@ reports/
 
 # Khóa chỉ mô tả thao tác đang chạy trên máy này; không chia sẻ khóa qua Git.
 .operation-lock/
+
+export-backups/

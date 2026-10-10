@@ -29,7 +29,7 @@ created=true
 docker compose exec -T postgres sh -c 'exec pg_restore --exit-on-error --no-owner -U "$POSTGRES_USER" -d "$1"' sh "$restore_db" < "$backup_file"
 docker compose exec -T postgres sh -c 'exec psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1"' sh "$restore_db" <<'SQL'
 -- Đếm trực tiếp trong DB vừa phục hồi để người vận hành thấy có bảng và dữ liệu.
--- Số lượng này cần đối chiếu với bản sao lưu; không mặc định mọi dump phải có 10 bảng.
+-- Số lượng này cần đối chiếu với bản sao lưu; không mặc định mọi dump phải có 15 bảng.
 SELECT count(*) AS restored_tables FROM information_schema.tables WHERE table_schema='public';
 SELECT count(*) AS restored_telemetry FROM telemetry;
 SELECT count(*) AS restored_alarms FROM alarms;
