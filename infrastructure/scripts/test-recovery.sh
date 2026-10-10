@@ -18,7 +18,8 @@ mkdir -p "$report_root"
 interrupted_service=''
 network_detached=false
 fixture_active=false
-consumer_id="$(docker compose ps -q backend-consumer)"
+# Đọc ID container consumer muộn nhất có thể: các bài outage trước có thể đã recreate nó.
+consumer_id=''
 network_name="${DOCKER_NETWORK_NAME:-legacy-link-net}"
 run_dir=''
 # Tạo container kiểm thử tạm từ cùng image consumer, override entrypoint để chạy probe.
@@ -73,6 +74,11 @@ for fault in "${faults[@]}"; do
   fixture_active=true
   probe prepare
   if [ "$fault" = network ]; then
+    # Bài trước có thể đã recreate container consumer, nên ID đọc lúc đầu script
+    # có thể đã cũ. Đọc lại ngay trước khi ngắt mạng, nếu không Docker báo
+    # "No such container" và bài network dừng giữa chừng.
+    consumer_id="$(docker compose ps -q backend-consumer)"
+    [ -n "$consumer_id" ] || { echo '[ERROR] backend-consumer is not running' >&2; exit 1; }
     network_detached=true
     docker network disconnect "$network_name" "$consumer_id"
   else
