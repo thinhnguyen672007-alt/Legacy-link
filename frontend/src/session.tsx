@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useEffect,
   useContext,
   useMemo,
@@ -14,6 +15,7 @@ const Context = createContext<{
   sessionError: string;
   connect: (s: Session) => void;
   disconnect: () => void;
+  expire: (token: string) => void;
 } | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -27,6 +29,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         },
       }),
   );
+  const expire = useCallback((token: string) => {
+    if (!session || session.readToken !== token) return;
+    void client.cancelQueries();
+    client.clear();
+    setSessionError("Phiên đăng nhập đã hết hạn hoặc bị quản trị viên thu hồi. Hãy đăng nhập lại.");
+    setSession(null);
+  }, [session, client]);
   useEffect(() => {
     if (!session?.user) return;
     let cancelled = false;
@@ -59,6 +68,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       value={{
         session,
         sessionError,
+        expire,
         connect: (s) => {
           clear();
           setSessionError("");

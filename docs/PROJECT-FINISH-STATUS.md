@@ -67,3 +67,7 @@ Nghiệm thu bổ sung: API Docker mới xử lý hoàn tất câu diễn đạt
 ### 2026-10-10 — Clean connection UI and AI DENSO naming
 
 Bỏ ô địa chỉ API và hướng dẫn IP/CORS khỏi đăng nhập, bỏ URL ở topbar; production tiếp tục tự dùng `/api` cùng origin. Đổi tên launcher/dialog/accessibility labels sang AI DENSO trong VI/EN, dọn CSS/copy không còn dùng và cập nhật browser script/README. 80 frontend tests, lint/build qua; detector không có lỗi non-advisory. Browser kiểm tra desktop localhost và mobile IP LAN: login request tự chọn cùng origin, không còn URL trong phần hỗ trợ/topbar, tên VI/EN đúng, không tràn ngang. Login được bootstrap bằng read token để kiểm tra giao diện và đọc backend; không kiểm thử lại mật khẩu tài khoản thật. Đã cập nhật riêng container frontend.
+
+### 2026-10-11 — Windows app đang triển khai
+
+Nhánh `feat/windows-app` từ main `2ecc859` (PR #80). Có Electron shell/NSIS, setup URL, tray/single instance, polling main process, bridge session/router, Windows Actions artifact + checksum. Đã chạy 10 desktop logic tests và 88 frontend tests; lint/build frontend qua. Frontend live đã cập nhật riêng để có bridge. Chưa nghiệm thu installer/notification trên VM tại mốc ghi này. ESP32 khác mạng theo xác nhận người dùng, không coi lịch sử hoặc toast thử là alarm phần cứng mới. Chi tiết workflow tại `WINDOWS-APP-HANDOFF.md` và `desktop/README.md`.

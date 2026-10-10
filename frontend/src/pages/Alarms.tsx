@@ -1,5 +1,5 @@
 import { tr } from "../language";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { RefreshCw, Check } from "lucide-react";
@@ -28,6 +28,16 @@ export function Alarms() {
   }));
   const [cursor, setCursor] = useState<string | undefined>();
   const reset = () => setCursor(undefined);
+  const routeDevice = params.get("device") ?? "";
+  const desktopEvent = params.get("desktopEvent");
+  useEffect(() => {
+    setDevice(routeDevice);
+    setCursor(undefined);
+    if (desktopEvent) {
+      setSeverity(""); setAck(""); setDays("1");
+      const to = Date.now(); setRange({from: to - 86400000, to});
+    }
+  }, [routeDevice, desktopEvent]);
   const q = useQuery({
     queryKey: ["alarms", device, severity, ack, range, cursor],
     queryFn: ({ signal }) => {
