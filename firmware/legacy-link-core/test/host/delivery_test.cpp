@@ -94,5 +94,22 @@ int main() {
     mqttClient.receive("legacy-link/gateways/123456789ABC/ingestion/ack",invalid);
     assert(telemetry_queue.size()==1);
   }
+  // Escaped NULs must not turn a different JSON identity/status into a match.
+  DynamicJsonDocument malformed(1024);
+  const std::string good = "{\"schemaVersion\":1,\"deviceId\":\"BENCH-01\",\"kind\":\"telemetry\",\"messageId\":\""+id+"\",\"status\":\"committed\"}";
+  for (const char *field : {"deviceId", "messageId", "kind", "status"}) {
+    assert(!deserializeJson(malformed, good));
+    const std::string value = malformed[field].as<std::string>();
+    std::string invalid = good;
+    const std::string token = std::string("\"") + field + "\":\"" + value + "\"";
+    invalid.replace(invalid.find(token), token.size(), std::string("\"") + field + "\":\"" + value + "\\u0000suffix\"");
+    mqttClient.receive("legacy-link/gateways/123456789ABC/ingestion/ack", invalid);
+    assert(telemetry_queue.size() == 1);
+  }
+  assert(!deserializeJson(malformed, good));
+  malformed["status"] = "rejected"; malformed["reason"] = "";
+  std::string emptyReason; serializeJson(malformed, emptyReason);
+  mqttClient.receive("legacy-link/gateways/123456789ABC/ingestion/ack", emptyReason);
+  assert(!strcmp(head->rejection, "rejected"));
   std::cout << "Offline queue, retry and exact ACK tests passed.\n";
 }

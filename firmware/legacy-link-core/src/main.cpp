@@ -1,6 +1,7 @@
 #include "telemetry_queue.h"
 #include "config_parser.h"
 #include "command_deadline.h"
+#include "json_text.h"
 #include "modbus_reader.h"
 #include "alarm_monitor.h"
 #include "config_store.h"
@@ -357,13 +358,15 @@ void reconnect_mqtt() {
 template<size_t N>
 void accept_ingestion_ack(DeliveryQueue<N> &queue, const JsonDocument &ack) {
   auto *sample = queue.front();
-  const char *device = ack["deviceId"] | "";
-  const char *id = ack["messageId"] | "";
-  if (!sample || strcmp(sample->device, device) || strcmp(sample->id, id)) return;
-  const char *status = ack["status"] | "";
+  const char *device = json_text(ack["deviceId"], 63);
+  const char *id = json_text(ack["messageId"], 79);
+  if (!sample || !device || !id || strcmp(sample->device, device) || strcmp(sample->id, id)) return;
+  const char *status = json_text(ack["status"], 16);
+  if (!status) return;
   if (!strcmp(status, "committed")) queue.acknowledge(device, id);
   else if (!strcmp(status, "rejected")) {
-    const char *reason = ack["reason"] | "rejected";
+    const char *reason = json_text(ack["reason"], 128);
+    if (!reason) reason = "rejected";
     if (strcmp(reason, sample->rejection)) Serial.printf("[OUTBOX] Rejected %s: %s; retained for retry\r\n", id, reason);
     strlcpy(sample->rejection, reason, sizeof(sample->rejection));
   }
@@ -376,7 +379,8 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length) {
   if (!strcmp(topic, ack_topic)) {
     StaticJsonDocument<768> ack;
     if (length >= 768 || deserializeJson(ack, payload, length) || ack["schemaVersion"] != 1) return;
-    const char *kind = ack["kind"] | "";
+    const char *kind = json_text(ack["kind"], 16);
+    if (!kind) return;
     if (!strcmp(kind, "telemetry")) accept_ingestion_ack(telemetry_queue, ack);
     else if (!strcmp(kind, "alarm")) accept_ingestion_ack(alarm_queue, ack);
     return;
