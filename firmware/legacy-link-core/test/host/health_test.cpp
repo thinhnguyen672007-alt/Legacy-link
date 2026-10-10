@@ -20,6 +20,13 @@ int main() {
   assert(doc["telemetry"]["highWater"]==1);
   assert(doc["alarm"]["capacity"]==8);
   assert(!delivery_health_json(output,4));
+  assert(outbox_entry_json(telemetry_queue, "telemetry", 0, output, sizeof(output)));
+  assert(!deserializeJson(doc, output));
+  assert(doc["messageId"] == "boot-1" && doc["attempts"] == 2);
+  assert(doc["payloadBytes"] == 2 && !doc.containsKey("payload"));
+  assert(!outbox_entry_json(telemetry_queue, "telemetry", 1, output, sizeof(output)));
+  assert(!outbox_entry_json(telemetry_queue, "telemetry", 0, output, 4));
+  assert(handle_serial_diagnostic(":outbox"));
   const auto before=global_device_config;
   assert(handle_serial_diagnostic(":health"));
   assert(handle_serial_diagnostic(":help"));

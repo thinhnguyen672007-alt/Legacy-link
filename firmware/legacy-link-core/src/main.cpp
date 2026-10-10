@@ -643,14 +643,43 @@ size_t delivery_health_json(char *output, size_t capacity) {
   if (doc.overflowed() || measureJson(doc) >= capacity) return 0;
   return serializeJson(doc, output, capacity);
 }
+template<size_t N>
+size_t outbox_entry_json(const DeliveryQueue<N> &queue, const char *kind,
+                         size_t index, char *output, size_t capacity) {
+  const auto *sample = queue.at(index);
+  if (!sample) return 0;
+  StaticJsonDocument<768> doc;
+  doc["type"] = "outboxEntry"; doc["kind"] = kind;
+  doc["bootId"] = boot_id; doc["index"] = index;
+  doc["deviceId"] = sample->device; doc["messageId"] = sample->id;
+  doc["attempts"] = sample->attempts; doc["rejection"] = sample->rejection;
+  doc["payloadBytes"] = strlen(sample->payload);
+  if (doc.overflowed() || measureJson(doc) >= capacity) return 0;
+  return serializeJson(doc, output, capacity);
+}
+
+template<size_t N>
+void print_outbox(const DeliveryQueue<N> &queue, const char *kind) {
+  // Stream bounded lines instead of allocating a JSON array for all 40 entries.
+  char output[768];
+  for (size_t i = 0; i < queue.size(); ++i)
+    if (outbox_entry_json(queue, kind, i, output, sizeof(output))) Serial.println(output);
+}
+
 bool handle_serial_diagnostic(const char *line) {
   if (!strcmp(line, ":health")) {
     char output[2048];
     if (delivery_health_json(output, sizeof(output))) Serial.println(output);
     return true;
   }
+  if (!strcmp(line, ":outbox")) {
+    handle_serial_diagnostic(":health");
+    print_outbox(telemetry_queue, "telemetry");
+    print_outbox(alarm_queue, "alarm");
+    return true;
+  }
   if (!strcmp(line, ":help")) {
-    Serial.println(":health - read-only delivery health JSON; :help - commands. JSON config remains supported.");
+    Serial.println(":health - delivery health; :outbox - pending ID ledger (JSON lines); :help - commands. JSON config remains supported.");
     return true;
   }
   return false;
