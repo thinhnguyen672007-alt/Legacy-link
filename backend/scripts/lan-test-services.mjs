@@ -1,7 +1,7 @@
 // Điều khiển hai process Node cho buổi test LAN; PID/log ở thư mục Git bỏ qua.
 // Chỉ dừng đúng process do script này tạo, không dùng pkill làm ảnh hưởng chương trình khác.
 import {spawn} from 'node:child_process';
-import {readFileSync,writeFileSync,mkdirSync,openSync,closeSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,openSync,closeSync,readdirSync,readlinkSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -36,6 +36,20 @@ async function stop(name) {
 }
 async function start(name) {
  if(owned(name)){console.log(`${name}: đang chạy PID ${state[name].pid}`);return;}
+ // Tránh npm start chạy tay và script cùng chiếm một MQTT client ID.
+ if (process.platform === 'linux') {
+  for (const pid of readdirSync('/proc').filter((value) => /^\d+$/.test(value))) {
+   if (Number(pid) === process.pid) continue;
+   let duplicate = false;
+   try {
+    const args = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0');
+    const cwd = readlinkSync(`/proc/${pid}/cwd`);
+    duplicate = args.includes(join(root, entries[name])) ||
+      (cwd === root.replace(/\/$/, '') && args.some((arg) => arg === entries[name] || arg === `./${entries[name]}`));
+   } catch { continue; } // Process có thể kết thúc ngay trong lúc kiểm tra.
+   if (duplicate) throw new Error(`${name} đã chạy ngoài script ở PID ${pid}; dừng đúng tiến trình đó trước, không khởi động trùng.`);
+  }
+ }
  process.loadEnvFile(join(root,'.env'));
  const log=join(runtime,`${name}.log`),fd=openSync(log,'a',0o600);
  const child=spawn(process.execPath,[join(root,entries[name])],{
