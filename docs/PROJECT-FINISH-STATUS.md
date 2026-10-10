@@ -57,3 +57,9 @@ Sau mỗi chặng, ghi commit, lệnh kiểm tra, kết quả thật, đường 
 - Frontend: 70 tests PASS, lint/build PASS. Chromium desktop 1440×1000 và mobile 390×844 với fixture API: chuyển ngôn ngữ, giữ form/session, lỗi cụ thể, đăng xuất/reload, không tràn ngang và không gửi apply.
 - Docker frontend đã build và cập nhật trên máy 2; frontend health và API ready đều HTTP 200. Không thay đổi cấu hình ESP32 hay dịch vụ backend/broker.
 - Chi tiết bảo trì và giới hạn: [WEB-LANGUAGE.md](WEB-LANGUAGE.md). Cảnh báo bundle lớn hơn 500 kB vẫn còn; không chặn build.
+
+### 2026-10-10 — AI Investigation upgrade
+
+Đã triển khai vòng Gemini Function Calling nhiều công cụ (8 tools chỉ đọc), JSON report có evidence IDs, context theo phiên, workspace biểu đồ/thống kê/ưu tiên/next checks, VI/EN, partial/loading/timeout/provider-quota states. Xem `docs/AI-INVESTIGATION.md` để biết giới hạn nguồn và lệnh kiểm thử. Key/model đã cấu hình trong env không theo dõi Git. Gemini thật + database live đã hoàn tất 4 câu khác nhau và 1 lượt biểu đồ riêng; câu diễn đạt thứ 5 gặp provider 429 sau khi đã lấy bằng chứng. Không coi partial là full synthesis pass. Nguồn demo là ESP32/Modbus simulator; đơn vị từng mẫu lịch sử chưa xác minh, không xác nhận hỏng hóc cơ khí.
+
+Nghiệm thu bổ sung: API Docker mới xử lý hoàn tất câu diễn đạt mới với 3 tools. Browser dùng read token hiện có gọi AI/backend thật và vẽ 471 mẫu lịch sử; không mock Gemini hoặc dữ liệu ở lượt này (đăng nhập không kiểm thử lại). Bộ kiểm thử cuối: 103 backend, 80 frontend; lint/build và replay browser desktop/mobile qua. Đã chặn việc dùng diagnostics cấu hình cũ để đánh giá ngưỡng cấu hình mới, và giới hạn 6000 điểm cho cả truy vấn lịch sử đơn. Chi tiết/bằng chứng và giới hạn trong AI-INVESTIGATION.md.

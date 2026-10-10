@@ -236,73 +236,179 @@ export function canApply(
 }
 
 // Chỉ backend tạo bảng số đo. Không render URL hay lệnh JavaScript từ model.
-export const copilotSchema = z.object({
-  conversationId: z.string(),
-  mode: z.enum(["rules", "gemini"]),
-  text: z.string(),
-  notice: z.string().nullable(),
-  results: z.array(
-    z.object({
-      tool: z.string(),
-      source: z.literal("database"),
-      queriedAt: z.string(),
-      note: z.string().optional(),
-      truncated: z.boolean().optional(),
-      counts: z
-        .object({
-          inspected: finite,
-          gatewayOnline: finite,
-          offline: finite,
-          stale: finite,
-          overheat: finite,
-          underheat: finite,
-          normal: finite,
-          unknown: finite,
-        })
-        .optional(),
-      devices: z
-        .array(
-          z.object({
-            deviceId: z.string(),
-            name: z.string(),
-            gatewayOnline: z.boolean(),
-            dataFresh: z.boolean(),
-            temperatures: z.array(
-              z.object({
-                metricKey: z.string(),
-                unit: z.string(),
-                value: finite.nullable(),
-                low: finite.nullable(),
-                high: finite.nullable(),
-                measuredAt: z.string().nullable(),
-                status: z.enum([
-                  "normal",
-                  "overheat",
-                  "underheat",
-                  "offline",
-                  "stale",
-                  "unknown",
-                ]),
-                reason: z.string().nullable(),
-              }),
-            ),
-          }),
-        )
-        .optional(),
-      alerts: z.array(alarmSchema).optional(),
-      series: z
-        .array(
-          z.object({
-            metricKey: z.string(),
-            unit: z.string(),
-            points: z.array(z.object({ timestamp: finite, value: finite })),
-            min: finite.nullable(),
-            max: finite.nullable(),
-            change: finite.nullable(),
-          }),
-        )
-        .optional(),
-    }),
-  ),
-});
+export const copilotSchema = z
+  .object({
+    conversationId: z.string(),
+    mode: z.enum(["rules", "gemini"]),
+    text: z.string(),
+    notice: z.string().nullable(),
+    results: z.array(
+      z.object({
+        evidenceId: z.string().optional(),
+        tool: z.string(),
+        source: z.literal("database"),
+        queriedAt: z.string(),
+        note: z.string().optional(),
+        truncated: z.boolean().optional(),
+        partial: z.boolean().optional(),
+        errors: z
+          .array(z.object({ deviceId: z.string(), message: z.string() }))
+          .optional(),
+        counts: z
+          .object({
+            inspected: finite,
+            gatewayOnline: finite,
+            offline: finite,
+            stale: finite,
+            overheat: finite,
+            underheat: finite,
+            normal: finite,
+            unknown: finite,
+          })
+          .optional(),
+        devices: z
+          .array(
+            z.object({
+              deviceId: z.string(),
+              name: z.string(),
+              gatewayOnline: z.boolean(),
+              dataFresh: z.boolean(),
+              priority: z.enum(["high", "medium", "low"]).optional(),
+              reasons: z.array(z.string()).optional(),
+              nextChecks: z.array(z.string()).optional(),
+              provenance: z.enum(["simulation", "unverified"]).optional(),
+              failureConfirmed: z.literal(false).optional(),
+              readHealth: z.string().optional(),
+              deliveryHealth: z.string().optional(),
+              metrics: z
+                .array(
+                  z.object({
+                    key: z.string(),
+                    value: finite.nullable(),
+                    unit: z.string(),
+                    measuredAt: z.string().nullable(),
+                    readSuccess: z.boolean().nullable(),
+                  }),
+                )
+                .max(16)
+                .optional(),
+              temperatures: z.array(
+                z.object({
+                  metricKey: z.string(),
+                  unit: z.string(),
+                  value: finite.nullable(),
+                  low: finite.nullable(),
+                  high: finite.nullable(),
+                  critical: finite.nullable().optional(),
+                  measuredAt: z.string().nullable(),
+                  status: z.enum([
+                    "normal",
+                    "overheat",
+                    "underheat",
+                    "offline",
+                    "stale",
+                    "unknown",
+                  ]),
+                  reason: z.string().nullable(),
+                }),
+              ),
+            }),
+          )
+          .optional(),
+        alerts: z.array(alarmSchema).optional(),
+        series: z
+          .array(
+            z.object({
+              deviceId: z.string().optional(),
+              metricKey: z.string(),
+              unit: z.string(),
+              currentUnit: z.string().nullable().optional(),
+              unitVerified: z.literal(false).optional(),
+              samplingIntervalMs: finite.nullable().optional(),
+              sampledCount: finite.optional(),
+              coverage: z
+                .object({
+                  from: finite,
+                  to: finite,
+                  firstSampleAt: finite.nullable(),
+                  lastSampleAt: finite.nullable(),
+                })
+                .optional(),
+              points: z
+                .array(z.object({ timestamp: finite, value: finite }))
+                .max(2000),
+              min: finite.nullable(),
+              max: finite.nullable(),
+              change: finite.nullable(),
+            }),
+          )
+          .optional(),
+      }),
+    ),
+    report: z
+      .object({
+        version: z.literal(1),
+        status: z.enum(["complete", "partial", "unavailable"]),
+        generatedAt: z.iso.datetime(),
+        view: z.enum(["brief", "workspace"]),
+        findings: z
+          .array(
+            z.object({
+              title: z.string().max(160),
+              explanation: z.string().max(1000),
+              evidenceIds: z.array(z.string()).min(1).max(8),
+              nextCheck: z.string().max(500),
+            }),
+          )
+          .max(8),
+        followUp: z.string().max(500),
+        limitations: z.array(z.string()),
+        evidence: z
+          .array(
+            z.object({
+              id: z.string(),
+              tool: z.string(),
+              queriedAt: z.iso.datetime(),
+            }),
+          )
+          .max(8),
+        trace: z
+          .array(
+            z.object({
+              tool: z.string(),
+              round: finite,
+              status: z.enum(["success", "error"]),
+              durationMs: finite,
+              error: z.string().optional(),
+            }),
+          )
+          .max(8),
+        failureConfirmed: z.literal(false),
+      })
+      .optional(),
+  })
+  .superRefine((response, ctx) => {
+    if (!response.report) return;
+    const ids = response.report.evidence.map((item) => item.id);
+    if (
+      new Set(ids).size !== ids.length ||
+      response.report.evidence.some(
+        (e) =>
+          !response.results.some(
+            (r) =>
+              r.evidenceId === e.id &&
+              r.tool === e.tool &&
+              r.queriedAt === e.queriedAt,
+          ),
+      ) ||
+      response.report.findings.some((finding) =>
+        finding.evidenceIds.some((id) => !ids.includes(id)),
+      ) ||
+      response.results.some((result) => !ids.includes(result.evidenceId ?? ""))
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Investigation evidence does not match results",
+      });
+  });
 export type CopilotResponse = z.infer<typeof copilotSchema>;
