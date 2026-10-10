@@ -291,3 +291,21 @@ test("Quota local giới hạn 5 câu/phút, bộ quy tắc vẫn dùng được
   for (let i = 0; i < 7; i++) await copilot({ question: "Tóm tắt nhà máy" });
   assert.equal(requests, 5);
 });
+
+test("Máy nhiều cảm biến: một cảm biến normal không che cảnh báo của cảm biến còn lại", async () => {
+  const mixed = { ...machine, metrics: { temperature: 40, second: 90 } };
+  const tools = createTools({
+    ...db,
+    listMachines: async () => [mixed],
+    getCatalog: async () => ({ registerMap: [reg, { ...reg, key: "second" }] }),
+  });
+  assert.equal(
+    (await tools("get_devices_by_temperature_status", { status: "normal" }))
+      .devices.length,
+    0,
+  );
+  const summary = await tools("get_factory_summary", {});
+  assert.equal(summary.counts.normal, 0);
+  assert.equal(summary.counts.overheat, 1);
+  assert.equal(summary.counts.gatewayOnline, 1);
+});

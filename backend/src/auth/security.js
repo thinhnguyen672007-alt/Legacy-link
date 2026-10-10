@@ -32,6 +32,8 @@ export function accountSecurity(settings, accounts) {
     if (
       !path.startsWith("/auth/") &&
       !["GET", "HEAD"].includes(req.method) &&
+      // Copilot dùng POST để gửi câu hỏi nhưng chỉ đọc dữ liệu.
+      !(req.method === "POST" && ["/ai/chat", "/ai/query"].includes(path)) &&
       user.role === "viewer"
     )
       throw new ControlError("Write permission required", 403);

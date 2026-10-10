@@ -2279,3 +2279,138 @@ Kết quả rỗng nghĩa là không tìm thấy máy phù hợp trong phạm vi
 - Gemini live chưa test: backend/.env chưa có key. Không gọi Google bằng key thật hoặc giả vờ test mock là nghiệm thu provider.
 
 Log kiểm chứng nằm ngoài repo ở thư mục outputs/ai-underheat-2026-10-10 của workspace Codex. Các tests integration tự tạo/xóa container riêng, không dùng DB demo. Dịch vụ API đang chạy của đội không được tự restart; muốn dùng code mới phải restart API có phối hợp, rebuild frontend/stack theo cách triển khai hiện có.
+
+
+# 39. Nghiệm thu sau khi ghép AI, UNDERHEAT và tài khoản — 10/10/2026
+
+Phần này cập nhật tình trạng sau mục 38. Những ghi chú “chưa có login” hoặc “chưa thử Gemini thật” ở mục 38 là lịch sử tại thời điểm đó, không phải kết luận hiện tại. Không đánh đồng chạy qua kiểm thử phần mềm với nghiệm thu thiết bị thật hoặc hoàn thành mọi tính năng P2.
+
+## 39.1. Đã ghép mã nào, có mất code của đồng đội không?
+
+Local có merge dang dở giữa 089b470 và fe0664f. Đã đối chiếu hai phía với merge đã xuất bản 2b1478a, kiểm tra các file khác không có sửa riêng chưa lưu, sao lưu toàn bộ file bị ảnh hưởng cùng trạng thái Git và .env vào thư mục riêng trước khi xử lý. Sau đó hủy đúng merge dang dở và fast-forward nhánh feature/backend-base lên origin/main 7d58ff4, không viết lại lịch sử Git. Các bản sửa nghiệm thu bên dưới còn ở local, chưa push.
+
+Điểm quan trọng: hết dấu conflict không đồng nghĩa nội dung đã đúng. Bản main vẫn có OpenAPI bị ghép hỏng, vì vậy cần kiểm chứng cấu trúc và hành vi, không chỉ nhìn Git báo sạch.
+
+## 39.2. Lỗi tài liệu API sau merge
+
+**Vấn đề:** backend/openapi.json không parse được JSON. Phần /auth/login bị lồng vào /ai/chat; phần schema mật khẩu lẫn vào /ai/query. Server không cần đọc file này để chạy nên API vẫn phản hồi, dễ khiến đội tưởng mọi thứ đã ổn. Công cụ đọc tài liệu hoặc sinh client frontend sẽ thất bại.
+
+**Cách sửa:** đọc hai phiên bản hợp lệ trước merge, giữ hợp đồng AI/UNDERHEAT, bổ sung các endpoint và schema tài khoản, cập nhật mô tả bearer session và quyền viewer. Không chọn toàn bộ “ours/theirs” vì sẽ mất một tính năng. Bổ sung counts trong response AI.
+
+**File:** backend/openapi.json; backend/src/http/openapi.test.js.
+
+**Kiểm chứng:** test parse JSON, endpoint tài khoản/AI ở đúng tầng, login yêu cầu username/password, quick action có underheat, Alarm còn UNDERHEAT và mọi tham chiếu nội bộ tồn tại. Test chạy trong npm test.
+
+**Ví dụ:** hai bạn cùng sửa mục lục sách. Git ghép chữ thành công nhưng đưa “Đăng nhập” vào giữa đoạn “Chatbot”. Sửa merge phải khôi phục cấu trúc cuốn sách, không chỉ xóa dấu gạch conflict.
+
+## 39.3. Viewer bị cấm hỏi AI dù AI chỉ đọc
+
+**Vấn đề:** kiểm tra quyền mới cấm mọi POST đối với viewer. /ai/chat và /ai/query dùng POST để gửi câu hỏi JSON nhưng không thay đổi thiết bị. Nhân viên xem dữ liệu được dashboard nhưng nhận 403 khi hỏi AI.
+
+**Cách sửa:** cho viewer POST đúng hai đường dẫn AI chỉ đọc. Các POST khác vẫn kiểm tra quyền; tài khoản bắt buộc đổi mật khẩu vẫn phải đổi trước khi đọc dữ liệu. Không cho phép mọi URL bắt đầu bằng /ai/.
+
+**File:** backend/src/auth/security.js; backend/src/auth/accounts.test.js; backend/scripts/accounts-integration.mjs.
+
+**Ví dụ:** GET/POST giống hình thức gửi phiếu, không tự quyết định người gửi có quyền gì. Phiếu “cho xem nhiệt độ” không giống phiếu “đổi cấu hình”, dù cả hai cùng gửi bằng POST.
+
+**Kiểm chứng:** viewer session gọi /ai/query thành công; /ai/execute vẫn bị từ chối. Integration tài khoản dùng DB riêng, không dùng admin demo của bạn.
+
+## 39.4. Máy nhiều cảm biến bị kết luận bình thường sai
+
+**Vấn đề:** bộ lọc normal trước đó chỉ cần có một cảm biến nhiệt độ bình thường. Máy có cảm biến A=40°C bình thường, B=90°C vượt ngưỡng vẫn có thể xuất hiện trong danh sách bình thường.
+
+**Cách sửa:** chỉ xếp máy vào normal khi có ít nhất một cảm biến nhiệt độ và tất cả cảm biến nhiệt độ được xét đều normal. Quy tắc mỗi cảm biến vẫn kiểm tra chất lượng, ngưỡng, đơn vị và độ mới. Thiếu ngưỡng không được suy thành bình thường. Offline/stale không bị coi như số đo hiện tại.
+
+**File:** backend/src/ai/tools.js; backend/src/ai/copilot.test.js; frontend/src/api/schema.ts; frontend/src/components/Copilot.tsx.
+
+Bổ sung thống kê inspected/gatewayOnline/offline/stale/overheat/underheat/normal/unknown để trả lời tóm tắt bằng số đếm backend tính. Gateway online chỉ nói kết nối, không chứng minh máy đang chạy sản xuất. Một máy có hai cảm biến trái trạng thái có thể thuộc cả overheat và underheat; không cộng các nhóm để tính tổng số máy. Counts là trên tập đã truy vấn, phải xem cờ truncated khi dữ liệu vượt giới hạn.
+
+**Vì sao chọn cách này:** backend xác định được kết luận bằng quy tắc rõ ràng và test được. Không nhờ Gemini tự đoán “máy ổn” từ văn bản.
+
+## 39.5. Gemini: có key vẫn chưa đủ
+
+.env local đã có key nhưng thiếu GEMINI_MODEL. Đã xác minh model bằng API thật và cấu hình local gemini-3.5-flash-lite. Đây là lựa chọn đã gọi thành công ở thời điểm nghiệm thu, không phải lời hứa model hoặc quota sẽ luôn giữ nguyên. Không đưa key vào Git, trình duyệt hay tài liệu.
+
+Đã gọi thật câu hỏi UNDERHEAT: model chọn get_devices_by_temperature_status với status=underheat. Qua HTTP API, câu hỏi tóm tắt trả mode=gemini và tool get_factory_summary; quick action trả mode=rules. Model chọn công cụ, backend mới đọc số liệu. Khi chỉ có function call, không đọc thêm SDK response.text để tránh cảnh báo getter không cần thiết.
+
+**File:** backend/src/ai/gemini.js; backend/.env chỉ local. infrastructure/.env.example có biến mẫu key rỗng/model, không chứa secret.
+
+Free tier vẫn có thể hết quota sau nghiệm thu. Quick action đọc DB không cần Gemini; thông báo fallback phải minh bạch. Test thành công một vài lần không phải benchmark và không chứng minh SLA.
+
+## 39.6. Proxy cắt ngang câu trả lời AI
+
+Backend có ngân sách 12 giây gọi model và 8 giây chạy tools. Proxy đợi 20 giây có thể hết giờ ngay khi backend sắp trả kết quả, chưa tính độ trễ mạng.
+
+Đã tăng proxy_read_timeout lên 30 giây trong frontend/nginx.conf và infrastructure/nginx/default.conf.template. Frontend đợi 35 giây. Không tăng vô hạn: request treo vẫn phải kết thúc. Test stack đặt GEMINI_API_KEY rỗng để kiểm tra quy tắc dự phòng, không tiêu quota hoặc vô tình dùng secret local.
+
+**File bổ sung:** infrastructure/scripts/test-stack.mjs; .github/workflows/frontend.yml chạy npm ci, test, lint, build và Docker build để phát hiện lỗi frontend khi ghép nhánh. Workflow mới đã được soạn; CI trên GitHub chưa chạy vì chưa push. Các lệnh tương ứng đã chạy local.
+
+## 39.7. DB mỗi laptop là một hệ thống độc lập
+
+User admin Hoàng Anh tạo nằm trong legacy-oct10-db-1 trên laptop bạn ấy. Docker hostname db:5432 chỉ có ý nghĩa trong mạng Docker tương ứng, không phải địa chỉ tự động truy cập được từ laptop Thịnh.
+
+Đã backup DB local trước migration, nâng schema từ 4 lên 5 để có bảng tài khoản. Trước và sau migration đều có 1.797 telemetry, 4 alarm, 3 thiết bị. Không copy DB hay mật khẩu Hoàng Anh. Tạo admin riêng cho DB mà backend/.env local trỏ tới, dùng hàm bootstrap của module tài khoản, bật cờ bắt buộc đổi mật khẩu.
+
+Thông tin đăng nhập nằm riêng tại backend/.env.test-runtime/admin-bootstrap.json (quyền 600, thư mục 700, Git bỏ qua). Không chép nội dung file này vào sổ tay, chat hay repository. Đăng nhập bằng username admin và mật khẩu trong file, làm bước đổi mật khẩu rồi đăng nhập lại. Sau khi đổi thành công có thể xóa file mật khẩu ban đầu. Không chạy bootstrap lại vì admin đã tồn tại.
+
+Kiểm chứng API: login trả 200 và mustChangePassword=true; đọc /machines trước khi đổi bị 403 đúng thiết kế; phiên kiểm thử đã logout. Giao diện đăng nhập render đúng, không có console error/warn trong lần kiểm tra; chưa thực hiện toàn bộ hành trình đổi mật khẩu trên trình duyệt bằng tài khoản thật.
+
+## 39.8. Hai consumer cùng ID tự đá nhau khỏi MQTT
+
+Khi kiểm tra runtime, readiness có lúc 503 dù DB và API còn chạy. Broker ghi “session taken over”: consumer npm start chạy sẵn và consumer do script nghiệm thu bật cùng dùng client ID legacy-link-backend. Mỗi bên reconnect lại đẩy bên kia ra, tạo vòng lặp ngắt kết nối. Việc bật consumer thứ hai trong đợt nghiệm thu đã gây trùng với tiến trình chạy tay có sẵn.
+
+Đã xác minh PID và working directory của consumer cũ, dừng đúng tiến trình bằng SIGTERM cho phép xử lý nốt dữ liệu, giữ consumer đang được script quản lý. Không dùng pkill theo tên, không SIGKILL và không đổi client ID ngẫu nhiên để che việc chạy trùng. Thêm kiểm tra tiến trình Linux trong scripts/lan-test-services.mjs: nếu chương trình tương ứng đang chạy ngoài script thì báo PID và từ chối bật bản thứ hai. Đây là hỗ trợ vận hành local, không phải cơ chế distributed lock chống mọi cuộc đua khởi động trên nhiều máy.
+
+**File:** backend/scripts/lan-test-services.mjs. Đã thử guard trong thư mục riêng với process giả và kiểm tra readiness qua nhiều heartbeat sau khi dừng bản trùng.
+
+**Ví dụ:** hai người cùng dùng một thẻ ra vào có quy định chỉ một phiên. Người thứ hai vào thì phiên người thứ nhất bị hủy. Cả hai liên tục đăng nhập lại không thể làm hệ thống ổn định.
+
+Để vận hành thống nhất trên máy này, từ backend chạy:
+
+```bash
+node scripts/lan-test-services.mjs status
+node scripts/lan-test-services.mjs start all
+node scripts/lan-test-services.mjs restart all
+node scripts/lan-test-services.mjs stop all
+```
+
+Chọn một lệnh theo nhu cầu, không chạy cả bốn liên tiếp. Không mở thêm npm start khi consumer đã chạy bằng script. Script không thay thế việc bật PostgreSQL/MQTT; DB và broker vẫn cần hoạt động.
+
+## 39.9. Kết quả nghiệm thu và giới hạn
+
+- Backend: 83 tests PASS, gồm regression quyền viewer, nhiều cảm biến và OpenAPI.
+- Backend test:all PASS ở vòng tích hợp; test tài khoản chạy lại PASS sau sửa quyền viewer.
+- Frontend: 33 tests PASS, lint PASS, TypeScript/Vite build PASS, Docker image build PASS.
+- Firmware: 17 host tests PASS, contract 26 message PASS, PlatformIO ESP32 build PASS; RAM 32,8%, flash 61,3%. Chưa flash phần cứng.
+- Stack Docker riêng: full stack acceptance PASS; proxy token/CORS, migration chạy lại, chống chiếm container dự án khác, outage/replay có ACK sau commit, không ghi trùng, bảo toàn lịch sử và backup/restore.
+- Runtime local: API đọc DB và quick action thành công, Gemini thật gọi thành công. Readiness từng báo 503 do consumer trùng; nguyên nhân và cách xử lý ghi mục 39.8, không che kết quả lỗi ban đầu.
+- DB hiện có 3 máy nhưng cả 3 offline và không có dữ liệu mới tại lúc kiểm tra. Vì vậy chưa có bằng chứng máy thật đang truyền nhiệt độ hoặc alarm ở thời điểm nghiệm thu.
+
+Log kiểm thử không chứa file .env/mật khẩu được lưu ngoài repo ở /home/nguyenvuducthinh/Documents/Codex/2026-10-06/li/outputs/project-acceptance-2026-10-10. Backup riêng nằm trong /tmp/legacy-accept-db-backup và /tmp/legacy-pre-acceptance-fa_duyov; đây là bản tạm trên máy, không thay chiến lược backup dài hạn.
+
+## 39.10. Còn gì trước khi gọi là demo hoàn chỉnh?
+
+1. Nạp firmware lên ESP32 thật, kiểm tra đúng gateway/profile và ngưỡng high/low theo thiết bị; xác minh heartbeat mới, nhiệt độ và timestamp trên dashboard.
+2. Trên phần cứng thật thử overheat/underheat, mất mạng, mất ACK sau commit, backlog khi đổi profile và khởi động lại; đối chiếu ID gửi với SQL, không chỉ nhìn card giao diện. Các bài test mô phỏng đã qua nhưng chưa thay bước này.
+3. Thịnh đổi mật khẩu admin, tạo viewer/technician và đi hết các thao tác frontend với đúng vai trò trên mạng demo; kiểm tra URL API/CORS từ laptop đồng đội.
+4. App desktop/thông báo hệ điều hành vẫn là phần Huy phụ trách. Web hoạt động không chứng minh thông báo khi đóng ứng dụng đã hoạt động.
+5. P1/P2 nâng cao chưa đầy đủ: diễn giải lịch sử phải chắc đơn vị/profile tại thời điểm đo, so sánh nhiều máy chuyên biệt, báo cáo và workflow duyệt thay đổi cấu hình. Không bật kết luận tự động khi chưa đủ bằng chứng.
+6. Trước triển khai dài hạn: đo tải theo số gateway mục tiêu, lên lịch retention/backup và diễn tập restore định kỳ; cấu hình TLS và tài khoản vận hành phù hợp môi trường thật.
+
+Không gán phần trăm 100% chỉ từ test pass. Mốc đạt được là phần mềm đã qua bộ nghiệm thu nêu trên; nghiệm thu phần cứng, trải nghiệm nhiều máy và tính năng app còn cần hoàn tất.
+
+## 39.11. Câu hỏi để tự giải thích khi present
+
+1. Vì sao Git hết conflict mà API docs vẫn hỏng? Git ghép văn bản; cần parser/schema/test xác minh ý nghĩa và cấu trúc.
+2. Vì sao viewer dùng POST được? Quyền dựa trên tác dụng của endpoint. Hai POST AI chỉ truy vấn, POST thay đổi cấu hình vẫn bị chặn.
+3. Một cảm biến bình thường có chứng minh cả máy bình thường không? Không. Phải xét tất cả cảm biến liên quan; thiếu dữ liệu/ngưỡng không phải normal.
+4. Tổng overheat + underheat có bằng tổng máy lỗi không? Không nhất thiết; một máy có thể thuộc cả hai nhóm do nhiều cảm biến.
+5. Online có nghĩa máy đang sản xuất không? Không. Đó là bằng chứng kết nối gateway; muốn biết sản xuất cần tín hiệu vận hành thích hợp.
+6. Có API key sao AI vẫn lỗi? Cần model khả dụng, cấu hình đúng, mạng, quota và quyền project; mỗi điều là một khả năng lỗi riêng.
+7. Vì sao proxy phải đợi lâu hơn backend? Để backend có đủ thời gian trả thành công hoặc lỗi có cấu trúc trước khi proxy tự ngắt.
+8. Vì sao admin laptop Hoàng Anh không đăng nhập được laptop Thịnh? Tài khoản là bản ghi trong DB cụ thể, không nằm chung toàn bộ máy chỉ vì cùng source code.
+9. Migration có tự tạo admin không? Không. Migration tạo cấu trúc, bootstrap tạo tài khoản đầu tiên trên đúng DB.
+10. Readiness khác API còn sống thế nào? API có thể trả HTTP nhưng consumer mất MQTT nên đường nhận dữ liệu chưa sẵn sàng. Readiness cần phản ánh điều này.
+11. Tại sao không sửa client ID thành random để hai consumer cùng chạy? Có thể phá mô hình phiên bền và chạy trùng ingestion; trước tiên phải xác định có thực sự cần nhiều consumer và thiết kế phân phối rõ ràng.
+12. Đã test phần mềm sao vẫn phải test ESP32? Test phần mềm không chứng minh nguồn điện, Wi-Fi, RS-485 và flash thực tế đều hoạt động.
+13. Có nên nói với giám khảo dự án hoàn thành 100%? Nên nói chính xác phạm vi đã chứng minh và trình diễn bằng dữ liệu thực; không dùng một con số thay cho bằng chứng.

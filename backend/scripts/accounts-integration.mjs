@@ -69,6 +69,7 @@ try {
       rateLimit: createRateLimit({ write: 1000 }),
       listMachines: async () => [],
       previewConfig: async () => ({ ok: true }),
+      copilot: async body => ({ mode: "rules", action: body.action }),
     }),
   );
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -119,6 +120,8 @@ try {
     await req("/auth/me", v.token, undefined, 401);
     v = await login("viewer", "viewer-password-123");
     await req("/machines", v.token);
+    assert.equal((await req("/ai/query", v.token, { action: "underheat" })).mode, "rules");
+    await req("/ai/execute", v.token, {}, 403);
     await req("/config/preview", v.token, { config: {} }, 403);
     await req("/admin/users", v.token, undefined, 403);
     await req("/admin/users", settings.writeToken, undefined, 401);

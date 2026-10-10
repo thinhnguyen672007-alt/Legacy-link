@@ -12,7 +12,7 @@ const workspace = mkdtempSync(join(tmpdir(), 'legacy-stack-'));
 const cwd = join(workspace, 'infrastructure');
 const id = 'accept-' + randomBytes(5).toString('hex');
 const secret = () => randomBytes(32).toString('hex');
-const env = { ...process.env, COMPOSE_PROJECT_NAME:id, COMPOSE_PROFILES:'full' };
+const env = { ...process.env, GEMINI_API_KEY:'', COMPOSE_PROJECT_NAME:id, COMPOSE_PROFILES:'full' };
 // Git xác định file nguồn, loại file ignored (.env, pgdata, passwd, node_modules).
 const files = execFileSync('git', ['ls-files','--cached','--others','--exclude-standard','-z','--','backend','infrastructure'], {cwd:repo,encoding:'utf8'}).split('\0').filter(Boolean);
 for(const file of files) { const target=join(workspace,file); mkdirSync(dirname(target),{recursive:true}); copyFileSync(join(repo,file),target); }
