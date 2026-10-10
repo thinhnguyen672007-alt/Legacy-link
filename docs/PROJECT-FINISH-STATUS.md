@@ -5,7 +5,7 @@ Mốc nguồn: `main` tại `8364b1e` (PR #71). Nhánh triển khai: `feature/de
 | Chặng | Trạng thái | Bằng chứng / còn thiếu |
 | --- | --- | --- |
 | A — Docker | Đã triển khai và kiểm thử độc lập | Compose dựng đủ stack từ dữ liệu rỗng; Chromium đăng nhập qua frontend; restart giữ tài khoản/dữ liệu; accounts, outage, backup/restore qua |
-| B — Demo thật | Đang nghiệm thu | Đăng nhập từ máy 1 và telemetry/alarm ESP32 thật đã tới máy 2; còn kiểm UI/ACK, commissioning, Copilot và recovery phối hợp |
+| B — Demo thật | Đang nghiệm thu | Telemetry, ACK UI, Copilot rules, commissioning API, restore và recovery ngắn đã kiểm; còn đăng nhập/quyền và Cấu hình UI Technician; Gemini chưa có key |
 | C — Windows | Chưa triển khai | Chưa có desktop code, installer hoặc test Windows |
 | D — Bàn giao | Đã có kế hoạch | Còn runbook bản chốt, báo cáo nghiệm thu, artifacts và diễn tập |
 
@@ -34,9 +34,12 @@ Mốc nguồn: `main` tại `8364b1e` (PR #71). Nhánh triển khai: `feature/de
 - Ảnh UI người dùng gửi xác nhận kết quả quick action mới lúc 20:41:55 GMT+7: BENCH-01 có nhiệt độ 95.00000142 C, ngưỡng cao 90, ngưỡng thấp chưa đặt, counts.overheat=1 và trạng thái Quá nóng; cảnh báo OVERHEAT high mới lúc 20:39:33 xuất hiện. Copilot rules classification trên UI PASS. Kết quả cũ không nhận diện nhiệt độ vẫn nằm trong lịch sử hội thoại, không phải dữ liệu truy vấn mới. Cần đặt simulator về baseline 25°C (raw 250) và giữ current/rpm trước commissioning/recovery.
 - Máy 1 đã giữ baseline temperature raw 250/25°C, current raw 179/1.79A, rpm 1534. Máy 2 đối chiếu số đo mới đúng baseline. Chạy preview/probe/apply qua frontend /api bằng maintenance write token, với chính profile hiện hành không đổi register/threshold/wiring: probe `fc4f65f7-6792-4a5a-b71e-8a8c0d4db311` completed, 3 readings success/withinRange; apply `318c78f4-c6f5-432e-bb6a-5bb2369e6ea0` applied/received/persisted true, bootId `F2B9E0004C839CEF`, restoredAfterRestart false vì chưa reboot. Bằng chứng [commissioning-2026-10-10.json](evidence/commissioning-2026-10-10.json). Không coi API test này là kiểm UI Technician. Cần máy 1 phối hợp restart ESP32 để xác nhận restore, rồi outage ngắn có phối hợp; không nạp lại firmware.
 
+- Máy 1 restart ESP32 qua DTR/RTS, không nạp firmware/xóa NVS. Máy 2 đối chiếu lúc 13:49:32 UTC: bootId mới `035205F8587ECC46`, configRequestId `318c78f4-c6f5-432e-bb6a-5bb2369e6ea0`, operation `restoredAfterRestart=true`, gateway persisted/restored/online true. Số đo baseline 25°C/1.79A/1534 rpm, dataFresh/readHealth/deliveryHealth healthy. Giữ cấu hình sau restart PASS; [bằng chứng](evidence/restore-2026-10-10.json).
+- Thử consumer outage 10 giây trên phần cứng thật, broker vẫn online và ESP32 không reboot. Có hai lượt vì script kiểm lần đầu gặp API 502 lúc watchdog restart, lượt sau dùng raw messageId không có prefix gateway nên assertion DB sai; không coi hai lỗi script là mất dữ liệu. Kiểm lại chỉ đọc với identity lưu DB: 7 mẫu trễ từ suffix 99–105 có đúng một telemetry row và receipt mỗi mẫu, thời gian commit trễ khoảng 3.7–15 giây. Sau phục hồi: cùng bootId, dataFresh/deliveryHealth healthy, pending 0, highWater 8, failedEnqueues 0. [Bằng chứng](evidence/physical-recovery-2026-10-10.json). Phạm vi xác nhận là 7 mẫu đã đối chiếu; không khẳng định kiểm đủ mọi message trong MQTT capture. API gián đoạn ngắn rồi tự khởi động lại; chưa có người dùng xác nhận UI tự phục hồi. Không thử mất nguồn khi queue còn dữ liệu: storage đang RAM.
+
 ## Bước tiếp theo
 
-Chặng B: máy 1 giữ simulator baseline và restart ESP32 một lần; máy 2 đối chiếu apply operation restoredAfterRestart và dữ liệu mới. Tiếp tục outage ngắn có phối hợp máy 1, kiểm UI/role Technician. Nhân viên đăng nhập vẫn cần người dùng xác nhận. Copilot rules đạt; Gemini chưa có key/chưa nghiệm thu. Sau gate B mới chốt chuyển sang desktop Windows.
+Chặng B: giữ simulator baseline 25°C. Người dùng xác nhận đăng nhập Technician `thinh`, đổi mật khẩu nếu được yêu cầu, mở Cấu hình để kiểm quyền/UI và xác nhận web hoạt động sau recovery. Commissioning API/restore và recovery ngắn đã có bằng chứng; không cần restart/ngắt consumer thêm. Copilot rules đạt; Gemini chưa có key/chưa nghiệm thu. Sau gate B mới chốt chuyển sang desktop Windows.
 
 ## Quy tắc cập nhật
 

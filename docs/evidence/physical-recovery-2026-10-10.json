@@ -1,0 +1,136 @@
+{
+  "verifiedAt": "2026-10-10T13:54:31.063Z",
+  "scope": "Seven delayed physical samples from second 10-second consumer outage; broker remained online",
+  "bootId": "035205F8587ECC46",
+  "rows": [
+    {
+      "message_id": "643C60A7DBCC:643C60A7DBCC-035205F8587ECC46-99",
+      "copies": 1,
+      "measured_at": "1791640273182",
+      "committed_at": "2026-10-10T13:51:28.207Z"
+    },
+    {
+      "message_id": "643C60A7DBCC:643C60A7DBCC-035205F8587ECC46-100",
+      "copies": 1,
+      "measured_at": "1791640275182",
+      "committed_at": "2026-10-10T13:51:28.331Z"
+    },
+    {
+      "message_id": "643C60A7DBCC:643C60A7DBCC-035205F8587ECC46-101",
+      "copies": 1,
+      "measured_at": "1791640277182",
+      "committed_at": "2026-10-10T13:51:28.426Z"
+    },
+    {
+      "message_id": "643C60A7DBCC:643C60A7DBCC-035205F8587ECC46-102",
+      "copies": 1,
+      "measured_at": "1791640279182",
+      "committed_at": "2026-10-10T13:51:28.516Z"
+    },
+    {
+      "message_id": "643C60A7DBCC:643C60A7DBCC-035205F8587ECC46-103",
+      "copies": 1,
+      "measured_at": "1791640281182",
+      "committed_at": "2026-10-10T13:51:28.594Z"
+    },
+    {
+      "message_id": "643C60A7DBCC:643C60A7DBCC-035205F8587ECC46-104",
+      "copies": 1,
+      "measured_at": "1791640283182",
+      "committed_at": "2026-10-10T13:51:28.689Z"
+    },
+    {
+      "message_id": "643C60A7DBCC:643C60A7DBCC-035205F8587ECC46-105",
+      "copies": 1,
+      "measured_at": "1791640285182",
+      "committed_at": "2026-10-10T13:51:28.894Z"
+    }
+  ],
+  "limits": "Raw MQTT capture assertion was incomplete because stored IDs include gateway prefix. This checks seven known delayed samples, not all captured messages. API temporarily returned 502 while its watchdog restarted.",
+  "after": {
+    "deviceId": "BENCH-01",
+    "name": "Hackathon legacy PLC simulator",
+    "machineType": "OpenModSim-bench",
+    "gatewayOnline": true,
+    "online": true,
+    "lastSeenAt": "2026-10-10T13:54:29.316Z",
+    "metrics": {
+      "rpm": 1534,
+      "current": 1.78999996,
+      "temperature": 25.00000037
+    },
+    "lastTelemetryAt": "2026-10-10T13:54:29.205Z",
+    "lastMeasurementAt": "2026-10-10T13:54:29.182Z",
+    "dataAgeSeconds": 2,
+    "diagnostics": {
+      "delivery": {
+        "alarm": {
+          "pending": 0,
+          "capacity": 8,
+          "committed": 0,
+          "highWater": 0,
+          "failedEnqueues": 0
+        },
+        "bootId": "035205F8587ECC46",
+        "storage": "RAM",
+        "telemetry": {
+          "pending": 0,
+          "capacity": 32,
+          "committed": 197,
+          "highWater": 8,
+          "failedEnqueues": 0
+        },
+        "clockReady": true,
+        "freeHeapBytes": 166508
+      },
+      "readings": [
+        {
+          "key": "temperature",
+          "value": 25.00000037,
+          "address": 1,
+          "success": true,
+          "rawValue": 250,
+          "rawWords": [
+            250
+          ],
+          "errorCode": 0,
+          "sampledAt": 1791640469143
+        },
+        {
+          "key": "current",
+          "value": 1.78999996,
+          "address": 2,
+          "success": true,
+          "rawValue": 179,
+          "rawWords": [
+            179
+          ],
+          "errorCode": 0,
+          "sampledAt": 1791640469163
+        },
+        {
+          "key": "rpm",
+          "value": 1534,
+          "address": 3,
+          "success": true,
+          "rawValue": 1534,
+          "rawWords": [
+            1534
+          ],
+          "errorCode": 0,
+          "sampledAt": 1791640469182
+        }
+      ],
+      "gatewayId": "643C60A7DBCC",
+      "timestamp": 1791640469228,
+      "configRequestId": "318c78f4-c6f5-432e-bb6a-5bb2369e6ea0",
+      "samplingIntervalMs": 2000
+    },
+    "deliveryHealth": "healthy",
+    "dataFresh": true,
+    "readHealth": "healthy",
+    "samplingIntervalMs": 2000,
+    "gatewayId": "643C60A7DBCC",
+    "configRequestId": "318c78f4-c6f5-432e-bb6a-5bb2369e6ea0"
+  }
+}
