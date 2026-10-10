@@ -1,3 +1,4 @@
+import { tr } from "../language";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
@@ -54,8 +55,10 @@ export function Alarms() {
   return (
     <>
       <PageHead
-        title="Cảnh báo"
-        description="Xác nhận đã xem để đội biết vấn đề nào đã được chú ý."
+        title={tr("Cảnh báo")}
+        description={tr(
+          "Xác nhận đã xem để đội biết vấn đề nào đã được chú ý.",
+        )}
         action={
           <button
             onClick={() => {
@@ -66,17 +69,17 @@ export function Alarms() {
             }}
           >
             <RefreshCw size={16} />
-            Đọc đến hiện tại
+            {tr("Đọc đến hiện tại")}
           </button>
         }
       />
       <div className="surface section">
         <div className="filters">
           <label>
-            Mã thiết bị
+            {tr("Mã thiết bị")}
             <input
               value={device}
-              placeholder="Tất cả"
+              placeholder={tr("Tất cả")}
               onChange={(e) => {
                 setDevice(e.target.value);
                 reset();
@@ -84,7 +87,7 @@ export function Alarms() {
             />
           </label>
           <label>
-            Mức độ
+            {tr("Mức độ")}
             <select
               value={severity}
               onChange={(e) => {
@@ -92,12 +95,12 @@ export function Alarms() {
                 reset();
               }}
             >
-              <option value="">Tất cả</option>
+              <option value="">{tr("Tất cả")}</option>
               {[
-                ["low", "Thấp"],
-                ["medium", "Vừa"],
-                ["high", "Cao"],
-                ["critical", "Nghiêm trọng"],
+                ["low", tr("Thấp")],
+                ["medium", tr("Vừa")],
+                ["high", tr("Cao")],
+                ["critical", tr("Nghiêm trọng")],
               ].map(([v, t]) => (
                 <option value={v} key={v}>
                   {t}
@@ -106,7 +109,7 @@ export function Alarms() {
             </select>
           </label>
           <label>
-            Đã xem
+            {tr("Đã xem")}
             <select
               value={ack}
               onChange={(e) => {
@@ -114,13 +117,13 @@ export function Alarms() {
                 reset();
               }}
             >
-              <option value="false">Chưa xác nhận</option>
-              <option value="true">Đã xác nhận</option>
-              <option value="">Tất cả</option>
+              <option value="false">{tr("Chưa xác nhận")}</option>
+              <option value="true">{tr("Đã xác nhận")}</option>
+              <option value="">{tr("Tất cả")}</option>
             </select>
           </label>
           <label>
-            Khoảng đọc
+            {tr("Khoảng đọc")}
             <select
               value={days}
               onChange={(e) => {
@@ -130,16 +133,17 @@ export function Alarms() {
                 reset();
               }}
             >
-              <option value="1">24 giờ</option>
-              <option value="7">7 ngày</option>
-              <option value="31">31 ngày</option>
+              <option value="1">{tr("24 giờ")}</option>
+              <option value="7">{tr("7 ngày")}</option>
+              <option value="31">{tr("31 ngày")}</option>
             </select>
           </label>
         </div>
         <p className="help">
           {stamp(q.data?.from ?? range.from)} → {stamp(q.data?.to ?? range.to)}{" "}
-          · GMT+7. Trang đầu tự cập nhật mỗi 10 giây; trang sau giữ nguyên
-          khoảng đọc.
+          {tr(
+            "· GMT+7. Trang đầu tự cập nhật mỗi 10 giây; trang sau giữ nguyên khoảng đọc.",
+          )}
         </p>
         <QueryState
           error={q.error}
@@ -148,13 +152,15 @@ export function Alarms() {
         />
         {mutation.error && (
           <Notice tone="bad">
-            {mutation.error.message} Hãy cập nhật lại danh sách để kiểm tra kết
-            quả trước khi thao tác tiếp.
+            {tr(mutation.error.message)}{" "}
+            {tr(
+              " Hãy cập nhật lại danh sách để kiểm tra kết quả trước khi thao tác tiếp.",
+            )}
           </Notice>
         )}
         {!session?.writeToken && (
           <Notice>
-            Phiên chỉ đọc. Cần quyền Technician để xác nhận cảnh báo.
+            {tr("Phiên chỉ đọc. Cần quyền Technician để xác nhận cảnh báo.")}
           </Notice>
         )}
         {q.data?.items.length ? (
@@ -163,11 +169,11 @@ export function Alarms() {
               <table>
                 <thead>
                   <tr>
-                    <th>Thiết bị / thời điểm</th>
-                    <th>Cảnh báo</th>
-                    <th>Mức độ</th>
-                    <th>Giá trị API</th>
-                    <th>Xác nhận</th>
+                    <th>{tr("Thiết bị / thời điểm")}</th>
+                    <th>{tr("Cảnh báo")}</th>
+                    <th>{tr("Mức độ")}</th>
+                    <th>{tr("Giá trị API")}</th>
+                    <th>{tr("Xác nhận")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -187,19 +193,19 @@ export function Alarms() {
                       <td>
                         {a.code}
                         <small className="subline muted">
-                          {a.metricKey ?? "Chưa có metric"}
+                          {a.metricKey ?? tr("Chưa có metric")}
                         </small>
                       </td>
                       <td>
                         <Badge value={a.severity} />
                       </td>
                       <td className="mono">
-                        {a.value == null ? "Không có" : number(a.value)}
+                        {a.value == null ? tr("Không có") : number(a.value)}
                       </td>
                       <td>
                         {a.acknowledgedAt ? (
                           <span>
-                            Đã xem
+                            {tr("Đã xem")}
                             <small className="subline muted">
                               {stamp(a.acknowledgedAt)}
                             </small>
@@ -212,7 +218,7 @@ export function Alarms() {
                             onClick={() => mutation.mutate(a.id)}
                           >
                             <Check size={15} />
-                            Đã xem
+                            {tr("Đã xem")}
                           </button>
                         )}
                       </td>
@@ -222,8 +228,10 @@ export function Alarms() {
               </table>
             </div>
             <div className="toolbar pagination">
-              <span>{q.data.items.length} cảnh báo trên trang này</span>
-              {cursor && <button onClick={reset}>Về trang đầu</button>}
+              <span>
+                {q.data.items.length} {tr(" cảnh báo trên trang này")}
+              </span>
+              {cursor && <button onClick={reset}>{tr("Về trang đầu")}</button>}
               <button
                 disabled={!q.data.nextCursor || q.isFetching}
                 onClick={() => {
@@ -233,22 +241,24 @@ export function Alarms() {
                   }
                 }}
               >
-                Trang tiếp
+                {tr("Trang tiếp")}
               </button>
             </div>
           </>
         ) : (
           q.data && (
-            <Empty title="Không có cảnh báo khớp bộ lọc">
-              Không có kết quả không đồng nghĩa thiết bị luôn an toàn; hãy xem
-              thêm trạng thái đọc và độ mới dữ liệu.
+            <Empty title={tr("Không có cảnh báo khớp bộ lọc")}>
+              {tr(
+                "Không có kết quả không đồng nghĩa thiết bị luôn an toàn; hãy xem thêm trạng thái đọc và độ mới dữ liệu.",
+              )}
             </Empty>
           )
         )}
       </div>
       <p className="footnote">
-        Xác nhận là ghi nhận đã xem. Thao tác không điều khiển máy và không xử
-        lý nguyên nhân cảnh báo.
+        {tr(
+          "Xác nhận là ghi nhận đã xem. Thao tác không điều khiển máy và không xử lý nguyên nhân cảnh báo.",
+        )}
       </p>
     </>
   );

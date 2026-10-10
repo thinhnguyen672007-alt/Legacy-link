@@ -1,3 +1,4 @@
+import { tr } from "../language";
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
@@ -55,11 +56,11 @@ function Detail({ id }: { id: string }) {
     <>
       <Link className="back" to="/machines">
         <ArrowLeft size={16} />
-        Danh sách thiết bị
+        {tr("Danh sách thiết bị")}
       </Link>
       <PageHead
         title={m?.name || id}
-        description={`Mã thiết bị ${id} · Thời gian GMT+7`}
+        description={tr("Mã thiết bị {0} · Thời gian GMT+7", id)}
         action={
           session?.writeToken && (
             <Link
@@ -67,7 +68,7 @@ function Detail({ id }: { id: string }) {
               to={`/commissioning?device=${encodeURIComponent(id)}`}
             >
               <Settings2 size={17} />
-              Cấu hình
+              {tr("Cấu hình")}
             </Link>
           )
         }
@@ -81,11 +82,11 @@ function Detail({ id }: { id: string }) {
         <>
           <div className="status-strip">
             <div>
-              <small>Liên lạc</small>
+              <small>{tr("Liên lạc")}</small>
               <Badge value={m.gatewayOnline ? "online" : "offline"} />
             </div>
             <div>
-              <small>Độ mới</small>
+              <small>{tr("Độ mới")}</small>
               <Badge
                 value={
                   m.dataFresh === undefined
@@ -97,19 +98,19 @@ function Detail({ id }: { id: string }) {
               />
             </div>
             <div>
-              <small>Đọc thiết bị</small>
+              <small>{tr("Đọc thiết bị")}</small>
               <Badge value={m.readHealth} />
             </div>
             <div>
-              <small>Gửi dữ liệu</small>
+              <small>{tr("Gửi dữ liệu")}</small>
               <Badge value={m.deliveryHealth} />
             </div>
           </div>
-          <nav className="tabs" aria-label="Nội dung thiết bị">
+          <nav className="tabs" aria-label={tr("Nội dung thiết bị")}>
             {[
-              ["measure", "Số đo"],
-              ["history", "Lịch sử"],
-              ["diagnostics", "Chẩn đoán"],
+              ["measure", tr("Số đo")],
+              ["history", tr("Lịch sử")],
+              ["diagnostics", tr("Chẩn đoán")],
             ].map(([key, label]) => (
               <button
                 key={key}
@@ -122,15 +123,17 @@ function Detail({ id }: { id: string }) {
           </nav>
           {tab === "measure" && (
             <div className="surface section">
-              <h2>Số đo gần nhất</h2>
+              <h2>{tr("Số đo gần nhất")}</h2>
               <p className="muted">
-                Đo: {stamp(m.lastMeasurementAt)} · Nhận:{" "}
+                {tr("Đo: ")}
+                {stamp(m.lastMeasurementAt)} {tr(" · Nhận:")}{" "}
                 {stamp(m.lastTelemetryAt)}
               </p>
               {catalog.error && (
                 <Notice>
-                  Chưa đọc được đơn vị từ catalog. Giá trị được giữ nguyên như
-                  API trả về.
+                  {tr(
+                    "Chưa đọc được đơn vị từ catalog. Giá trị được giữ nguyên như API trả về.",
+                  )}
                 </Notice>
               )}
               {m.metrics && Object.keys(m.metrics).length ? (
@@ -142,26 +145,27 @@ function Detail({ id }: { id: string }) {
                         {number(v)}{" "}
                         <small>
                           {catalog.data?.registerMap.find((r) => r.key === key)
-                            ?.unit ?? "chưa rõ đơn vị"}
+                            ?.unit ?? tr("chưa rõ đơn vị")}
                         </small>
                       </dd>
                     </div>
                   ))}
                 </dl>
               ) : (
-                <Empty title="Chưa có số đo">
-                  Thiết bị có thể đã đăng ký nhưng chưa gửi dữ liệu.
+                <Empty title={tr("Chưa có số đo")}>
+                  {tr("Thiết bị có thể đã đăng ký nhưng chưa gửi dữ liệu.")}
                 </Empty>
               )}
               <Notice>
-                Đơn vị từ catalog hiện tại; mẫu cũ chưa có revision cấu hình để
-                truy nguyên chính xác. Xác minh nếu vừa đổi profile.
+                {tr(
+                  "Đơn vị từ catalog hiện tại; mẫu cũ chưa có revision cấu hình để truy nguyên chính xác. Xác minh nếu vừa đổi profile.",
+                )}
               </Notice>
               <Link
                 className="text-link"
                 to={`/alarms?device=${encodeURIComponent(id)}`}
               >
-                Xem cảnh báo của thiết bị →
+                {tr("Xem cảnh báo của thiết bị →")}
               </Link>
             </div>
           )}
@@ -196,15 +200,15 @@ function History({ id, interval }: { id: string; interval: number }) {
   return (
     <div className="surface section">
       <div className="toolbar">
-        <h2>Lịch sử số đo</h2>
+        <h2>{tr("Lịch sử số đo")}</h2>
         <label>
-          Khoảng thời gian
+          {tr("Khoảng thời gian")}
           <select value={hours} onChange={(e) => setHours(e.target.value)}>
-            <option value="1">1 giờ</option>
-            <option value="6">6 giờ</option>
-            <option value="24">24 giờ</option>
-            <option value="168">7 ngày</option>
-            <option value="744">31 ngày</option>
+            <option value="1">{tr("1 giờ")}</option>
+            <option value="6">{tr("6 giờ")}</option>
+            <option value="24">{tr("24 giờ")}</option>
+            <option value="168">{tr("7 ngày")}</option>
+            <option value="744">{tr("31 ngày")}</option>
           </select>
         </label>
         <button
@@ -213,12 +217,12 @@ function History({ id, interval }: { id: string; interval: number }) {
             setWindow({ from: to - Number(hours) * 3600000, to });
           }}
         >
-          Đọc khoảng này
+          {tr("Đọc khoảng này")}
         </button>
       </div>
       <p className="muted">
-        {stamp(window.from)} → {stamp(window.to)} · GMT+7. Lịch sử là ảnh chụp
-        tại thời điểm đọc.
+        {stamp(window.from)} → {stamp(window.to)}{" "}
+        {tr(" · GMT+7. Lịch sử là ảnh chụp tại thời điểm đọc.")}
       </p>
       <QueryState
         error={q.error}
@@ -228,7 +232,7 @@ function History({ id, interval }: { id: string; interval: number }) {
       {rows.length > 0 ? (
         <>
           <label className="inline-label">
-            Thông số
+            {tr("Thông số")}
             <select
               value={selected}
               onChange={(e) => setMetric(e.target.value)}
@@ -239,14 +243,20 @@ function History({ id, interval }: { id: string; interval: number }) {
             </select>
           </label>
           <p className="help">
-            Giá trị gốc API; đơn vị lịch sử chưa được xác minh theo revision.
-            Ngắt đường khi cách nhau hơn {gap / 1000}s, dựa chu kỳ cấu hình hiện
-            tại.
+            {tr(
+              "Giá trị gốc API; đơn vị lịch sử chưa được xác minh theo revision. Ngắt đường khi cách nhau hơn ",
+            )}
+            {gap / 1000}
+            {tr("s, dựa chu kỳ cấu hình hiện tại.")}
           </p>
           <div
             className="chart"
             role="img"
-            aria-label={`Biểu đồ ${selected}, ${rows.filter((r) => r.metrics[selected] != null).length} mẫu có giá trị; bảng dữ liệu bên dưới.`}
+            aria-label={tr(
+              "Biểu đồ {0}, {1} mẫu có giá trị; bảng dữ liệu bên dưới.",
+              selected,
+              rows.filter((r) => r.metrics[selected] != null).length,
+            )}
           >
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={chartPoints(rows, selected, gap)}>
@@ -277,18 +287,18 @@ function History({ id, interval }: { id: string; interval: number }) {
             </ResponsiveContainer>
           </div>
           <p>
-            {rows.length} mẫu đã tải trong khoảng chọn.{" "}
+            {rows.length} {tr(" mẫu đã tải trong khoảng chọn.")}{" "}
             {q.hasNextPage
-              ? "Còn dữ liệu ở trang tiếp theo."
-              : "Đã hết dữ liệu trong khoảng này."}
+              ? tr("Còn dữ liệu ở trang tiếp theo.")
+              : tr("Đã hết dữ liệu trong khoảng này.")}
           </p>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Thời điểm đo (GMT+7)</th>
+                  <th>{tr("Thời điểm đo (GMT+7)")}</th>
                   <th>{selected}</th>
-                  <th>Backend nhận</th>
+                  <th>{tr("Backend nhận")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -297,7 +307,7 @@ function History({ id, interval }: { id: string; interval: number }) {
                     <td>{stamp(r.timestamp)}</td>
                     <td className="mono">
                       {r.metrics[selected] == null
-                        ? "Không có phép đo"
+                        ? tr("Không có phép đo")
                         : number(r.metrics[selected])}
                     </td>
                     <td>{stamp(r.receivedAt)}</td>
@@ -311,14 +321,16 @@ function History({ id, interval }: { id: string; interval: number }) {
               disabled={q.isFetchingNextPage}
               onClick={() => void q.fetchNextPage()}
             >
-              {q.isFetchingNextPage ? "Đang tải…" : "Tải thêm 100 mẫu"}
+              {q.isFetchingNextPage ? tr("Đang tải…") : tr("Tải thêm 100 mẫu")}
             </button>
           )}
         </>
       ) : (
         q.data && (
-          <Empty title="Không có số đo trong khoảng này">
-            Thử mở rộng khoảng thời gian; không có số đo không phải giá trị 0.
+          <Empty title={tr("Không có số đo trong khoảng này")}>
+            {tr(
+              "Thử mở rộng khoảng thời gian; không có số đo không phải giá trị 0.",
+            )}
           </Empty>
         )
       )}
@@ -330,11 +342,14 @@ function Diagnostics({ m }: { m: Machine }) {
   const delivery = d?.delivery;
   return (
     <div className="surface section">
-      <h2>Chẩn đoán thiết bị</h2>
-      <p className="muted">Báo cáo lúc {stamp(d?.timestamp)} · GMT+7</p>
+      <h2>{tr("Chẩn đoán thiết bị")}</h2>
+      <p className="muted">
+        {tr("Báo cáo lúc ")}
+        {stamp(d?.timestamp)} · GMT+7
+      </p>
       {!d ? (
-        <Empty title="Chưa có báo cáo chẩn đoán">
-          Thiết bị chưa gửi diagnostics hoặc firmware chưa hỗ trợ.
+        <Empty title={tr("Chưa có báo cáo chẩn đoán")}>
+          {tr("Thiết bị chưa gửi diagnostics hoặc firmware chưa hỗ trợ.")}
         </Empty>
       ) : (
         <>
@@ -346,10 +361,11 @@ function Diagnostics({ m }: { m: Machine }) {
                 <Badge value={r.success ? "healthy" : "read_error"} />
                 {!r.success && (
                   <span>
-                    Mã Modbus: {r.errorCode ?? "chưa rõ"}.{" "}
+                    {tr("Mã Modbus: ")}
+                    {r.errorCode ?? tr("chưa rõ")}.{" "}
                     {r.errorCode == null
-                      ? "Kiểm tra log gateway để xem nguyên nhân."
-                      : modbusReadError(r.errorCode)}
+                      ? tr("Kiểm tra log gateway để xem nguyên nhân.")
+                      : tr(modbusReadError(r.errorCode))}
                   </span>
                 )}
               </li>
@@ -357,44 +373,44 @@ function Diagnostics({ m }: { m: Machine }) {
           </ul>
           {delivery ? (
             <>
-              <h2>Hàng đợi gửi dữ liệu</h2>
+              <h2>{tr("Hàng đợi gửi dữ liệu")}</h2>
               <Badge value={m.deliveryHealth} />
               <p className="mono muted">Boot: {delivery.bootId}</p>
               {(["telemetry", "alarm"] as const).map((key) => (
                 <div className="queue-row" key={key}>
-                  <h3>{key === "telemetry" ? "Số đo" : "Cảnh báo"}</h3>
+                  <h3>{key === "telemetry" ? tr("Số đo") : tr("Cảnh báo")}</h3>
                   <dl>
                     <div>
-                      <dt>Đang chờ / sức chứa</dt>
+                      <dt>{tr("Đang chờ / sức chứa")}</dt>
                       <dd>
                         {delivery[key].pending} / {delivery[key].capacity}
                       </dd>
                     </div>
                     <div>
-                      <dt>Đã nhận xác nhận trong boot</dt>
+                      <dt>{tr("Đã nhận xác nhận trong boot")}</dt>
                       <dd>{delivery[key].committed}</dd>
                     </div>
                     <div>
-                      <dt>Không vào được hàng đợi</dt>
+                      <dt>{tr("Không vào được hàng đợi")}</dt>
                       <dd>{delivery[key].failedEnqueues}</dd>
                     </div>
                   </dl>
                   {delivery[key].rejection != null && (
                     <Notice tone="bad">
-                      Backend từ chối mẫu đầu hàng đợi:{" "}
+                      {tr("Backend từ chối mẫu đầu hàng đợi:")}{" "}
                       {JSON.stringify(delivery[key].rejection)}
                     </Notice>
                   )}
                 </div>
               ))}
               <Notice>
-                Hàng đợi nằm trong RAM, có thể mất mẫu khi mất điện. Bộ đếm
-                reset theo boot; “đã nhận xác nhận” không phải tổng bản ghi
-                database. Báo cáo cũ không chứng minh trạng thái hiện tại.
+                {tr(
+                  "Hàng đợi nằm trong RAM, có thể mất mẫu khi mất điện. Bộ đếm reset theo boot; “đã nhận xác nhận” không phải tổng bản ghi database. Báo cáo cũ không chứng minh trạng thái hiện tại.",
+                )}
               </Notice>
             </>
           ) : (
-            <Notice>Firmware chưa cung cấp thông tin hàng đợi.</Notice>
+            <Notice>{tr("Firmware chưa cung cấp thông tin hàng đợi.")}</Notice>
           )}
         </>
       )}

@@ -49,3 +49,11 @@ Chặng B: giữ simulator baseline 25°C. Đã xác nhận đăng nhập `thinh
 ## Quy tắc cập nhật
 
 Sau mỗi chặng, ghi commit, lệnh kiểm tra, kết quả thật, đường dẫn bằng chứng đã che bí mật và đúng việc còn chờ. Test chưa chạy phải ghi chưa chạy. Không đánh dấu pass từ suy đoán hoặc báo cáo của commit cũ.
+
+## Web VI/EN — 2026-10-10
+
+- Nhánh `feat/web-language-toggle`, bắt đầu từ main sau PR #73.
+- Nút VI/EN cạnh tài khoản và trên form đăng nhập; dịch màn hình chính, hướng dẫn, trạng thái, lỗi đọc/validation và nội dung cố định Copilot. Chỉ lưu lựa chọn ngôn ngữ; giữ session, bản nháp và kết quả đọc thử khi chuyển.
+- Frontend: 70 tests PASS, lint/build PASS. Chromium desktop 1440×1000 và mobile 390×844 với fixture API: chuyển ngôn ngữ, giữ form/session, lỗi cụ thể, đăng xuất/reload, không tràn ngang và không gửi apply.
+- Docker frontend đã build và cập nhật trên máy 2; frontend health và API ready đều HTTP 200. Không thay đổi cấu hình ESP32 hay dịch vụ backend/broker.
+- Chi tiết bảo trì và giới hạn: [WEB-LANGUAGE.md](WEB-LANGUAGE.md). Cảnh báo bundle lớn hơn 500 kB vẫn còn; không chặn build.
