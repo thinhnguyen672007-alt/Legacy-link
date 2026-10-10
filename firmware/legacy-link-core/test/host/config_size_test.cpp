@@ -57,6 +57,27 @@ int main() {
   Serial.feed(oversized + "\n"); loop();
   assert(Serial2.begin_count == calls_after_serial);
   assert(!memcmp(&before, &global_device_config, sizeof(before)));
+  // Full-sized read reports must fit the actual MQTT packet, including its topic.
+  modbus_result_t results[MAX_REGISTERS] = {};
+  for (uint8_t i = 0; i < MAX_REGISTERS; ++i) {
+    results[i].success = true; results[i].word_count = 2;
+    results[i].raw_words[0] = results[i].raw_words[1] = 65535;
+    results[i].raw_value = 4294967295.0; results[i].scaled_value = 1.461e48;
+    results[i].completed_at_ms = millis();
+  }
+  strcpy(global_device_config.device_id, "device_1234567890123456789012345");
+  memset(active_request_id, 'a', 64); active_request_id[64] = 0;
+  char request[65]; memset(request, 'r', 64); request[64] = 0;
+  mqttClient.published.clear();
+  send_read_report(global_device_config, results, request);
+  assert(mqttClient.published.size() == 1);
+  assert(!deserializeJson(doc, mqttClient.published.back().payload));
+  assert(doc["readings"].size() == MAX_REGISTERS && doc["requestId"] == request);
+  const auto reportBytes = mqttClient.published.back().payload.size();
+  assert(reportBytes < 4096);
+  mqttClient.buffer_size = 256;
+  assert(!mqttClient.publish("legacy-link/test/oversized", std::string(256, 'x').c_str()));
+  std::cout << "Largest tested 16-register report: " << reportBytes << " bytes.\n";
   std::cout << "16-register config uses " << compact.size()
             << " bytes; 4095-byte input passes, 4096-byte input is rejected on all paths.\n";
 }

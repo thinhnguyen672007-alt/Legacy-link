@@ -45,7 +45,7 @@ struct PubSubClient {
     ++loops; last_loop_time = millis();
   }
   bool publish(const char *topic, const char *payload, bool retained = false) {
-    if (!online || !publish_ok) return false;
+    if (!online || !publish_ok || 5 + 2 + strlen(topic) + strlen(payload) > buffer_size) return false;
     published.push_back({topic, payload, retained}); return true;
   }
   void receive(std::string topic, std::string payload) {
