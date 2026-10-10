@@ -3,9 +3,9 @@
 # Không in .env hoặc token. Nếu một bước lỗi, script trả lỗi để tránh hiểu nhầm là sẵn sàng.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-export COMPOSE_PROFILES=full
-# Nạp .env để lấy token đọc cho bước kiểm tra có xác thực; không in giá trị token.
-if [ -f .env ]; then set -a; . ./.env; set +a; fi
+# Nạp .env qua parser an toàn (không thực thi .env như shell) để lấy token đọc.
+if [ -f .env ]; then source scripts/load-env.sh; fi
+export COMPOSE_PROFILES="${COMPOSE_PROFILES:-full}"
 # Up chỉ cho biết container đang chạy. Hai bước sau kiểm tra nó có làm việc được không.
 docker compose ps
 # Consumer phải truy vấn được schema và có heartbeat mới cho biết MQTT đã subscribe.
