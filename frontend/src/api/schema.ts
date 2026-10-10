@@ -246,6 +246,18 @@ export const copilotSchema = z.object({
       queriedAt: z.string(),
       note: z.string().optional(),
       truncated: z.boolean().optional(),
+      counts: z
+        .object({
+          inspected: finite,
+          gatewayOnline: finite,
+          offline: finite,
+          stale: finite,
+          overheat: finite,
+          underheat: finite,
+          normal: finite,
+          unknown: finite,
+        })
+        .optional(),
       devices: z
         .array(
           z.object({

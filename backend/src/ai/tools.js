@@ -248,19 +248,36 @@ export function createTools(db, clock = Date.now) {
     // Giới hạn dữ liệu gửi sang UI/model; báo rõ danh sách có bị giới hạn.
     for (const machine of machines.slice(0, 100))
       devices.push(await device(machine, read));
+    // Một cảm biến bình thường không đủ kết luận cả máy bình thường.
+    const matches = (d, status) => {
+      if (status === "offline") return !d.gatewayOnline;
+      if (status === "stale") return d.gatewayOnline && !d.dataFresh;
+      if (status === "normal")
+        return (
+          d.temperatures.length > 0 &&
+          d.temperatures.every((t) => t.status === "normal")
+        );
+      if (status === "unknown" && !d.temperatures.length)
+        return d.gatewayOnline && d.dataFresh;
+      return d.temperatures.some((t) => t.status === status);
+    };
     const filtered = args.status
-      ? devices.filter((d) =>
-          args.status === "offline"
-            ? !d.gatewayOnline
-            : args.status === "stale"
-              ? d.gatewayOnline && !d.dataFresh
-              : (args.status === "unknown" && !d.temperatures.length) ||
-                d.temperatures.some((t) => t.status === args.status),
-        )
+      ? devices.filter((d) => matches(d, args.status))
       : devices;
+    const counts = {
+      inspected: devices.length,
+      gatewayOnline: devices.filter((d) => d.gatewayOnline).length,
+      ...Object.fromEntries(
+        states.map((status) => [
+          status,
+          devices.filter((d) => matches(d, status)).length,
+        ]),
+      ),
+    };
     return {
       ...base,
       devices: filtered,
+      counts,
       inspected: devices.length,
       truncated: machines.length > 100,
       note: "Kết nối gateway không đồng nghĩa máy đang sản xuất. UNDERHEAT là dưới ngưỡng cấu hình, không tự động là máy hỏng.",

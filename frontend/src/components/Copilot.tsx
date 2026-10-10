@@ -115,6 +115,16 @@ export function Copilot() {
                       Database · Lấy lúc{" "}
                       {new Date(r.queriedAt).toLocaleString("vi-VN")}
                     </p>
+                    {r.counts && (
+                      <p>
+                        Đã kiểm tra {r.counts.inspected} máy · Gateway có kết
+                        nối: {r.counts.gatewayOnline} · Mất kết nối:{" "}
+                        {r.counts.offline} · Dữ liệu cũ: {r.counts.stale}. Máy
+                        có số đo quá nóng: {r.counts.overheat}; dưới ngưỡng
+                        thấp: {r.counts.underheat}. Một máy nhiều cảm biến có
+                        thể thuộc cả hai nhóm.
+                      </p>
+                    )}
                     {r.truncated && (
                       <p>
                         Đang hiển thị kết quả giới hạn; chưa kiểm tra toàn bộ dữ
