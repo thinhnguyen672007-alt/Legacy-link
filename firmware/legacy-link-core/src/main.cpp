@@ -1,5 +1,6 @@
 #include "telemetry_queue.h"
 #include "config_parser.h"
+#include "command_deadline.h"
 #include "modbus_reader.h"
 #include "alarm_monitor.h"
 #include "config_store.h"
@@ -399,8 +400,7 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length) {
     const char *id = command["requestId"] | "";
     const char *expected_boot = command["expectedBootId"] | "";
     const char *expected_config = command["expectedConfigRequestId"] | "";
-    const uint64_t expires = command["expiresAt"] | uint64_t(0);
-    if ((command.containsKey("expiresAt") && (!current_epoch_ms() || current_epoch_ms() > expires)) ||
+    if (!command_deadline_valid(command, current_epoch_ms()) ||
         (command.containsKey("expectedBootId") && strcmp(expected_boot, boot_id)) ||
         (!is_probe && command.containsKey("expectedConfigRequestId") &&
          strcmp(expected_config, active_request_id) && strcmp(id, active_request_id))) {
@@ -675,7 +675,14 @@ void loop() {
 
   if (config_pending) {
     config_pending = false;
-    if (pending_probe) run_probe(pending_config);
+    // Admission can precede execution by a slow network/Modbus operation.
+    // Recheck expiry before any UART changes or flash writes.
+    DynamicJsonDocument command(8192);
+    const bool parsed = !deserializeJson(command, static_cast<const char *>(pending_config));
+    if (parsed && !command_deadline_valid(command, current_epoch_ms())) {
+      queue_config_ack("rejected", "stale_command", command["requestId"] | "");
+    }
+    else if (pending_probe) run_probe(pending_config);
     else apply_runtime_config(pending_config, pending_device_config);
   }
 
