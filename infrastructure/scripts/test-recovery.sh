@@ -26,7 +26,7 @@ run_dir=''
 # --no-deps tránh tự bật dependency trong lúc đang muốn chứng minh nó bị ngắt.
 # Token chỉ được truyền qua môi trường; không đặt giá trị token trong câu lệnh/log.
 probe() {
-  docker compose run --rm -T --no-deps -e API_WRITE_TOKEN \
+  docker compose run --rm -T --no-deps -e API_WRITE_TOKEN -e API_READ_TOKEN \
     -v "$infra_root/scripts/delivery-check.cjs:/app/infra-delivery.cjs:ro" \
     -v "$run_dir:/evidence" --entrypoint node backend-consumer \
     /app/infra-delivery.cjs "$@"

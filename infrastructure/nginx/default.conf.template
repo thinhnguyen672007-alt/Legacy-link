@@ -32,6 +32,9 @@ server {
         proxy_hide_header Access-Control-Allow-Origin;
         add_header Access-Control-Allow-Headers "Content-Type, Authorization" always;
         add_header Access-Control-Allow-Origin "*" always;
+        # Preflight trả lời ngay tại gateway để không phụ thuộc CORS_ORIGINS của backend.
+        if ($request_method = OPTIONS) { return 204; }
+        # Chặn sớm request ghi thiếu token; backend vẫn kiểm tra lại đầy đủ quyền đọc/ghi.
         if ($deny_write) { return 401 '{"error":"Bearer token required","code":"unauthorized"}'; }
         # Khi API bị recreate có thể đổi IP nội bộ. Docker DNS 127.0.0.11 được hỏi lại
         # qua upstream dạng biến, thay vì giữ IP cũ từ lúc Nginx khởi động.
@@ -40,8 +43,8 @@ server {
         proxy_pass $api;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
-        # Token được kiểm tra tại gateway, không chuyển tiếp bí mật đó tới backend.
-        proxy_set_header Authorization "";
+        # Backend tự kiểm tra quyền đọc/ghi theo token, nên Authorization phải được
+        # chuyển tiếp; gateway chỉ chặn thêm request ghi thiếu token ở trên.
         # Giới hạn thời gian chờ để API mất kết nối không làm request treo mãi.
         proxy_connect_timeout 3s;
         proxy_read_timeout 20s;

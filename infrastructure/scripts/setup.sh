@@ -104,18 +104,22 @@ requested_profiles="${COMPOSE_PROFILES:-}"
 # shellcheck disable=SC1091
 source .env
 export COMPOSE_PROFILES="${requested_profiles:-${COMPOSE_PROFILES:-full}}"
-# Nếu chưa có token, lấy 32 byte ngẫu nhiên rồi viết thành 64 ký tự hex trong .env.
-# Giữ token đã có để frontend không mất quyền sau mỗi lần setup; không in token ra log.
-if [[ ",$COMPOSE_PROFILES," == *,full,* ]] && [ -z "${API_WRITE_TOKEN:-}" ]; then
+# Sinh token đọc/ghi nếu thiếu; giữ token đã có để frontend không mất quyền sau mỗi lần setup.
+# Mỗi token lấy 32 byte ngẫu nhiên -> 64 ký tự hex trong .env; không in token ra log.
+if [[ ",$COMPOSE_PROFILES," == *,full,* ]]; then
   umask 077
-  API_WRITE_TOKEN="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
-  if grep -q '^API_WRITE_TOKEN=' .env; then
-    sed -i "s/^API_WRITE_TOKEN=.*/API_WRITE_TOKEN=$API_WRITE_TOKEN/" .env
-  else
-    printf '\nAPI_WRITE_TOKEN=%s\n' "$API_WRITE_TOKEN" >> .env
-  fi
+  for token_name in API_READ_TOKEN API_WRITE_TOKEN; do
+    [ -n "${!token_name:-}" ] && continue
+    token_value="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+    if grep -q "^${token_name}=" .env; then
+      sed -i "s/^${token_name}=.*/${token_name}=${token_value}/" .env
+    else
+      printf '\n%s=%s\n' "$token_name" "$token_value" >> .env
+    fi
+    printf -v "$token_name" '%s' "$token_value"
+    echo "[INFO] Da tao ${token_name} trong .env."
+  done
   chmod 600 .env
-  echo "[INFO] Da tao API_WRITE_TOKEN trong .env."
 fi
 if [ "$WANT_BENCH" = true ] && ! [[ "${BENCH_GATEWAY_ID:-}" =~ ^[A-F0-9]{12}$ ]]; then
   echo "[ERROR] --seed-bench can BENCH_GATEWAY_ID (12 ky tu HEX hoa doc tu USB)." >&2
@@ -135,9 +139,17 @@ for key in POSTGRES_USER POSTGRES_PASS POSTGRES_DB; do
     exit 1
   fi
 done
-if [[ ",$COMPOSE_PROFILES," == *,full,* ]] && ! [[ "$API_WRITE_TOKEN" =~ ^[a-fA-F0-9]{32,128}$ ]]; then
-  echo "[ERROR] API_WRITE_TOKEN can 32-128 ky tu hex; de rong de tu tao." >&2
-  exit 1
+if [[ ",$COMPOSE_PROFILES," == *,full,* ]]; then
+  for token_name in API_READ_TOKEN API_WRITE_TOKEN; do
+    if ! [[ "${!token_name:-}" =~ ^[a-fA-F0-9]{32,128}$ ]]; then
+      echo "[ERROR] $token_name can 32-128 ky tu hex; de rong de tu tao." >&2
+      exit 1
+    fi
+  done
+  if [ "$API_READ_TOKEN" = "$API_WRITE_TOKEN" ]; then
+    echo "[ERROR] API_READ_TOKEN va API_WRITE_TOKEN phai khac nhau." >&2
+    exit 1
+  fi
 fi
 
 MQTT_CONTAINER_NAME="${MQTT_CONTAINER_NAME:-legacy-link-mosquitto}"
@@ -430,7 +442,7 @@ fi
 echo ""
 if [[ ",$COMPOSE_PROFILES," == *,full,* ]]; then
   echo "  API      : http://${HTTP_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-3000}"
-  echo "  Write auth: Bearer API_WRITE_TOKEN (trong .env, khong in ra log)"
+  echo "  Auth     : Bearer API_READ_TOKEN (GET) va API_WRITE_TOKEN (POST), trong .env"
 fi
 echo "  Kiem tra : ./scripts/status.sh"
 echo "  Xem trang thai : docker compose ps"

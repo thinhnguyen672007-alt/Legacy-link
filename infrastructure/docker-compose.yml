@@ -296,6 +296,12 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-legacy_admin}:${POSTGRES_PASS:-change_me}@postgres:5432/${POSTGRES_DB:-legacy_link}
       HTTP_HOST: 0.0.0.0
       HTTP_PORT: 3000
+      # Backend bắt buộc hai token khác nhau (đọc/ghi) khi auth bật; thiếu là API không khởi động.
+      # Nginx cũng đọc API_WRITE_TOKEN để chặn request ghi ở tầng gateway.
+      API_READ_TOKEN: ${API_READ_TOKEN:-}
+      API_WRITE_TOKEN: ${API_WRITE_TOKEN:-}
+      # Backend trả 403 nếu Origin của request thật không thuộc danh sách này.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/ready',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
