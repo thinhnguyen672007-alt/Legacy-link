@@ -372,6 +372,23 @@ void accept_ingestion_ack(DeliveryQueue<N> &queue, const JsonDocument &ack) {
   }
 }
 
+// Validate the control envelope both on receipt and immediately before execution.
+const char *command_rejection(const JsonDocument &command, bool probe) {
+  if (!command.is<JsonObjectConst>()) return "invalid_payload";
+  for (const char *field : {"requestId", "expectedBootId", "expectedConfigRequestId"}) {
+    if (command.containsKey(field) && !json_text(command[field],
+        !strcmp(field, "expectedBootId") ? 16 : 64, !strcmp(field, "expectedConfigRequestId")))
+      return "invalid_payload";
+  }
+  const char *id = command["requestId"] | "";
+  if (!command_deadline_valid(command, current_epoch_ms()) ||
+      (command.containsKey("expectedBootId") && strcmp(command["expectedBootId"], boot_id)) ||
+      (!probe && command.containsKey("expectedConfigRequestId") &&
+       strcmp(command["expectedConfigRequestId"], active_request_id) && strcmp(id, active_request_id)))
+    return "stale_command";
+  return nullptr;
+}
+
 // Copy the MQTT-owned bytes before returning; apply outside the callback.
 void mqtt_callback(char *topic, byte *payload, unsigned int length) {
   char ack_topic[96];
@@ -393,24 +410,21 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length) {
     queue_config_ack("rejected", "invalid_payload");
     return;
   }
-  if (config_pending) {
-    queue_config_ack("rejected", "busy");
+  DynamicJsonDocument command(8192);
+  if (deserializeJson(command, reinterpret_cast<const char *>(payload), length)) {
+    queue_config_ack("rejected", "invalid_payload");
     return;
   }
-  // New control commands are bounded to this boot and a short time window.
-  // Legacy/manual configuration without these fields remains supported.
-  DynamicJsonDocument command(8192);
-  if (!deserializeJson(command, reinterpret_cast<const char *>(payload), length)) {
-    const char *id = command["requestId"] | "";
-    const char *expected_boot = command["expectedBootId"] | "";
-    const char *expected_config = command["expectedConfigRequestId"] | "";
-    if (!command_deadline_valid(command, current_epoch_ms()) ||
-        (command.containsKey("expectedBootId") && strcmp(expected_boot, boot_id)) ||
-        (!is_probe && command.containsKey("expectedConfigRequestId") &&
-         strcmp(expected_config, active_request_id) && strcmp(id, active_request_id))) {
-      queue_config_ack("rejected", "stale_command", id);
-      return;
-    }
+  const char *id = json_text(command["requestId"], 64);
+  if (!id) id = "";
+  if (config_pending) {
+    queue_config_ack("rejected", "busy", id);
+    flush_config_ack();
+    return;
+  }
+  if (const char *reason = command_rejection(command, is_probe)) {
+    queue_config_ack("rejected", reason, id);
+    return;
   }
   memcpy(pending_config, payload, length);
   pending_config[length] = '\0';
@@ -679,16 +693,19 @@ void loop() {
   }
 
   if (config_pending) {
-    config_pending = false;
+    // Keep the command busy while Modbus idle callbacks service MQTT.
     // Admission can precede execution by a slow network/Modbus operation.
     // Recheck expiry before any UART changes or flash writes.
     DynamicJsonDocument command(8192);
     const bool parsed = !deserializeJson(command, static_cast<const char *>(pending_config));
-    if (parsed && !command_deadline_valid(command, current_epoch_ms())) {
-      queue_config_ack("rejected", "stale_command", command["requestId"] | "");
+    const char *reason = parsed ? command_rejection(command, pending_probe) : "invalid_payload";
+    if (reason) {
+      const char *id = json_text(command["requestId"], 64);
+      queue_config_ack("rejected", reason, id ? id : "");
     }
     else if (pending_probe) run_probe(pending_config);
     else apply_runtime_config(pending_config, pending_device_config);
+    config_pending = false;
   }
 
   // 2. Nhận JSON qua Serial Monitor để cấu hình (backup khi chưa có MQTT config)

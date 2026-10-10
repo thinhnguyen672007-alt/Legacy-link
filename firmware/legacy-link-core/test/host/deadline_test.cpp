@@ -30,5 +30,31 @@ int main() {
     assert(!memcmp(&before, &global_device_config, sizeof(before)));
     assert(storage_writes() == writes);
   }
+  for (const char *field : {"requestId", "expectedBootId", "expectedConfigRequestId"}) {
+    for (const char *value : {"null", "17", "true", "\"id\\u0000suffix\""}) {
+      const std::string invalid = std::string("{\"") + field + "\":" + value + "}";
+      mqttClient.receive(config_topic, invalid);
+      assert(!config_pending);
+      DynamicJsonDocument ack(1024); assert(!deserializeJson(ack, config_ack));
+      assert(ack["reason"] == "invalid_payload");
+    }
+  }
+  // The expected active profile can become stale after admission too.
+  strcpy(active_request_id, "first");
+  mqttClient.receive(config_topic, R"({"deviceId":"A","requestId":"next","expectedConfigRequestId":"first","registerMap":[{"key":"temperature","address":49}]})");
+  assert(config_pending);
+  strcpy(active_request_id, "another");
+  loop();
+  assert(!memcmp(&before, &global_device_config, sizeof(before)));
+  DynamicJsonDocument ack(1024); assert(!deserializeJson(ack, config_ack));
+  assert(ack["reason"] == "stale_command");
+  // A busy rejection identifies the second request without replacing the first.
+  mqttClient.receive(config_topic, R"({"deviceId":"A","requestId":"first","registerMap":[{"key":"temperature","address":1}]})");
+  const std::string pending = pending_config;
+  mqttClient.receive(config_topic, R"({"requestId":"second"})");
+  assert(pending == pending_config && config_pending);
+  assert(!deserializeJson(ack, config_ack));
+  assert(ack["reason"] == "busy" && ack["requestId"] == "second");
+  loop();
   std::cout << "Deadline types, boundary and deferred execution tests passed.\n";
 }
