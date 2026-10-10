@@ -8,8 +8,8 @@ infra_root="$PWD"
 source ./scripts/operation-lock.sh
 operation_locked=false
 # shellcheck disable=SC1091
-source .env
-export COMPOSE_PROFILES=full API_WRITE_TOKEN
+source ./scripts/load-env.sh
+export COMPOSE_PROFILES=full API_WRITE_TOKEN API_READ_TOKEN
 umask 077
 # Evidence lưu fixture và kết quả theo từng lần chạy; reports/ không được đưa lên Git.
 # Các cờ bên dưới ghi lại phần nào đã thay đổi để cleanup biết phải phục hồi gì.
@@ -18,16 +18,17 @@ mkdir -p "$report_root"
 interrupted_service=''
 network_detached=false
 fixture_active=false
-consumer_id="$(docker compose ps -q backend-consumer)"
+# Đọc ID container consumer muộn nhất có thể: các bài outage trước có thể đã recreate nó.
+consumer_id=''
 network_name="${DOCKER_NETWORK_NAME:-legacy-link-net}"
 run_dir=''
 # Tạo container kiểm thử tạm từ cùng image consumer, override entrypoint để chạy probe.
 # --no-deps tránh tự bật dependency trong lúc đang muốn chứng minh nó bị ngắt.
 # Token chỉ được truyền qua môi trường; không đặt giá trị token trong câu lệnh/log.
 probe() {
-  docker compose run --rm -T --no-deps -e API_WRITE_TOKEN \
-    -v "$infra_root/scripts/delivery-check.cjs:/app/infra-delivery.cjs:ro" \
-    -v "$run_dir:/evidence" --entrypoint node backend-consumer \
+  docker compose run --rm -T --no-deps --user "$(id -u):$(id -g)" -e API_WRITE_TOKEN -e API_READ_TOKEN \
+    -v "$infra_root/scripts/delivery-check.cjs:/app/infra-delivery.cjs:ro,z" \
+    -v "$run_dir:/evidence:z" --entrypoint node backend-consumer \
     /app/infra-delivery.cjs "$@"
 }
 # Gắn lại mạng hoặc bật đúng service đã bị ngắt; --wait chờ health thay vì chỉ chờ process Up.
@@ -73,11 +74,16 @@ for fault in "${faults[@]}"; do
   fixture_active=true
   probe prepare
   if [ "$fault" = network ]; then
+    # Bài trước có thể đã recreate container consumer, nên ID đọc lúc đầu script
+    # có thể đã cũ. Đọc lại ngay trước khi ngắt mạng, nếu không Docker báo
+    # "No such container" và bài network dừng giữa chừng.
+    consumer_id="$(docker compose ps -q backend-consumer)"
+    [ -n "$consumer_id" ] || { echo '[ERROR] backend-consumer is not running' >&2; exit 1; }
     network_detached=true
     docker network disconnect "$network_name" "$consumer_id"
   else
     interrupted_service="$fault"
-    docker compose stop -t 10 "$fault"
+    docker compose stop -t 130 "$fault"
   fi
   # Trong outage phải thấy readiness lỗi và không có ACK committed cho mẫu chưa lưu.
   # Sau phục hồi phải nhận đúng ACK, đủ bản ghi, chống trùng và giữ lịch sử trước bài thử.

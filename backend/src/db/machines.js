@@ -1,3 +1,4 @@
+import { deliveryHealth } from '../validation/diagnostics.js';
 // db/machines.js
 // Nhiem vu: DOC thong tin thiet bi de tra cho API cua frontend.
 //
@@ -82,6 +83,7 @@ function toMachine(row) {
       row.last_telemetry_ts == null ? null : new Date(Number(row.last_telemetry_ts)).toISOString(),
     dataAgeSeconds: lastDataMs === null ? null : Math.max(0, Math.round((now - lastDataMs) / 1000)),
     diagnostics: row.diagnostics,
+    deliveryHealth: deliveryHealth(row.diagnostics, row.sampling_interval_ms, now),
     dataFresh:
       lastDataMs !== null && now - lastDataMs <= Math.max(5000, row.sampling_interval_ms * 3),
     readHealth: !row.diagnostics

@@ -93,7 +93,9 @@ PASSWD_FILE="$CONFIG_DIR/passwd"
 #   * Viết '. "$INFRA_DIR/.env"' (dấu chấm thay cho chữ source): Hoàn toàn tương đương theo chuẩn POSIX.
 if [ -f "$INFRA_DIR/.env" ]; then
   # shellcheck disable=SC1091
-  source "$INFRA_DIR/.env"
+  pushd "$INFRA_DIR" >/dev/null
+  source ./scripts/load-env.sh
+  popd >/dev/null
 fi
 
 # ------------------------------------------------------------------------------

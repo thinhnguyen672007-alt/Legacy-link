@@ -1860,3 +1860,269 @@ Sau khi tiếp tục công việc, đã xác nhận code vẫn nằm trên local
 Log tại máy Thịnh: `/home/nguyenvuducthinh/Documents/Codex/2026-10-06/li/outputs/backend-verification-2026-10-10/tests.log` và `build.log` cùng thư mục. Kết quả benchmark ở phần 34 là lần đo ngày trước; không phải số đo mới của lượt kiểm tra này.
 
 Để bắt đầu dùng code mới: dừng hai process backend cũ, backup database, chạy `npm run db:migrate` trong `backend/`, rồi mở lại `npm start` và `npm run start:http` ở hai terminal. Xem phần 26 và `backend/deploy/README.md` trước khi thực hiện. Nghiệm thu toàn tuyến với ESP32, frontend và stack hạ tầng thật vẫn là việc cần phối hợp của ba thành viên.
+
+<a id="muc-36"></a>
+## 36. Chuẩn bị test LAN với Hoàng Anh — 10/10/2026
+
+Theo yêu cầu chuẩn bị test script/curl và ESP32, đã xác định IP Wi-Fi máy backend là `192.168.110.214`, MQTT TCP 1883 và API TCP 3000. Hai container broker/DB và hai process Node đều đang tắt lúc bắt đầu; đã bật lại container sẵn có.
+
+Database demo trước chuẩn bị có 95 telemetry và 2 alarm, BENCH-01 đã gắn đúng gateway `643C60A7DBCC` nhưng thiếu schema C16. Đã backup bằng pg_dump custom format, restore thử vào database tạm và so số dòng khớp 95/2, xóa riêng DB tạm, rồi chạy migration thành công lên version 4. Lịch sử demo vẫn 95/2; không seed lại hoặc chuyển chủ thiết bị. Đây là bước nâng cấp DB demo sau các ghi chép trước đó rằng chưa migrate.
+
+Đã thêm `backend/scripts/lan-test-services.mjs` để bật/dừng/restart riêng API và consumer, xác minh PID trước khi dừng; PID/log ở `.env.test-runtime/` được Git bỏ qua. Đã bật hai process, API listen LAN với authentication. Kiểm tra từ máy backend tới IP LAN: ready=true, read token GET 200, thiếu token 401, read token POST 403; MQTT đăng nhập và subscribe ACK thành công. Không gửi mẫu giả để tạo thêm lịch sử.
+
+Đã tạo file `.env.handoff-test` riêng, permission 0600 và Git bỏ qua, chứa địa chỉ cùng MQTT credential/API token để Thịnh gửi riêng cho Hoàng Anh. Không ghi giá trị bí mật vào sổ tay hoặc chat. Không đổi credential/auth/CORS và không mở thêm firewall; zone Wi-Fi hiện đã cho phép các port cần dùng. Chưa push/commit những file chuẩn bị này.
+
+**Chưa thấy ESP32 báo online lúc preflight.** Curl qua IP LAN từ chính máy backend chưa chứng minh laptop Hoàng Anh/ESP32 truy cập được qua Wi-Fi. Cần Hoàng Anh thử từ máy mình, kiểm tra AP isolation nếu timeout, rồi chạy buổi nghiệm thu thật. Môi trường này dùng Node host + broker/DB container, chưa dùng proxy/watchdog infra chính.
+
+Bàn giao chi tiết ở `backend/deploy/TEST-LAN-HOANG-ANH.md`: thông tin kết nối, topic, lệnh start/stop, baseline, các kịch bản outage/mất ACK/backlog/API restart và bằng chứng cần ghi. Việc stop consumer không thay thế tình huống DB đã commit nhưng firmware mất ACK; bước đó phải có cơ chế test phối hợp với firmware/mạng.
+
+# 37. Tích hợp backend – firmware – infrastructure để bàn giao frontend (10/10/2026)
+
+## 37.1. Kết quả cần hiểu đúng
+
+Đợt này không xây frontend. Mục tiêu là có một bộ source thống nhất, API rõ ràng, và các bài kiểm thử tự động chứng minh đường đi từ MQTT tới database/API, cả khi có sự cố. Bạn đã cho phép chia commit và push lên **feature/backend-base**; không push main, không tự tạo PR. Các commit firmware/infra của đồng đội được merge giữ nguyên lịch sử tác giả, không chép thành công của người khác thành commit mới của mình.
+
+Bản tích hợp có profile import/export theo revision, preview, probe/apply, phục hồi operation từ DB, application ACK/chống trùng, store-and-forward RAM, lịch sử cấu hình phục vụ replay, metrics, freshness và nay thêm **delivery health từ ESP32 lên API**. Hạ tầng có setup/migration thống nhất, auth/CORS đúng, watchdog có thời gian drain, backup/restore và lịch maintenance tùy chọn. Frontend đọc `docs/FRONTEND-HANDOFF.md` và `backend/openapi.json` phiên bản 0.5.0.
+
+“Đủ để nối frontend” khác với “không bao giờ có lỗi”. Kiểm thử phần mềm không thay thế flash bản firmware mới lên ESP32, thử Wi-Fi/RS-485 thật, thử từ laptop khác hay diễn tập bài trình bày. Không có bằng chứng để cam kết zero data loss hoặc đạt giải. Các giới hạn kỹ thuật ở mục 37.10 là phần cần biết để trả lời trung thực.
+
+## 37.2. Lỗi token: người gác cổng làm mất thẻ của khách
+
+**Vấn đề:** backend yêu cầu API_READ_TOKEN và API_WRITE_TOKEN khác nhau. Bản infra cũ chỉ đặt write token cho Nginx, còn Nginx xóa Authorization trước khi chuyển request. Kết quả có thể là API không bật được vì thiếu token, hoặc khách đưa token đúng nhưng backend nhận request không có token và trả 401.
+
+Ví dụ đời thường: bạn đưa thẻ cho bảo vệ ngoài cửa; bảo vệ giữ mất thẻ, rồi quầy tiếp tân bên trong hỏi thẻ và từ chối bạn. Thêm token ở frontend không sửa được việc bảo vệ đang giữ mất thẻ.
+
+**Cách sửa:** Compose truyền hai token cho API. Nginx chuyển nguyên `Authorization` sang API. Backend là nơi duy nhất quyết định quyền đọc/ghi và CORS. `prepare-env.mjs` tạo hai token ngẫu nhiên khi thiếu, giữ giá trị đã có, không in bí mật. File env mới được đặt quyền 0600: chỉ chủ file đọc/ghi.
+
+- Không token hoặc token sai → 401.
+- Read token gọi GET máy/lịch sử → 200 nếu request hợp lệ.
+- Read token gọi POST xác nhận alarm → 403.
+- Write token được đọc và thực hiện POST.
+- Health công khai để hệ thống giám sát đọc được.
+
+**Vì sao không kiểm token ở cả proxy và backend?** Hai bộ quy tắc độc lập dễ lệch nhau. Proxy nên chuyển tiếp; API có đầy đủ ngữ cảnh endpoint để áp dụng một chính sách thống nhất. CORS cũng không phải mật khẩu: nó là quy tắc dành cho trình duyệt, curl/ESP32 không bị ràng buộc như trình duyệt.
+
+**File:** `infrastructure/docker-compose.yml`, `infrastructure/nginx/default.conf.template`, `infrastructure/nginx/05-token-check.sh`, `infrastructure/scripts/prepare-env.mjs`, `infrastructure/scripts/load-env.sh`. Quyền thực tế vẫn ở `backend/src/http/security.js`.
+
+**Bằng chứng:** test qua Nginx thật kiểm tra 401/200/403, Origin được phép và Origin lạ. Không chỉ gọi trực tiếp API để rồi bỏ sót proxy.
+
+## 37.3. Migration: nâng cấp cuốn sổ cũ, không chỉ phát cuốn sổ mới
+
+**Vấn đề:** infra từng nạp thẳng `schema.sql` rồi kiểm tra đủ 10 bảng. Database đã có bảng tên đúng vẫn có thể thiếu cột mới. `CREATE TABLE IF NOT EXISTS` nghĩa là “có rồi thì thôi”, không tự thêm mọi cột thiếu. Backend hiện còn có schema version, operation, lease, profile, config history… nên đếm 10 bảng không đủ chứng minh tương thích.
+
+Ví dụ: mẫu sổ mới có cột “mã vận đơn”. Bạn đưa mẫu này cho người đã có sổ cũ và nói “nếu có sổ rồi thì thôi”; người đó vẫn chưa có cột mã vận đơn. Migration là hướng dẫn bổ sung đúng cột vào sổ cũ, đồng thời giữ các dòng đã ghi.
+
+**Cách sửa:** setup chạy đúng `backend/scripts/migrate.mjs` trong image backend. Runner nhận biết database rỗng/cũ, dùng version và advisory lock để tránh hai phiên migrate chồng nhau. Healthcheck infra gọi lại chính phép kiểm tra schema/heartbeat của backend, không duy trì một danh sách bảng cũ riêng.
+
+Thứ tự setup hiện tại:
+
+1. Kiểm tra env, Compose, tên container và build image trước.
+2. Backup database đang chạy. Nếu mới cài, tạo DB rồi backup trước migration.
+3. Dừng consumer/API để không ghi trong lúc nâng cấp.
+4. Chạy migration, seed chỉ khi có yêu cầu rõ.
+5. Bật các dịch vụ và chờ healthcheck thực tế.
+
+**Chốt chống dùng nhầm DB:** nếu đã có `legacy-link-postgres` nhưng thuộc cách chạy/project khác, setup dừng và giải thích. Lab của bạn từng dùng bind mount `backend/pgdata`, còn Compose dùng named volume. Nếu cứ đổi cách chạy mà không chuyển dữ liệu, bạn có thể nhìn thấy database rỗng rồi tưởng dữ liệu cũ bị xóa. Vì vậy không tự tiếp quản container đó, không dùng `down -v` để “sửa”.
+
+**File:** `infrastructure/scripts/setup.sh`, `check-backend.cjs`, `prepare-env.mjs`; sử dụng lại `backend/scripts/migrate.mjs`, `backend/src/db/schema-version.js`, `backend/src/db/health.js`. Đợt này không đổi schema version 4 và không cần một migration mới cho delivery health vì diagnostics đã lưu JSON.
+
+## 37.4. Shutdown: cho người ghi sổ viết xong rồi mới tắt đèn
+
+**Vấn đề:** backend có tối đa 15 giây để xử lý nốt công việc đã nhận, nhưng watchdog infra cũ giết tiến trình sau 7 giây. Dù code backend biết dừng sạch, lớp ngoài vẫn cắt ngang trước hạn.
+
+Ví dụ: quản lý cho nhân viên 15 giây để ghi nốt hóa đơn, nhưng bảo vệ tắt điện sau 7 giây. Bảo vệ và quản lý phải thống nhất thời gian.
+
+**Cách sửa:** watchdog chờ `SHUTDOWN_TIMEOUT_MS + 5.000 ms`. Mặc định backend 15 giây → watchdog 20 giây. Docker cho tối đa 130 giây, đủ cho cấu hình backend tối đa 120 giây cộng biên chờ. Thoát xong sớm thì dừng ngay; không phải lần nào cũng ngồi đợi 130 giây. Script outage không còn cưỡng ép deadline 10 giây ngắn hơn quy trình này.
+
+**Vì sao không chờ vô hạn?** Nếu DB hoặc chương trình treo, triển khai vẫn phải dừng được sau một giới hạn. Nếu bị cắt trước COMMIT thì không có ACK committed; ESP32 giữ mẫu và gửi lại. Nếu đã COMMIT nhưng ACK mất, cơ chế chống trùng xử lý lần gửi lại.
+
+**File:** `infrastructure/scripts/run-backend.cjs`, `docker-compose.yml`, `scripts/test-recovery.sh`, `test/watchdog.test.cjs`.
+
+**Test đặc biệt:** worker giả cần 8 giây để hoàn tất khi nhận SIGTERM. Watchdog thật phải đợi tới lúc worker ghi “drained”; bản cũ giết ở giây 7 sẽ không qua bài này.
+
+## 37.5. ACK mất sau khi database đã lưu: gửi lại không phải ghi lại
+
+Đây là trường hợp khác với database chưa lưu được:
+
+```text
+ESP32 gửi mẫu ID=abc → backend COMMIT thành công → ACK bị mất
+ESP32 chưa nhận ACK nên vẫn giữ ID=abc → gửi lại nguyên mẫu
+backend thấy receipt ID=abc, đối chiếu nội dung → trả ACK committed
+database vẫn chỉ có 1 bản ghi
+```
+
+Ví dụ: cửa hàng nhận kiện hàng rồi nhưng cuộc gọi báo “đã nhận” bị đứt. Người gửi hỏi lại theo cùng mã vận đơn. Cửa hàng tra mã và báo đã nhận, không nhập kho thành hai kiện.
+
+**Bài test mới làm thật ở mức phần mềm:** ngắt subscription nhận ACK; gửi mẫu qua MQTT thật; truy vấn PostgreSQL xác nhận có một dòng; xác nhận người gửi không nhận ACK đầu; đăng ký nhận ACK lại; gửi lại đúng ID/nội dung; nhận committed và đếm vẫn một dòng. Không chỉ gọi saveTelemetry hai lần rồi suy ra đường MQTT cũng đúng.
+
+**File test:** `backend/scripts/ingestion-integration.mjs`. Nghiệp vụ dùng các file sẵn có: `src/ingestion/handler.js` (thứ tự lưu rồi ACK), `src/db/ingestion.js` (transaction/receipt), `src/ingestion/identity.js` (dấu vân tay nội dung).
+
+Điểm cần nhớ khi present: QoS0 vẫn có thể có gửi bù ở tầng ứng dụng nếu thiết bị giữ mẫu tới application ACK. Điều đó không biến MQTT QoS0 thành QoS1/2 và không bảo vệ được mẫu đã mất khỏi RAM do reset hoặc đầy queue.
+
+## 37.6. Tính năng mới: nhìn thấy queue ESP32 từ frontend
+
+Trước đây phải cắm USB và gõ `:health` mới biết thiết bị đang giữ bao nhiêu mẫu. Backend thấy ít dữ liệu nhưng không biết mẫu đang chờ ở ESP32 hay đã bị bỏ vì đầy. Nay firmware đính kèm `delivery` vào bản tin diagnostics; dùng cùng bộ đếm với USB, không tạo hai bộ số liệu dễ lệch nhau.
+
+Đường đi qua file:
+
+```text
+firmware/src/main.cpp
+  describe_outbox → describe_delivery → send_read_report
+          ↓ MQTT legacy-link/devices/{id}/diagnostics
+backend/src/index.js + src/mqtt/client.js
+          ↓
+backend/src/validation/diagnostics.js: kiểm tra JSON và counter
+          ↓
+backend/src/db/diagnostics.js: xác minh device/gateway, lưu machine_state.diagnostics
+          ↓
+backend/src/db/machines.js: ghép dữ liệu + suy ra deliveryHealth
+          ↓
+backend/src/http/handler.js: GET /machines hoặc GET /machines/{id}
+          ↓
+frontend hiển thị “3 mẫu đang chờ xác nhận”, “báo cáo cũ”, “mẫu bị từ chối”…
+```
+
+Ví dụ máy có telemetry `pending=3`, `capacity=32`, `committed=80`, `failedEnqueues=0`:
+
+- `pending=3`: còn ba mẫu giữ trong RAM, chưa được phép xóa vì chưa nhận ACK đúng.
+- `committed=80`: thiết bị đã nhận 80 ACK và gỡ 80 mẫu khỏi queue từ lần boot này; không phải tổng lịch sử DB.
+- `highWater=5`: queue từng lên tới năm mẫu; giúp biết mức ùn cao nhất.
+- `failedEnqueues=0`: chưa quan sát lần không thêm được mẫu; không chứng minh những lần trước khi thiết bị bật cũng không mất.
+- `attempts=2`: mẫu đầu đã được thử publish hai lần; không có nghĩa hai dòng DB.
+- `rejection=unknown_device`: backend chưa nhận mẫu vì registry sai; phải sửa đăng ký, không coi rejected là committed.
+- `bootId`: đổi sau reboot, giúp giải thích vì sao counter trở về đầu.
+
+Backend kiểm counter phải là số nguyên không âm, pending/highWater không quá capacity và highWater không nhỏ hơn pending. Field lạ như password không được giữ lại. Parser tách khỏi module DB để có thể test dữ liệu sai mà không mở PostgreSQL.
+
+`deliveryHealth`:
+
+| Giá trị | Hiểu và hiển thị |
+|---|---|
+| unknown | Chưa có trường delivery; thường là firmware cũ |
+| stale | Báo cáo đã quá max(5 giây, 3 chu kỳ lấy mẫu) |
+| rejected | Mẫu đầu của một queue đang bị backend từ chối |
+| loss_observed | Đã có enqueue thất bại trong lần boot này; counter tích lũy |
+| backlog | Có mẫu chờ ACK; vài mẫu trong thời gian ngắn là bình thường |
+| healthy | Báo cáo mới và không có dấu hiệu trên, không phải cam kết không mất mọi dữ liệu |
+
+Tại sao kiểm stale trước? Nếu mất Wi-Fi 5 phút, số pending=0 từ trước lúc mất mạng không thể chứng minh queue hiện tại vẫn rỗng. Thông tin quá cũ phải được gắn nhãn cũ.
+
+Báo cáo chứa cả rawWords của tối đa 16 register và queue nên firmware có ngân sách report hữu hạn riêng 6 KiB; config nhận vào vẫn giữ giới hạn 4.095 byte. Test kiểm cả kích thước gói MQTT, không chỉ kích thước JSON. Không tăng buffer vô hạn.
+
+**File bổ sung/sửa:** `backend/src/validation/diagnostics.js` và `.test.js`, `src/db/diagnostics.js`, `src/db/machines.js`, `backend/openapi.json`, `firmware/legacy-link-core/src/main.cpp`, các test host health/config-size/contract. Không thêm endpoint ghi hay làm thay frontend.
+
+## 37.7. Đồng bộ với công việc mới của Huy và Hoàng Anh
+
+Các nhánh vẫn tiếp tục thay đổi trong lúc tích hợp. Đã fetch và merge nhiều lượt, giải conflict theo hành vi chứ không chọn nguyên “ours/theirs” cho toàn bộ dự án.
+
+- Firmware siết metric key theo backend, chặn chuỗi JSON có ký tự NUL làm ACK khớp giả, kiểm tra lại boot/config/deadline ngay trước thực thi.
+- Giữ lệnh đang probe khỏi bị lệnh mới ghi đè, trả requestId của lệnh bị busy, giới hạn probe dài và giảm áp lực stack ESP32.
+- Giữ `:inspect` xem raw/scaled/freshness/read error và `:outbox` xem danh sách ID đang chờ ACK.
+- Giữ dữ liệu profile A trong queue khi profile B được áp dụng; không sửa lại payload/ID/timestamp của mẫu A.
+- Giữ counter report bị bỏ và trả lỗi probe khi publish báo cáo thất bại. Khi merge với delivery health, `send_read_report` vẫn trả bool và vẫn có cơ chế báo lỗi này.
+- Infra đọc lại ID container ngay trước bài ngắt mạng vì bài trước có thể recreate container.
+- Infra thêm read/write token; bản tích hợp giữ read-token test của Huy nhưng thống nhất CORS ở backend, không giữ wildcard/OPTIONS riêng của proxy gây lệch policy.
+
+Trên Fedora, test phát hiện `EACCES` ở file probe dù API chạy được: long bind mount không áp dụng nhãn SELinux như mong đợi với Compose đang dùng. Đổi sang mount `:ro,z` đã kiểm chứng; thư mục evidence cũng có `:z`. Không tắt SELinux toàn máy để che lỗi.
+
+Đọc thêm các ghi chép phần cứng/firmware do Hoàng Anh đưa vào `firmware/legacy-link-core/docs/`. Kết quả test của đồng đội phải được phân biệt với bài mình vừa chạy và đúng revision đã flash, không tự gộp thành bằng chứng phần cứng cho mọi thay đổi sau đó.
+
+## 37.8. Backup và retention: một cái giữ bản cứu hộ, một cái kiểm soát dung lượng
+
+Hai việc này khác nhau:
+
+- Backup sao chép cấu trúc và dữ liệu để có thể khôi phục.
+- Retention dọn bớt lịch sử quá hạn theo chính sách.
+
+**Tính năng mới trong Compose:** profile `maintenance` có service `backup` và `retention`. Mặc định chưa bật, để không tự thay chính sách dữ liệu của lab. Khi bật `COMPOSE_PROFILES=full,maintenance`, backup chạy định kỳ, retention vẫn mặc định dry-run. Chỉ `RETENTION_APPLY=true` mới xóa.
+
+Backup tạo dump tạm → restore vào DB tạm riêng → đọc telemetry/alarms/schema version → xóa DB tạm vừa tạo → công bố file .dump và marker last-success. Nếu createdb thất bại, cleanup không được xóa một DB trùng tên mà nó chưa tạo thành công. Đây là lý do có cờ theo dõi “đã tạo”.
+
+Retention chạy tối đa 5.000 dòng/bảng/lượt; không dọn alarm chưa được xác nhận. Giữ receipt chống trùng ngay cả khi lịch sử đã được dọn. Ví dụ mẫu abc đã lưu, sau 30 ngày lịch sử bị dọn; nếu firmware gửi lại abc thì receipt vẫn cho biết nó đã xử lý, tránh làm sống lại dữ liệu cũ.
+
+Đổi lại, receipt và backup tăng dung lượng. Chưa tự xóa hai loại này. Backup cùng ổ cứng chưa bảo vệ khi hỏng cả ổ; phải xuất bản backup sang nơi khác. Không gọi một file dump chưa restore thử là “đã chứng minh phục hồi được”.
+
+**File:** `infrastructure/scripts/retention-loop.cjs`, `backup-loop.sh`, `docker-compose.yml`, `docs/maintenance.md`. Dùng lại chính sách ở `backend/src/db/retention.js`, không tạo bộ SQL dọn dữ liệu thứ hai trong infra.
+
+## 37.9. Bằng chứng kiểm thử và cách đội tự chạy lại
+
+Các bài đã chạy trong môi trường cách ly, không publish mẫu giả vào BENCH-01 của lab:
+
+- 66 test đơn vị backend ở lần chạy đầy đủ.
+- 25 nhóm kiểm thử tích hợp backend, gồm mất ACK sau COMMIT và MQTT diagnostics → DB → HTTP mới thêm.
+- Bộ TLS/ACL backend và Nginx auth/CORS độc lập.
+- Build firmware ESP32; host regression 17 nhóm; kiểm tra 22 payload firmware, gồm telemetry/status/alarm/probe/diagnostics, bằng validator backend.
+- Compose thật: setup từ rỗng, migration chạy lại, auth/CORS qua proxy, outage consumer/Postgres/broker/network, replay/chống trùng, bảo toàn dữ liệu trước test, backup restore và maintenance một lượt.
+- Watchdog thật với worker cần 8 giây để dọn.
+
+Lệnh từ root repo:
+
+```bash
+npm test --prefix backend
+npm run test:all --prefix backend
+node --test infrastructure/test/*.test.cjs
+node infrastructure/scripts/test-stack.mjs
+pio run -d firmware/legacy-link-core
+ASAN_OPTIONS=detect_leaks=0 bash firmware/legacy-link-core/test/host/run.sh
+ASAN_OPTIONS=detect_leaks=0 python3 firmware/legacy-link-core/test/host/run_contract.py --backend-ref HEAD
+```
+
+`--backend-ref working-tree` dành cho lúc validator đang sửa mà chưa commit; HEAD dành cho bản đã commit. CI mới ở `.github/workflows/stack.yml` dùng chính stack test này. Có file CI không đồng nghĩa đã quan sát mọi GitHub Actions run hoàn tất; xem trạng thái run trên GitHub nếu cần xác nhận cloud.
+
+Máy local thiếu Compose plugin, PlatformIO và thư viện sanitizer lúc bắt đầu. Công cụ kiểm thử được tải vào `/tmp` riêng, không cài đè hệ thống. Firmware chỉ build, không tự flash. Sau reboot, `/tmp` có thể mất; cài các công cụ phát triển đúng cách trước khi tự chạy toàn bộ lệnh trên.
+
+## 37.10. Giới hạn cần biết trước khi nói “hoàn thành 100%”
+
+Mã tích hợp và API phục vụ frontend đã có; còn phải nghiệm thu giao diện thật và phần cứng đang dùng:
+
+- ESP32 queue là RAM: 32 telemetry, 8 alarm. Mất điện/reset thì mất mẫu chưa ACK; queue đầy thì không nhận mẫu mới. Chưa có flash outbox.
+- Mẫu đầu bị rejected được giữ lại, có thể chặn các mẫu sau. Phải sửa nguyên nhân/catalog/registry, không tự xóa rồi báo là đã lưu. Delivery health giúp nhìn thấy tình trạng này.
+- Profile backlog hiện được backend đối chiếu lịch sử 7 ngày, tối đa 100 snapshot; firmware v1 chưa gắn version cấu hình tường minh vào từng mẫu. Không quảng cáo truy vết phiên bản tuyệt đối.
+- Stack demo chính dùng HTTP/MQTT plaintext và tài khoản MQTT chung trong LAN tin cậy. TLS/ACL backend có mẫu và test riêng, chưa phải MQTT TLS end-to-end đã flash trên ESP32. Muốn ra Internet phải làm phần triển khai bảo mật tương ứng.
+- Shared API token đọc/ghi chưa phải hệ thống tài khoản từng người, RBAC nhiều vai trò hay multi-tenant.
+- Receipt chống trùng/backup cần kế hoạch dung lượng. Một benchmark local ngắn không phải chứng minh chịu tải nhà máy dài ngày.
+- NTP cần đồng bộ trước khi ghi thời gian hợp lệ; chưa có hệ thống đồng hồ độc lập không cần mạng.
+- Chưa thêm AI dự báo hỏng, Kafka, tự quét mọi thiết bị Modbus hay flash queue chỉ để tăng số feature. Chúng cần dữ liệu/phần cứng/chính sách và kiểm chứng riêng; không coi đã hoàn thành vì tên xuất hiện trong slide.
+
+Không âm thầm đổi phần cứng hay quy trình của cả đội để che các giới hạn này. Đề xuất demo tập trung vào profile + probe/apply, đọc số âm/rawWords đúng, ứng dụng ACK + chống trùng, đổi profile khi backlog, quan sát delivery health và phục hồi sự cố có bằng chứng.
+
+## 37.11. Câu hỏi luyện hiểu bản chất
+
+1. **MQTT publish trả true có nghĩa đã vào DB chưa?** Chưa. Nó chỉ cho biết thư viện gửi được ở tầng đó. Chỉ application ACK committed khớp ID mới xác nhận backend đã lưu.
+2. **DB lưu xong nhưng ESP32 không thấy ACK thì sao?** Giữ nguyên mẫu, gửi lại cùng ID/nội dung. Receipt giúp trả ACK lại mà không thêm bản ghi.
+3. **Tại sao không sinh ID mới mỗi lần retry?** Backend sẽ hiểu thành mẫu khác và khó chống trùng đúng.
+4. **Tại sao không tăng QoS lên 2 rồi bỏ queue?** QoS chỉ xử lý một chặng MQTT, không chứng minh transaction DB đã COMMIT hay ESP32 còn giữ mẫu khi reset.
+5. **Cùng key temperature nhưng đổi scale, có sửa mẫu cũ không?** Không. Firmware đã tính giá trị lúc đo; replay phải giữ nguyên bytes. Diễn giải lịch sử theo phiên bản là giới hạn cần giải thích thêm.
+6. **Gateway online có đồng nghĩa máy đang đo tốt?** Không. Có thể Wi-Fi tốt nhưng Modbus timeout. Xem riêng readHealth, dataFresh và deliveryHealth.
+7. **pending=0 nhưng diagnostics cũ 5 phút có tốt không?** Không kết luận được; phải hiển thị stale.
+8. **failedEnqueues=1 rồi queue rỗng thì có được đổi về “không mất dữ liệu” không?** Không. Counter cho biết đã có một lần không thêm được mẫu trong boot đó.
+9. **Tại sao không xóa mẫu rejected?** Backend chưa xác nhận lưu. Xóa sẽ làm mất dữ liệu có thể phục hồi sau khi sửa cấu hình.
+10. **Tại sao CORS không bảo vệ API khỏi curl?** CORS là hạn chế do trình duyệt thực thi; xác thực token mới bảo vệ endpoint trước các loại client.
+11. **API 202 khi apply nghĩa là gì?** Đã nhận thao tác bất đồng bộ. Cần GET operation tới kết quả cuối, không hiển thị thành công ngay.
+12. **DB có đủ bảng thì có đủ dùng không?** Chưa chắc. Cột/index/version có thể sai; readiness phải kiểm schema phù hợp mã đang chạy.
+13. **Tại sao cần backup trước migration dù migration không chủ đích xóa dữ liệu?** Có thể có lỗi SQL, sai database hoặc sự cố vận hành. Cần bản phục hồi đã kiểm chứng.
+14. **Tại sao watchdog phải chờ lâu hơn backend?** Để quy trình dừng sạch bên trong có thời gian hoàn tất, thay vì bị lớp ngoài cắt ngang.
+15. **Docker báo healthy đã chứng minh ESP32 thật hoạt động chưa?** Chưa. Nó chứng minh các kiểm tra đã định nghĩa, còn gateway/Modbus/đường Wi-Fi thật cần bài riêng.
+16. **Vì sao database lab và Compose có thể trông khác nhau?** Có thể trỏ hai nơi lưu khác nhau: bind mount và named volume, hoặc URL/tên DB khác.
+17. **Backup nằm cùng máy có đủ không?** Đủ cho một số lỗi thao tác, chưa đủ khi mất máy/ổ cứng. Cần bản ngoài máy.
+18. **Có test pass nghĩa là không còn bug?** Không. Nó chứng minh các tình huống đã thử trong môi trường đã ghi lại. Khi thay code/cấu hình/phần cứng phải kiểm tra phần liên quan.
+
+Một câu present ngắn: “Chúng em không lấy việc broker nhận được tin làm bằng chứng đã lưu. Thiết bị giữ mẫu tới ACK sau COMMIT; backend chống trùng theo ID và nội dung. Khi đổi profile, mẫu cũ vẫn giữ nguyên; hệ thống có diagnostics để phân biệt mất kết nối, lỗi đọc và backlog. Các tình huống lỗi đã được kiểm thử với database, broker và proxy thật trong môi trường cách ly.”
+
+## 37.12. Trạng thái lab sau khi nạp mã mới
+
+Đã khởi động lại có kiểm soát đúng API và consumer bằng `node scripts/lan-test-services.mjs restart all`. Không dừng PostgreSQL/Mosquitto, không seed thêm vào lab, không flash ESP32. Kiểm tra trực tiếp trên host: `/health/ready` trả 200, tất cả checks true; GET `/machines` bằng read token trả 200, cả ba máy đã có field `deliveryHealth`. Firmware chưa gửi trường mới thì giá trị `unknown` là đúng, không phải backend tự biết queue đang rỗng.
+
+Một lần kiểm tra từ sandbox đã không nhìn thấy tiến trình/kết nối localhost của host và báo tắt nhầm; kiểm tra trực tiếp xác nhận tiến trình vẫn chạy. Bài học: công cụ kiểm tra phải ở đúng máy/network/PID namespace, giống việc localhost trên laptop Hoàng Anh không phải localhost trên máy backend.
+
+Bạn tự kiểm tra khi chuẩn bị làm frontend:
+
+```bash
+cd /home/nguyenvuducthinh/Legacy-link/backend
+node scripts/lan-test-services.mjs status
+curl -i http://127.0.0.1:3000/health/ready
+```
+
+Mong đợi API/consumer running và HTTP 200 với ready=true. Hai chương trình đã chạy thì không mở thêm `npm start`/`npm run start:http`. Trước buổi test có ngắt dịch vụ, cả đội thống nhất bước đang làm; xem log consumer/API và quan sát ACK/queue cùng lúc, không chỉ nhìn đèn LED.
+
+Log kiểm chứng local được giữ ngoài repo ở `/home/nguyenvuducthinh/Documents/Codex/2026-10-06/li/outputs/non-frontend-acceptance-2026-10-10/`. Không đưa env, credential, dump DB hoặc evidence có dữ liệu thật lên Git. Bài stack cuối có thêm dữ liệu nền trước outage để kiểm tra giữ lịch sử không phải phép so sánh hai database rỗng; đồng thời thử setup lại và chặn project khác tiếp quản container.

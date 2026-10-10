@@ -11,9 +11,41 @@ for (const kind of ['telemetry', 'status', 'alarm']) {
 }
 const messages = (await readFile(captureFile, 'utf8')).trim().split('\n').map(JSON.parse);
 const counts = { telemetry: 0, status: 0, alarm: 0 };
+const { validateReadings } = await import(pathToFileURL(path.join(validationDir, '../control/validation.js')));
+const { parseDiagnostics } = await import(pathToFileURL(path.join(validationDir, 'diagnostics.js')));
+let readReports = 0;
+const expectedMap = { registerMap: [
+  { key: 'temperature', address: 0 }, { key: 'current', address: 1 }, { key: 'rpm', address: 2 },
+] };
 const alarms = new Set();
 const statuses = [];
 for (const message of messages) {
+  if (message.topic.endsWith('/diagnostics') || message.topic.endsWith('/probe/result')) {
+    const report = JSON.parse(message.payload);
+    if (message.topic.endsWith('/diagnostics')) {
+      const diagnostics = parseDiagnostics('BENCH-01', report);
+      assert.equal(diagnostics.delivery.storage, 'RAM');
+      assert.equal(diagnostics.delivery.telemetry.pending, 1);
+      assert.equal(diagnostics.delivery.alarm.capacity, 8);
+      assert.throws(() => parseDiagnostics('wrong-device', report));
+    }
+    const rows = validateReadings(report.readings, expectedMap);
+    assert.equal(rows.length, 3);
+    assert.equal(message.retained, false);
+    if (message.topic.endsWith('/probe/result')) {
+      assert.equal(report.requestId, 'contract-probe');
+      assert.equal(report.result, 'completed');
+    }
+    assert.throws(() => validateReadings(report.readings.slice(1), expectedMap));
+    assert.throws(() => validateReadings(report.readings.map((row, i) => i ? row : { ...row, address: 49 }), expectedMap));
+    if (readReports === 2) {
+      assert.equal(rows[0].success, false);
+      assert.equal(rows[0].errorCode, 0xE2);
+      assert.equal(Object.hasOwn(rows[0], 'value'), false);
+    }
+    readReports++;
+    continue;
+  }
   const match = /^legacy-link\/devices\/([^/]+)\/(telemetry|status|alarm)$/.exec(message.topic);
   assert.ok(match, `Unexpected topic: ${message.topic}`);
   const [, deviceId, kind] = match;
@@ -40,4 +72,5 @@ for (const message of messages) {
 assert.deepEqual(counts, { telemetry: 1, status: 2, alarm: 16 });
 assert.equal(alarms.size, 16);
 assert.deepEqual(statuses, [true, false]);
-console.log('PASS: 19 firmware messages accepted by backend validators; mismatched IDs and schema versions rejected.');
+assert.equal(readReports, 3);
+console.log('PASS: 22 firmware messages accepted by backend validators; mismatched IDs and schema versions and incomplete/mismatched read reports rejected.');

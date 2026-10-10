@@ -72,6 +72,15 @@ static bool read_uint(JsonVariantConst value, uint32_t fallback,
   return out >= minimum && out <= maximum;
 }
 
+// Match backend validMetricKey before accepting a map that cannot be ingested.
+static bool valid_metric_key(const char *key) {
+  auto letter = [](char c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); };
+  if (!letter(key[0]) || !strcmp(key, "constructor") || !strcmp(key, "prototype")) return false;
+  for (const char *c = key + 1; *c; ++c)
+    if (!letter(*c) && !(*c >= '0' && *c <= '9') && *c != '_') return false;
+  return true;
+}
+
 static bool valid_alarm_code(const char *code) {
   return !strcmp(code, "OVERHEAT") || !strcmp(code, "OVERCURRENT") ||
          !strcmp(code, "OVERSPEED") || !strcmp(code, "VIBRATION");
@@ -137,8 +146,8 @@ bool parse_device_config(const char *json_payload, device_config_t *out) {
   candidate.stop_bits = number;
   if (!read_uint(doc["slaveId"], 1, 1, 247, number)) return false;
   candidate.slave_id = number;
-  const char *parity = doc["parity"].isNull() ? "NONE" : doc["parity"].as<const char *>();
-  if (!parity || (strcmp(parity, "NONE") && strcmp(parity, "EVEN") && strcmp(parity, "ODD"))) return false;
+  char parity[5];
+  if (!read_string(doc["parity"], parity, sizeof(parity), "NONE") || (strcmp(parity, "NONE") && strcmp(parity, "EVEN") && strcmp(parity, "ODD"))) return false;
   candidate.parity = parse_parity(parity);
 
   // Endpoint rows use database column names. Keep the original serial/MQTT
@@ -172,6 +181,7 @@ bool parse_device_config(const char *json_payload, device_config_t *out) {
     if (!read_string(entry[endpoint_format ? "metric_key" : "key"], reg.key, sizeof(reg.key), "", true) ||
         !read_string(entry[endpoint_format ? "data_type" : "dataType"], reg.data_type, sizeof(reg.data_type), endpoint_format ? "UINT16" : "INT16") ||
         !read_string(entry["unit"], reg.unit, sizeof(reg.unit), "")) return false;
+    if (!valid_metric_key(reg.key)) return false;
     const bool wide = !strcmp(reg.data_type, "UINT32");
     if (strcmp(reg.data_type, "INT16") && strcmp(reg.data_type, "UINT16") && !wide) return false;
     const char *word_field = endpoint_format ? "word_order" : "wordOrder";

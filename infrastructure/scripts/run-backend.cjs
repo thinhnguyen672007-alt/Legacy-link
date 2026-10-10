@@ -7,10 +7,12 @@ const mode = process.argv[2];
 if (!['consumer', 'api'].includes(mode)) throw new Error('Expected consumer or api');
 // Chạy entrypoint backend gốc như tiến trình con; log vẫn đi thẳng vào docker compose logs.
 // Cùng một wrapper phục vụ consumer hoặc API, không chép/sửa mã nghiệp vụ backend.
+const shutdownMs = Number(process.env.SHUTDOWN_TIMEOUT_MS || 15000);
+if (!Number.isInteger(shutdownMs) || shutdownMs < 1 || shutdownMs > 120000) throw new Error('Invalid shutdown timeout');
 const child = spawn(process.execPath, [mode === 'api' ? 'src/http/server.js' : 'src/index.js'], { stdio: 'inherit' });
 let stopping = false, unhealthy = 0, interval, grace, force, probe;
 // Khi dừng, ngừng kiểm tra mới rồi gửi SIGTERM cho Node đóng MQTT/DB sạch.
-// Nếu quá 7 giây vẫn chưa thoát thì buộc dừng, tránh container treo mãi.
+// Chờ lâu hơn deadline của backend 5 giây để không giết worker đang COMMIT.
 // stopping ngăn hai yêu cầu dừng tạo hai vòng cleanup chồng nhau.
 function stop(code) {
   if (stopping) return;
@@ -19,7 +21,7 @@ function stop(code) {
   if (probe) probe.kill('SIGTERM');
   child.once('exit', () => process.exit(code));
   child.kill('SIGTERM');
-  force = setTimeout(() => { child.kill('SIGKILL'); process.exit(code); }, 7000);
+  force = setTimeout(() => { child.kill('SIGKILL'); process.exit(code); }, shutdownMs + 5000);
 }
 child.on('error', () => { console.error('[INFRA] Cannot start backend'); process.exit(1); });
 // Nếu Node tự chết, wrapper cũng thoát để Docker nhận ra lỗi; không giữ container Up giả.

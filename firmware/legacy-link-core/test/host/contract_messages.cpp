@@ -41,7 +41,11 @@ int main(int argc, char **argv) {
       assert(publish_alarm(&global_device_config, &alarm, 81.5f, current_epoch_ms()));
     }
   }
-  assert(mqttClient.published.size() == 19);
+  send_read_report(global_device_config, readings);
+  send_read_report(global_device_config, readings, "contract-probe");
+  for (uint8_t i = 0; i < count; ++i) { readings[i].success = false; readings[i].error_code = 0xE2; }
+  send_read_report(global_device_config, readings);
+  assert(mqttClient.published.size() == 22);
   for (const auto &sent : mqttClient.published) {
     DynamicJsonDocument envelope(4096);
     envelope["topic"] = sent.topic;

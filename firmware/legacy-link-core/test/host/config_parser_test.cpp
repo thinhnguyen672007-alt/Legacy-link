@@ -37,7 +37,7 @@ int main() {
     R"("deviceId":"1234567890123456789012345678901234")",
     R"("protocol":"OTHER")", R"("baudRate":0)", R"("baudRate":"9600")",
     R"("slaveId":257)", R"("slaveId":-1)", R"("slaveId":1.5)",
-    R"("stopBits":3)", R"("parity":"MARK")", R"("parity":2)",
+    R"("stopBits":3)", R"("parity":"MARK")", R"("parity":2)", R"("parity":"NONE\u0000EVEN")",
     R"("samplingIntervalMs":0)", R"("samplingIntervalMs":4294967296)",
     R"("registerMap":[])", R"("registerMap":[null])",
     R"("registerMap":[{"key":"x"}])",
@@ -55,6 +55,10 @@ int main() {
     std::string json;
     serializeJson(doc, json);
     rejected(json);
+  }
+
+  for (const char *key : {"temp-value", "0temp", "_temp", "constructor", "prototype", "__proto__", "temp value"}) {
+    rejected(std::string(R"({"deviceId":"CNC-02","registerMap":[{"key":")") + key + R"(","address":0}]})");
   }
 
   // A full supported map fits and applies; an extra register must not be truncated.

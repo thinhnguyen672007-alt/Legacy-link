@@ -1,7 +1,7 @@
 # Chạy Legacy Link trên máy local
 
 Thư mục: thư mục gốc đã clone, dưới đây ký hiệu `/path/to/Legacy-link`. Thay bằng
-đường dẫn thật của bạn. Trạng thái code đúng nhất nằm ở `main` sau khi `git pull`.
+đường dẫn thật của bạn. Đợt tích hợp 10/10/2026 nằm trên `feature/backend-base`; chọn đúng nhánh đã được đội thống nhất, không mặc định main đã có bản mới.
 
 ## Hiểu trước khi chạy
 
@@ -30,7 +30,9 @@ docker start legacy-link-postgres legacy-link-mosquitto
 Nếu là máy mới chưa có container, dùng Compose của Huy để tạo:
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml --profile broker up -d
+cd infrastructure
+COMPOSE_PROFILES=broker bash scripts/setup.sh
+cd ..
 ```
 
 Chọn profile broker khi chạy backend bằng terminal. Nếu trước đó đã chạy profile full, dừng riêng consumer Docker để không có hai consumer cùng MQTT_CLIENT_ID:
@@ -45,16 +47,14 @@ Nếu consumer/HTTP đang chạy trong terminal, Ctrl+C ở các terminal đó t
 
 Migration là file SQL bổ sung bảng/cột cần thiết cho code mới. Nó không xóa số đo/cảnh báo đã có. Bật PostgreSQL trước rồi chạy từ thư mục gốc repo:
 
-```bash
-docker exec -i legacy-link-postgres psql -v ON_ERROR_STOP=1 -U legacy_admin -d legacy_link < backend/db/migrate-c7-c8-c9.sql
-docker exec -i legacy-link-postgres psql -v ON_ERROR_STOP=1 -U legacy_admin -d legacy_link < backend/db/migrate-c10.sql
-```
-
-Hai lệnh trên dành cho database đã có schema cũ, đúng tình trạng local lúc kiểm tra. Nếu database hoàn toàn mới, chạy file schema đầy đủ thay cho hai migration:
+Sau khi đã cấu hình `backend/.env` và chạy `npm ci` ở bước 3, dùng runner duy nhất:
 
 ```bash
-docker exec -i legacy-link-postgres psql -v ON_ERROR_STOP=1 -U legacy_admin -d legacy_link < backend/db/schema.sql
+cd /path/to/Legacy-link/backend
+npm run db:migrate
 ```
+
+Runner tự nhận biết DB mới hay cũ, chạy migration có version và giữ dữ liệu. Sao lưu trước khi nâng cấp; dừng consumer/API đang dùng DB trong lúc migrate. Không cần tự chọn C7/C10/C16 theo phỏng đoán.
 
 Không dùng `docker compose down -v` để thử khắc phục lỗi: `-v` xóa volume có dữ liệu. Chạy lại migration có thể hiện NOTICE “đã tồn tại”; đó là bình thường.
 
@@ -144,3 +144,18 @@ Frontend trên cùng máy đặt API base URL là `http://localhost:3000`. Front
 Tên hàm, trường JSON và mã lỗi giữ nguyên để các thành viên nối code đúng contract. JSON/OpenAPI không cho phép comment; phần giải thích được đặt trong description và tài liệu. Các file JS/SQL mình viết đã thêm chú thích tiếng Việt ở mục đích file và các bước quan trọng.
 
 Xem `docs/backend-api-c10.md` để biết endpoint, phân trang và probe/apply; xem `docs/backend-c7-c8-c9.md` để nối hàng đợi/ACK của firmware. C7 phục hồi dữ liệu trên ESP32 thật vẫn cần Hoàng Anh làm phần hàng đợi.
+
+## Cách chạy lab bằng script thay cho hai terminal
+
+Chỉ chọn **một** cách quản lý Node, không chạy cùng lúc script này và `npm start` thủ công:
+
+```bash
+cd /path/to/Legacy-link/backend
+node scripts/lan-test-services.mjs start all
+node scripts/lan-test-services.mjs status
+node scripts/lan-test-services.mjs stop all
+```
+
+`all` chỉ gồm API và consumer, không bao gồm PostgreSQL/Mosquitto. DB và broker vẫn phải bật. Script lưu PID/log trong `.env.test-runtime/`, kiểm tra PID trước khi dừng, không dùng `pkill node`. Chi tiết LAN từng thời điểm nằm ở `backend/deploy/TEST-LAN-HOANG-ANH.md`; IP có thể đổi.
+
+Bản Compose thống nhất dành cho triển khai mới xem `infrastructure/README.md`. Máy chưa cài Compose plugin vẫn chạy được lab Node với hai container hiện có; bộ Compose dùng trong lần kiểm thử của trợ lý chỉ nằm ở `/tmp`, không phải cài đặt vĩnh viễn.

@@ -261,7 +261,7 @@ They verify firmware decisions, not physical Wi-Fi association or NTP delivery.
 Additional host tests cover a 32-second scan with all 16 reads timing out while
 MQTT is serviced, configuration arriving during a read, flash restore/corruption
 and save failures, correlated acknowledgements, and manual RS-485 direction on
-both successful reads and timeouts. Nine test executables run in CI alongside the
+both successful reads and timeouts. Seventeen test executables run alongside the
 ESP32 build and the backend payload contract check.
 
 The host tests and build do not verify physical UART, Wi-Fi, or broker delivery.
@@ -273,3 +273,18 @@ Pass `--mqtt-host <BROKER_LAN_IP>` to additionally transport the captured payloa
 through a real broker in isolated test topics, then validate the received JSON.
 See the [broker test guide](docs/first-connection.md#test-payload-transport-through-a-live-broker-without-an-esp32)
 for credentials, client tools and the remaining remote-backend/hardware checks.
+
+## USB inspection
+
+Use `:health`, `:inspect` and `:outbox` at 115200 baud to inspect read errors, raw
+versus scaled values, freshness and pending sample IDs without changing the
+backend. See the [USB commissioning guide](docs/usb-inspection.md) for output
+semantics, profile changes and the limits of RAM queues.
+
+For a focused host run, pass test names to `test/host/run.sh`, for example:
+
+```bash
+ASAN_OPTIONS=detect_leaks=0 bash firmware/legacy-link-core/test/host/run.sh inspection_test profile_backlog_test
+```
+
+Omit test names to run the complete suite.
