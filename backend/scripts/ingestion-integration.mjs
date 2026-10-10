@@ -123,6 +123,7 @@ try {
   );
   containers.push(mqName);
   Object.assign(process.env, {
+    GEMINI_API_KEY: '',
     API_WRITE_TOKEN: apiToken,
     API_READ_TOKEN: readToken,
     API_AUTH_DISABLED: 'false',
@@ -378,6 +379,13 @@ try {
   assert.equal(overridden.alarm.code, 'OVERHEAT');
   assert.equal(overridden.address, 51);
   passed('SQL catalog preserves override word order and canonical nested alarm');
+  await pool.query("UPDATE register_override SET alarm_low=20 WHERE device_id='esp32-03' AND metric_key='temperature'");
+  assert.equal((await getCatalog('esp32-03')).registerMap.find(r => r.key === 'temperature').lowAlarm.threshold, 20);
+  await saveAlarm({ ...alarm, eventId: 'boot:underheat', code: 'UNDERHEAT', value: 19 });
+  await saveAlarm({ ...alarm, eventId: 'boot:underheat', code: 'UNDERHEAT', value: 19 });
+  assert.equal((await pool.query("SELECT count(*)::int n FROM alarms WHERE device_id='BENCH-01' AND code='UNDERHEAT'")).rows[0].n, 1);
+  passed('UNDERHEAT catalog low threshold and database alarm retry deduplication');
+
   assert.equal((await getCatalog('BENCH-01')).deviceName, 'Commissioned simulator');
   assert.equal(
     (await listMachines()).find((m) => m.deviceId === 'BENCH-01').configRequestId,
@@ -526,6 +534,16 @@ try {
     'C16 real API preview, immutable profile revisions, export validation, operation history and metrics'
   );
 
+
+  const aiResult = await fetch(base + '/ai/query', { method: 'POST', headers: { Authorization: `Bearer ${readToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'summary' }) });
+  assert.equal(aiResult.status, 200);
+  const aiBody = await aiResult.json();
+  assert.equal(aiBody.mode, 'rules');
+  assert.equal(aiBody.results[0].source, 'database');
+  assert.ok(aiBody.results[0].devices.some(d => d.deviceId === 'BENCH-01'));
+  assert.equal((await fetch(base + '/ai/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'summary' }) })).status, 401);
+  passed('AI quick actions read real SQL data with read token; unauthenticated requests rejected');
+
   const request = (path, method = 'GET') =>
     fetch(base + path, { method, headers: { Authorization: `Bearer ${apiToken}` } });
   assert.equal((await request('/health/live')).status, 200);
@@ -606,6 +624,14 @@ try {
     'unknown_device'
   );
   await acked({ ...alarm, eventId: 'boot:mqtt-alarm' }, 'alarm');
+  const coldAlarm = { ...alarm, eventId: 'boot:mqtt-underheat', code: 'UNDERHEAT', value: 19 };
+  await acked(coldAlarm, 'alarm');
+  await acked(coldAlarm, 'alarm');
+  assert.equal((await pool.query('SELECT count(*)::int n FROM alarms WHERE event_id=$1', [`${t.gatewayId}:${coldAlarm.eventId}`])).rows[0].n, 1);
+  const coldPage = await (await request(`/machines/BENCH-01/alarms?from=${now - 1}&to=${now + 1}&limit=50`)).json();
+  assert.ok(coldPage.items.some(a => a.code === 'UNDERHEAT' && a.value === 19));
+  passed('UNDERHEAT QoS0 MQTT -> validation -> SQL -> ACK -> HTTP, lost ACK retry stores one event');
+
   passed(
     'real QoS0 MQTT -> SQL -> application ACK; lost ACK retry; rejected identity/unknown device; alarm ACK'
   );

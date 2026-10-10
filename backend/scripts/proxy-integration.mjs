@@ -16,6 +16,11 @@ const api = http.createServer(
   createHttpHandler({
     security: createSecurity({ readToken, writeToken, origins: ['http://localhost:5173'] }),
     listMachines: async () => [],
+    copilot: async (body, identity) => {
+      assert.equal(body.action, 'underheat');
+      assert.equal(identity, `Bearer ${readToken}`);
+      return { mode: 'rules', results: [] };
+    },
     acknowledgeAlarm: async () => ({ acknowledged: true }),
   })
 );
@@ -74,6 +79,13 @@ try {
     ).status,
     200
   );
+  const ai = await fetch(url + '/ai/query', {
+    method: 'POST', headers: { Authorization: `Bearer ${readToken}`, Origin: 'http://localhost:5173', 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'underheat' }),
+  });
+  assert.equal(ai.status, 200);
+  assert.equal((await ai.json()).mode, 'rules');
+  assert.equal(ai.headers.get('Access-Control-Allow-Origin'), 'http://localhost:5173');
+  console.log('PASS Nginx preserves read-token authorization and JSON body for AI read-only POST');
   console.log(
     'PASS Nginx forwards Authorization and CORS; read/write roles remain enforced through proxy'
   );

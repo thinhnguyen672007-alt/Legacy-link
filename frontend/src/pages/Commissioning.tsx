@@ -465,6 +465,23 @@ export function Commissioning({ active }: { active: boolean }) {
                   <summary>Khoảng dự kiến, thứ tự word & cảnh báo</summary>
                   <div className="form-grid">
                     <label>
+                      Loại số đo
+                      <select
+                        value={r.metricType ?? ""}
+                        onChange={(e) =>
+                          rowEdit(i, {
+                            metricType: e.target.value
+                              ? (e.target.value as Register["metricType"])
+                              : undefined,
+                          })
+                        }
+                      >
+                        <option value="">Chưa khai báo</option>
+                        <option value="temperature">Nhiệt độ</option>
+                        <option value="generic">Số đo khác</option>
+                      </select>
+                    </label>
+                    <label>
                       Thứ tự word
                       <select
                         value={r.wordOrder}
@@ -623,6 +640,91 @@ export function Commissioning({ active }: { active: boolean }) {
                         </label>
                       )}
                     </div>
+                  )}
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={!!r.lowAlarm}
+                      onChange={(e) =>
+                        rowEdit(i, {
+                          lowAlarm: e.target.checked
+                            ? {
+                                threshold: 0,
+                                hysteresis: 0,
+                                code: "UNDERHEAT",
+                                severity: "high",
+                              }
+                            : undefined,
+                        })
+                      }
+                    />{" "}
+                    Bật cảnh báo nhiệt độ thấp (UNDERHEAT)
+                  </label>
+                  {r.lowAlarm && (
+                    <>
+                      <p className="help">
+                        Điền ngưỡng thực tế theo máy và đơn vị số đo. Giá trị 0
+                        chỉ là bản nháp, không phải ngưỡng khuyến nghị. Nhiệt độ
+                        thấp khi máy chưa chạy có thể là bình thường.
+                      </p>
+                      <div className="form-grid">
+                        <label>
+                          Ngưỡng thấp ({r.unit || "chưa có đơn vị"})
+                          <input
+                            required
+                            type="number"
+                            step="any"
+                            value={r.lowAlarm.threshold}
+                            onChange={(e) =>
+                              rowEdit(i, {
+                                lowAlarm: {
+                                  ...r.lowAlarm!,
+                                  threshold: e.target.valueAsNumber,
+                                },
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Độ tăng để cho phép báo lại
+                          <input
+                            required
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={r.lowAlarm.hysteresis}
+                            onChange={(e) =>
+                              rowEdit(i, {
+                                lowAlarm: {
+                                  ...r.lowAlarm!,
+                                  hysteresis: e.target.valueAsNumber,
+                                },
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Mức độ
+                          <select
+                            value={r.lowAlarm.severity}
+                            onChange={(e) =>
+                              rowEdit(i, {
+                                lowAlarm: {
+                                  ...r.lowAlarm!,
+                                  severity: e.target.value as NonNullable<
+                                    Register["lowAlarm"]
+                                  >["severity"],
+                                },
+                              })
+                            }
+                          >
+                            {["low", "medium", "high", "critical"].map((v) => (
+                              <option key={v}>{v}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </>
                   )}
                 </details>
               </div>

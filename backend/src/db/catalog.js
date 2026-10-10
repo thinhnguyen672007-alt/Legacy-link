@@ -7,8 +7,15 @@
 // No nam o day chu khong nam trong http/server.js, vi quy tac cua tang db/ la:
 // CHI thu muc nay biet SQL.
 
-import { pool } from './pool.js';
 import { validateConfig } from '../control/validation.js';
+
+let poolPromise;
+async function getPool() {
+  if (!poolPromise) {
+    poolPromise = import('./pool.js').then(({ pool }) => pool);
+  }
+  return poolPromise;
+}
 
 // Firmware chi nhan toi da 4095 byte UTF-8.
 //
@@ -32,6 +39,7 @@ const CATALOG_QUERY = `
     COALESCE(o.scale,            b.scale)            AS scale,
     COALESCE(o.unit,             b.unit)             AS unit,
     COALESCE(o.alarm_high,       b.alarm_high)       AS alarm_high,
+    COALESCE(o.alarm_low,        b.alarm_low)        AS alarm_low,
     COALESCE(o.alarm_code,       b.alarm_code)       AS alarm_code,
     COALESCE(o.alarm_critical,   b.alarm_critical)   AS alarm_critical,
     COALESCE(o.alarm_hysteresis, b.alarm_hysteresis) AS alarm_hysteresis,
@@ -86,6 +94,9 @@ function toFirmwareRegister(row) {
     if (row.alarm_critical !== null) register.alarm.criticalThreshold = row.alarm_critical;
   }
 
+  // alarm_low đã có trong schema; giữ ngưỡng hiệu lực riêng của từng thiết bị.
+  if (row.alarm_low != null) register.lowAlarm = { threshold: row.alarm_low, code: 'UNDERHEAT',
+    hysteresis: row.alarm_hysteresis, severity: row.alarm_severity };
   return register;
 }
 
@@ -93,8 +104,9 @@ function toFirmwareRegister(row) {
 //
 // Ham tra ve null chu khong nem loi, vi "khong tim thay" la chuyen BINH THUONG,
 // khong phai su co. Ben goi se quyet dinh tra ma HTTP nao.
-export async function getCatalog(deviceId, db = pool) {
-  const deviceResult = await db.query(
+export async function getCatalog(deviceId, db) {
+  const database = db ?? (await getPool());
+  const deviceResult = await database.query(
     `SELECT device_id, machine_type, name, protocol, baud_rate, parity,
             stop_bits, slave_id, sampling_interval_ms, applied_config
      FROM device
@@ -108,7 +120,7 @@ export async function getCatalog(deviceId, db = pool) {
 
   const device = deviceResult.rows[0];
   if (device.applied_config) return validateConfig(device.applied_config);
-  const registerResult = await db.query(CATALOG_QUERY, [deviceId, device.machine_type]);
+  const registerResult = await database.query(CATALOG_QUERY, [deviceId, device.machine_type]);
 
   const catalog = {
     deviceId: device.device_id,
@@ -150,13 +162,14 @@ export async function getCatalog(deviceId, db = pool) {
 // Tra ve null neu khong biet thiet bi. Nem loi neu thiet bi co nhung chua gan
 // gateway — do la du lieu thieu, khong phai "khong tim thay".
 export async function getConfigTarget(deviceId) {
-  const config = await getCatalog(deviceId);
+  const db = await getPool();
+  const config = await getCatalog(deviceId, db);
 
   if (config === null) {
     return null;
   }
 
-  const result = await pool.query('SELECT gateway_id FROM device WHERE device_id = $1', [deviceId]);
+  const result = await db.query('SELECT gateway_id FROM device WHERE device_id = $1', [deviceId]);
 
   const gatewayId = result.rows[0].gateway_id;
 

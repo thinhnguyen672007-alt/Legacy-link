@@ -94,6 +94,15 @@ export const registerSchema = z.object({
   scale: finite,
   unit: z.string(),
   wordOrder: z.enum(["HIGH_FIRST", "LOW_FIRST"]),
+  metricType: z.enum(["temperature", "generic"]).optional(),
+  lowAlarm: z
+    .object({
+      threshold: finite,
+      hysteresis: finite,
+      code: z.literal("UNDERHEAT"),
+      severity: z.enum(["low", "medium", "high", "critical"]),
+    })
+    .optional(),
   expectedMin: finite.optional(),
   expectedMax: finite.optional(),
   alarm: z
@@ -223,3 +232,63 @@ export function canApply(
     )
   );
 }
+
+// Chỉ backend tạo bảng số đo. Không render URL hay lệnh JavaScript từ model.
+export const copilotSchema = z.object({
+  conversationId: z.string(),
+  mode: z.enum(["rules", "gemini"]),
+  text: z.string(),
+  notice: z.string().nullable(),
+  results: z.array(
+    z.object({
+      tool: z.string(),
+      source: z.literal("database"),
+      queriedAt: z.string(),
+      note: z.string().optional(),
+      truncated: z.boolean().optional(),
+      devices: z
+        .array(
+          z.object({
+            deviceId: z.string(),
+            name: z.string(),
+            gatewayOnline: z.boolean(),
+            dataFresh: z.boolean(),
+            temperatures: z.array(
+              z.object({
+                metricKey: z.string(),
+                unit: z.string(),
+                value: finite.nullable(),
+                low: finite.nullable(),
+                high: finite.nullable(),
+                measuredAt: z.string().nullable(),
+                status: z.enum([
+                  "normal",
+                  "overheat",
+                  "underheat",
+                  "offline",
+                  "stale",
+                  "unknown",
+                ]),
+                reason: z.string().nullable(),
+              }),
+            ),
+          }),
+        )
+        .optional(),
+      alerts: z.array(alarmSchema).optional(),
+      series: z
+        .array(
+          z.object({
+            metricKey: z.string(),
+            unit: z.string(),
+            points: z.array(z.object({ timestamp: finite, value: finite })),
+            min: finite.nullable(),
+            max: finite.nullable(),
+            change: finite.nullable(),
+          }),
+        )
+        .optional(),
+    }),
+  ),
+});
+export type CopilotResponse = z.infer<typeof copilotSchema>;

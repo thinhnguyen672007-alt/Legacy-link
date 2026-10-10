@@ -14,7 +14,7 @@ import { isPlainObject, checkDeviceId, checkTimestamp, checkSchemaVersion } from
 
 // Ma alarm duoc phep. Firmware khong the tu nghi ra ma moi, vi backend phai
 // biet cach hien thi va xu ly tung ma.
-const ALLOWED_CODES = new Set(['OVERHEAT', 'OVERCURRENT', 'OVERSPEED', 'VIBRATION']);
+const ALLOWED_CODES = new Set(['OVERHEAT', 'UNDERHEAT', 'OVERCURRENT', 'OVERSPEED', 'VIBRATION']);
 
 // Muc do nghiem trong. Quyet dinh AI duoc goi va GAP den muc nao.
 const ALLOWED_SEVERITIES = new Set(['low', 'medium', 'high', 'critical']);
@@ -22,6 +22,7 @@ const ALLOWED_SEVERITIES = new Set(['low', 'medium', 'high', 'critical']);
 // Thong diep cho nguoi doc. Day KHONG phai loi validation — no la du lieu de
 // hien thi. Vi vay no nam ngoai validator, va tang xu ly (index.js) moi dung.
 export const ALARM_HINTS = {
+  UNDERHEAT: 'Nhiệt độ dưới ngưỡng thấp đã cấu hình; kiểm tra thiết bị và cảm biến',
   OVERHEAT: 'The temperature of machine needs to cool down',
   OVERCURRENT: 'The current of machine needs to be limited',
   OVERSPEED: 'The speed of machine needs to slow down',

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  copilotSchema,
   alarmSchema,
   configSchema,
   gatewaySchema,
@@ -142,6 +143,17 @@ export function createApi(s: Session) {
         .map(([k, v]) => [k, String(v)]),
     ).toString();
   return {
+    copilot: (
+      body: { question?: string; action?: string; conversationId?: string },
+      signal?: AbortSignal,
+    ) =>
+      request(
+        s.base,
+        body.action ? "/ai/query" : "/ai/chat",
+        s.readToken || s.writeToken,
+        copilotSchema,
+        { method: "POST", body, signal, timeoutMs: 35000 },
+      ),
     machines: (signal?: AbortSignal) =>
       get("/machines", z.array(machineSchema), signal),
     machine: (d: string, signal?: AbortSignal) =>

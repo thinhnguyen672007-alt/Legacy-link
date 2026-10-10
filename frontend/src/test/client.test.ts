@@ -121,3 +121,34 @@ it("marks a POST timeout uncertain without a second send", async () => {
   ).rejects.toMatchObject({ uncertain: true, status: 0 });
   expect(fetch).toHaveBeenCalledTimes(1);
 });
+
+it("AI quick action dùng token đọc và POST có body, không cần token ghi", async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          conversationId: "demo",
+          mode: "rules",
+          text: "Dữ liệu backend",
+          notice: null,
+          results: [],
+        }),
+      ),
+    );
+  vi.stubGlobal("fetch", fetch);
+  const api = createApi({
+    base: "http://api",
+    readToken: "reader",
+    writeToken: "",
+  });
+  await api.copilot({ action: "underheat" });
+  expect(fetch).toHaveBeenCalledWith(
+    "http://api/ai/query",
+    expect.objectContaining({
+      method: "POST",
+      headers: expect.objectContaining({ Authorization: "Bearer reader" }),
+      body: JSON.stringify({ action: "underheat" }),
+    }),
+  );
+});

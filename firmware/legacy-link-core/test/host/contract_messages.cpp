@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
   publish_status(&global_device_config, true);
   publish_status(&global_device_config, false);
 
-  const char *codes[] = {"OVERHEAT", "OVERCURRENT", "OVERSPEED", "VIBRATION"};
+  const char *codes[] = {"OVERHEAT", "OVERCURRENT", "OVERSPEED", "VIBRATION", "UNDERHEAT"};
   const char *severities[] = {"low", "medium", "high", "critical"};
   for (const char *code : codes) {
     for (const char *severity : severities) {
@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
   send_read_report(global_device_config, readings, "contract-probe");
   for (uint8_t i = 0; i < count; ++i) { readings[i].success = false; readings[i].error_code = 0xE2; }
   send_read_report(global_device_config, readings);
-  assert(mqttClient.published.size() == 22);
+  assert(mqttClient.published.size() == 26);
   for (const auto &sent : mqttClient.published) {
     DynamicJsonDocument envelope(4096);
     envelope["topic"] = sent.topic;
