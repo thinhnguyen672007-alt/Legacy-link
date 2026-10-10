@@ -4,7 +4,6 @@
     "title": "Legacy Link Backend API",
     "version": "0.6.0",
     "description": "API Legacy Link: token đọc cho GET, token ghi cho POST; timestamp đo là epoch milliseconds, ID DB là chuỗi. C16 bổ sung profile version, preview, lịch sử thao tác PostgreSQL, metrics, freshness. Xem deploy/README.md và docs/SO-TAY-HIEU-DU-AN-LEGACY-LINK.md. Rate limit mỗi socket IP/process: 300 GET và 30 thao tác/phút; 429 kèm Retry-After. Thêm deliveryHealth và diagnostics.delivery để quan sát queue ESP32; không cần endpoint riêng. AI: POST /ai/chat và /ai/query chỉ đọc, chấp nhận token đọc; Gemini chỉ chọn tool. UNDERHEAT dùng lowAlarm riêng, yêu cầu đơn vị nhiệt độ."
-    "description": "API Legacy Link: token đọc cho GET, token ghi cho POST; timestamp đo là epoch milliseconds, ID DB là chuỗi. C16 bổ sung profile version, preview, lịch sử thao tác PostgreSQL, metrics, freshness. Xem deploy/README.md và docs/SO-TAY-HIEU-DU-AN-LEGACY-LINK.md. Rate limit mỗi socket IP/process: 300 GET và 30 thao tác/phút; 429 kèm Retry-After. Thêm deliveryHealth và diagnostics.delivery để quan sát queue ESP32; không cần endpoint riêng."
   },
   "servers": [
     {
@@ -2910,48 +2909,7 @@
     "/ai/chat": {
       "post": {
         "summary": "Câu hỏi tiếng Việt: Gemini chọn công cụ; backend xác minh dữ liệu",
-        "description": "Chấp nhận read hoặc write bearer token. Chỉ gửi question hoặc action. Context giữ ID kết quả 10 phút, tối đa 200 phiên/process. Model tối đa 5 câu/phút/process, 1 đồng thời; 1 request/câu, không retry. Timeout provider 12s, tổng tools 8s. Không có key/hết quota thì fallback minh bạch. Không thực thi SQL, URL hoặc điều khiển máy.",
-    "/auth/login": {
-      "post": {
-        "summary": "Sign in with an employee account",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "token",
-                    "user",
-                    "expiresInSeconds"
-                  ],
-                  "properties": {
-                    "token": {
-                      "type": "string"
-                    },
-                    "user": {
-                      "$ref": "#/components/schemas/Account"
-                    },
-                    "expiresInSeconds": {
-                      "type": "integer",
-                      "example": 28800
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Permission denied or password change required"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
+        "description": "Chấp nhận read hoặc write bearer token. Chỉ gửi question hoặc action. Context giữ ID kết quả 10 phút, tối đa 200 phiên/process. Model tối đa 5 câu/phút/process, 1 đồng thời; 1 request/câu, không retry. Timeout provider 12s, tổng tools 8s. Không có key/hết quota thì fallback minh bạch. Không thực thi SQL, URL hoặc điều khiển máy. Session viewer, technician, admin được truy vấn sau khi hoàn tất đổi mật khẩu bắt buộc.",
         "requestBody": {
           "required": true,
           "content": {
@@ -3031,7 +2989,116 @@
     "/ai/query": {
       "post": {
         "summary": "AI Copilot chỉ đọc: quick action không dùng Gemini",
-        "description": "Chấp nhận read hoặc write bearer token. Chỉ gửi question hoặc action. Context giữ ID kết quả 10 phút, tối đa 200 phiên/process. Model tối đa 5 câu/phút/process, 1 đồng thời; 1 request/câu, không retry. Timeout provider 12s, tổng tools 8s. Không có key/hết quota thì fallback minh bạch. Không thực thi SQL, URL hoặc điều khiển máy.",
+        "description": "Chấp nhận read hoặc write bearer token. Chỉ gửi question hoặc action. Context giữ ID kết quả 10 phút, tối đa 200 phiên/process. Model tối đa 5 câu/phút/process, 1 đồng thời; 1 request/câu, không retry. Timeout provider 12s, tổng tools 8s. Không có key/hết quota thì fallback minh bạch. Không thực thi SQL, URL hoặc điều khiển máy. Session viewer, technician, admin được truy vấn sau khi hoàn tất đổi mật khẩu bắt buộc.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "conversationId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "overheat",
+                      "underheat",
+                      "offline",
+                      "summary",
+                      "alerts"
+                    ]
+                  }
+                },
+                "required": [
+                  "action"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dữ liệu từ database; mode=rules hoặc gemini; không bịa số đo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopilotResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sai tham số"
+          },
+          "401": {
+            "description": "Thiếu hoặc sai token"
+          },
+          "403": {
+            "description": "Origin/phiên không được phép"
+          },
+          "404": {
+            "description": "Máy không tồn tại"
+          },
+          "429": {
+            "description": "Rate limit HTTP"
+          },
+          "503": {
+            "description": "Nguồn dữ liệu không khả dụng"
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Sign in with an employee account",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "token",
+                    "user",
+                    "expiresInSeconds"
+                  ],
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/Account"
+                    },
+                    "expiresInSeconds": {
+                      "type": "integer",
+                      "example": 28800
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission denied or password change required"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
                 "properties": {
                   "username": {
                     "type": "string"
@@ -3224,20 +3291,6 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "conversationId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "action": {
-                    "type": "string",
-                    "enum": [
-                      "overheat",
-                      "underheat",
-                      "offline",
-                      "summary",
-                      "alerts"
                 "properties": {
                   "username": {
                     "type": "string"
@@ -3256,40 +3309,6 @@
                   }
                 },
                 "required": [
-                  "action"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Dữ liệu từ database; mode=rules hoặc gemini; không bịa số đo",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CopilotResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Sai tham số"
-          },
-          "401": {
-            "description": "Thiếu hoặc sai token"
-          },
-          "403": {
-            "description": "Origin/phiên không được phép"
-          },
-          "404": {
-            "description": "Máy không tồn tại"
-          },
-          "429": {
-            "description": "Rate limit HTTP"
-          },
-          "503": {
-            "description": "Nguồn dữ liệu không khả dụng"
                   "username",
                   "password",
                   "role"
@@ -4221,9 +4240,50 @@
                   "items": {
                     "type": "object"
                   }
+                },
+                "counts": {
+                  "type": "object",
+                  "description": "Đếm trong tập thiết bị đã truy vấn; các nhóm có thể giao nhau, xem truncated. gatewayOnline không đồng nghĩa máy đang sản xuất.",
+                  "properties": {
+                    "inspected": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "gatewayOnline": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "offline": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "stale": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "overheat": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "underheat": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "normal": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "unknown": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
                 }
               }
             }
+          }
+        }
+      },
       "Account": {
         "type": "object",
         "required": [
@@ -4262,7 +4322,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Token đọc hoặc ghi do người vận hành cấp; POST yêu cầu token ghi."
+        "description": "Bearer token đọc/ghi hoặc session tài khoản. Viewer được POST /ai/chat và /ai/query vì chỉ đọc; thao tác khác kiểm tra vai trò. Tài khoản buộc đổi mật khẩu phải đổi trước khi truy cập dữ liệu."
       }
     }
   },
