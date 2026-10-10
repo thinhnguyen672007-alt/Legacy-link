@@ -26,8 +26,8 @@ const settings = { COMPOSE_PROFILES:'full',MQTT_PORT:await freePort(),POSTGRES_P
   POSTGRES_USER:'acceptance',POSTGRES_PASS:secret(),POSTGRES_DB:'acceptance',MQTT_DEV_USER:'acceptance',MQTT_DEV_PASS:secret(),
   MQTT_CLIENT_ID:id,API_READ_TOKEN:secret(),API_WRITE_TOKEN:secret(),CORS_ORIGINS:'http://localhost:5173',MQTT_QOS:1 };
 writeFileSync(join(cwd,'.env'),Object.entries(settings).map(([k,v])=>`${k}=${v}`).join('\n')+'\n',{mode:0o600});
-function run(command,args) {return new Promise((resolve,reject)=>{
-  const child=spawn(command,args,{cwd,env,stdio:'inherit'});
+function run(command,args,overrides={}) {return new Promise((resolve,reject)=>{
+  const child=spawn(command,args,{cwd,env:{...env,...overrides},stdio:'inherit'});
   child.on('error',reject); child.on('exit',code=>code===0?resolve():reject(new Error(`${command} ${args[0]} failed (${code})`)));
 });}
 console.log('ISOLATED STACK:',workspace);
@@ -49,6 +49,15 @@ try {
   console.log('PASS real infra proxy forwards read token, blocks read-token writes, enforces CORS');
   await run('docker',['compose','run','--rm','-T','--no-deps','--entrypoint','node','backend-api','scripts/migrate.mjs']);
   console.log('PASS migration rerun on existing schema');
+  // Có dữ liệu cũ thật trong fixture để phép kiểm bảo toàn lịch sử không chỉ so hai tập rỗng.
+  const baselineSql = "INSERT INTO device(device_id,machine_type,name) VALUES('ACCEPT-BASE','TEST','Existing fixture'); INSERT INTO telemetry(device_id,ts,metrics) VALUES('ACCEPT-BASE',1700000000000,'{\"temperature\":30}'); INSERT INTO alarms(device_id,ts,code,severity,value) VALUES('ACCEPT-BASE',1700000000000,'OVERHEAT','high',95);";
+  await run('docker',['compose','exec','-T','postgres','sh','-c','exec psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"','sh',baselineSql]);
+  // Project khác không được tiếp quản container cùng tên. Lần thử này phải dừng trước khi ngắt API.
+  await assert.rejects(run('bash',['scripts/setup.sh'],{COMPOSE_PROJECT_NAME:id+'-foreign'}));
+  assert.equal((await request('/health/ready')).status,200);
+  await run('bash',['scripts/setup.sh']);
+  assert.equal((await request('/health/ready')).status,200);
+  console.log('PASS setup rerun on owned containers; foreign project takeover blocked');
   // Bốn fault chỉ tác động project tạm. Bao gồm retry, chống trùng, API và dữ liệu cũ.
   await run('bash',['scripts/test-recovery.sh']);
   await run('bash',['scripts/backup-db.sh','backups/acceptance.dump']);

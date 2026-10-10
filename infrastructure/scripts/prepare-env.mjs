@@ -22,6 +22,12 @@ for (const key of ['API_READ_TOKEN', 'API_WRITE_TOKEN']) {
   if (!/^[a-fA-F0-9]{32,128}$/.test(env[key])) throw new Error(`${key}: can 32–128 ky tu hex`);
 }
 if (env.API_READ_TOKEN === env.API_WRITE_TOKEN) throw new Error('Hai token phai khac nhau');
+for (const origin of (env.CORS_ORIGINS || '').split(',').map(x=>x.trim()).filter(Boolean)) {
+  const url = new URL(origin);
+  if (!['http:', 'https:'].includes(url.protocol) || url.origin !== origin) throw new Error('CORS_ORIGINS phai la origin cu the');
+}
+const timeout = Number(env.SHUTDOWN_TIMEOUT_MS || 15000);
+if (!Number.isInteger(timeout) || timeout < 1 || timeout > 120000) throw new Error('Invalid shutdown timeout');
 writeFileSync(path, text, { mode: 0o600 });
 chmodSync(path, 0o600);
 console.log('Da chuan bi .env; token duoc giu kin va khong thay khi chay lai.');
