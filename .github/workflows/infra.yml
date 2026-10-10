@@ -2,9 +2,9 @@ name: Infrastructure
 
 on:
   push:
-    paths: ['infrastructure/**', '.github/workflows/infra.yml']
+    paths: ['infrastructure/**', 'backend/**', 'frontend/**', '.github/workflows/infra.yml']
   pull_request:
-    paths: ['infrastructure/**', '.github/workflows/infra.yml']
+    paths: ['infrastructure/**', 'backend/**', 'frontend/**', '.github/workflows/infra.yml']
 
 permissions:
   contents: read
@@ -39,3 +39,6 @@ jobs:
           for script in infrastructure/scripts/*.cjs infrastructure/scripts/*.mjs; do
             node --check "$script"
           done
+
+      - name: Check environment preparation
+        run: node --test infrastructure/test/prepare-env.test.mjs

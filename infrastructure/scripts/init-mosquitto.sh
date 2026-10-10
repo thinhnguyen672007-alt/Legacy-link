@@ -4,12 +4,18 @@
 # UID/GID lấy từ image đang chạy, không đoán theo tài khoản máy host.
 set -eu
 
-# File passwd phải tồn tại và có nội dung. Tạo tài khoản ở script auth trước;
-# Bước setup phía host kiểm tra riêng trường hợp passwd bị tạo nhầm thành thư mục.
-if [ ! -s /mosquitto/config/passwd ]; then
-  echo "Missing or empty passwd file. Run ./scripts/setup-mosquitto-auth.sh first." >&2
-  exit 1
+# Chỉ tạo trên lần đầu; chạy lại không xóa tài khoản MQTT đã được thêm sau đó.
+if [ ! -e /mosquitto/config/passwd ]; then
+  [ -n "${MQTT_USERNAME:-}" ] && [ -n "${MQTT_PASSWORD:-}" ] || {
+    echo 'Missing MQTT credentials' >&2; exit 1;
+  }
+  umask 077
+  mosquitto_passwd -c -b /mosquitto/config/passwd.new "$MQTT_USERNAME" "$MQTT_PASSWORD"
+  mv /mosquitto/config/passwd.new /mosquitto/config/passwd
 fi
+[ -f /mosquitto/config/passwd ] && [ -s /mosquitto/config/passwd ] || {
+  echo 'Missing or empty Mosquitto passwd file' >&2; exit 1;
+}
 
 # Chỉ chủ sở hữu đọc/ghi passwd (0600) vì file chứa hash tài khoản MQTT.
 broker_owner="$(id -u mosquitto):$(id -g mosquitto)"

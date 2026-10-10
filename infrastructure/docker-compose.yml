@@ -10,8 +10,7 @@
 #            This is what fits a developer who just needs the messaging hop on
 #            their machine, runs the Node apps manually next, and skips the rest.
 #
-#   full   — broker + database + consumer + HTTP API + authenticated gateway.
-#            Frontend can be added when available.
+#   full   — broker + database + consumer + HTTP API + frontend + authenticated gateway.
 #
 #          Existing services (mosquitto-init, mosquitto, postgres) carry both
 #          tags, so either profile brings them up. New services you add for
@@ -54,6 +53,9 @@ services:
     user: "0:0"
     network_mode: none
     entrypoint: ["/bin/sh", "/init-mosquitto.sh"]
+    environment:
+      MQTT_USERNAME: ${MQTT_DEV_USER:-legacy_admin}
+      MQTT_PASSWORD: ${MQTT_DEV_PASS:?Run scripts/prepare-env.mjs first}
     volumes:
       - ./scripts/init-mosquitto.sh:/init-mosquitto.sh:ro,z
       - ./mosquitto/config:/mosquitto/config:z
@@ -82,28 +84,16 @@ services:
       start_period: 10s
     container_name: ${MQTT_CONTAINER_NAME:-legacy-link-mosquitto}
     ports:
-      - "${MQTT_PORT:-1883}:1883"
+      - "${MQTT_BIND_ADDRESS:-0.0.0.0}:${MQTT_PORT:-1883}:1883"
     volumes:
       # `selinux: z` is applied on SELinux-enabled Linux hosts and ignored by
       # Docker Desktop on Windows/macOS.
-      - type: bind
-        source: ./mosquitto/config/mosquitto.conf
-        target: /mosquitto/config/mosquitto.conf
-        read_only: true
-        bind:
-          selinux: z
+      - ./mosquitto/config:/mosquitto/config:ro,z
       - type: bind
         source: ./mosquitto/data
         target: /mosquitto/data
         bind:
           create_host_path: true
-          selinux: z
-      - type: bind
-        source: ./mosquitto/config/passwd
-        target: /mosquitto/config/passwd
-        read_only: true
-        bind:
-          create_host_path: false
           selinux: z
       - type: bind
         source: ./mosquitto/log
@@ -205,6 +195,29 @@ services:
     networks:
       - legacy-link-net
 
+  # One-shot schema/account setup before any worker accepts traffic.
+  backend-init:
+    build: ../backend
+    profiles: ["full"]
+    restart: "no"
+    logging: *default-logging
+    command: ["/bin/sh", "-ec", "node scripts/migrate.mjs && node scripts/ensure-admin.mjs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_ALLOW_PLAINTEXT: "true"
+      MQTT_USERNAME: ${MQTT_DEV_USER:-legacy_admin}
+      MQTT_PASSWORD: ${MQTT_DEV_PASS:?Run scripts/prepare-env.mjs first}
+      MQTT_QOS: ${MQTT_QOS:-2}
+      DATABASE_URL: postgres://${POSTGRES_USER:-legacy_admin}:${POSTGRES_PASS:-change_me}@postgres:5432/${POSTGRES_DB:-legacy_link}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    networks:
+      - legacy-link-net
+
   # ------------------------------------------------------------------------------
   # backend-consumer — consumer MQTT của backend (Node.js) đọc log và lệnh.
   #
@@ -262,6 +275,8 @@ services:
       retries: 3
       start_period: 15s
     depends_on:
+      backend-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       mosquitto-init:
@@ -296,6 +311,8 @@ services:
     volumes:
       - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z
     depends_on:
+      backend-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       mosquitto:
@@ -356,6 +373,21 @@ services:
       timeout: 6s
       retries: 3
       start_period: 25s
+    networks:
+      - legacy-link-net
+
+  frontend:
+    build: ../frontend
+    profiles: ["full"]
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      backend-api:
+        condition: service_healthy
+    environment:
+      API_UPSTREAM: backend-api:3000
+    ports:
+      - "${FRONTEND_BIND_ADDRESS:-0.0.0.0}:${FRONTEND_PORT:-8080}:80"
     networks:
       - legacy-link-net
 
