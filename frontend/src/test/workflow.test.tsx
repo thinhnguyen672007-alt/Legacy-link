@@ -8,6 +8,32 @@ import { polling } from "../session";
 import { config, operation } from "./fixtures";
 const gateway = { gatewayId: "ABCDEF123456", bootId: "boot-1", online: true };
 describe("Commissioning gates", () => {
+  it.each([
+    [2, 65534, /Thiết bị từ chối địa chỉ hoặc số thanh ghi/],
+    [226, 5, /Không nhận đủ phản hồi trong thời gian chờ/],
+    [99, 5, /Chưa có mô tả cho mã lỗi này/],
+  ])(
+    "explains failed read code %s with metric, address and recovery",
+    (errorCode, address, explanation) => {
+      render(
+        <OperationResult
+          op={operation({
+            readings: [
+              { key: "temperature", address, success: false, errorCode },
+            ],
+          })}
+        />,
+      );
+      expect(
+        screen.getByText(
+          new RegExp(
+            `Không đọc được temperature tại địa chỉ thô ${address} \\(mã Modbus ${errorCode}\\)`,
+          ),
+        ),
+      ).toHaveTextContent(explanation);
+      expect(screen.queryByText(/HTTP 202/)).not.toBeInTheDocument();
+    },
+  );
   it("does not accept HTTP 202 sent state as completion", () => {
     expect(
       canApply(operation({ phase: "sent" }), config, gateway, Date.now()),

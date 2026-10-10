@@ -4,6 +4,29 @@ import { ApiError, createApi, normalizeUrl, request } from "../api/client";
 const schema = z.object({ ok: z.boolean() });
 afterEach(() => vi.unstubAllGlobals());
 describe("API boundary", () => {
+  it("explains invalid expected range in Vietnamese without losing HTTP status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ error: "temperature: minimum exceeds maximum" }),
+            { status: 400 },
+          ),
+        ),
+    );
+    await expect(
+      request("http://api", "/config/preview", "writer", schema, {
+        method: "POST",
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      uncertain: false,
+      message:
+        "Thông số temperature: “Giá trị nhỏ nhất dự kiến” đang lớn hơn “Giá trị lớn nhất dự kiến”. Sửa để giá trị nhỏ nhất không vượt giá trị lớn nhất.",
+    });
+  });
   it.each([
     ["http://localhost:3000/", "http://localhost:3000"],
     ["https://demo.local/api/", "https://demo.local/api"],

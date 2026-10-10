@@ -1,5 +1,9 @@
 # Frontend Legacy-link
 
+## Demo bằng Docker Compose
+
+Trên máy Linux chạy `infrastructure/docker-compose.yml` profile `full`, frontend có sẵn tại `http://<IP-Wi-Fi-Linux>:8080`. API đi qua `/api` cùng địa chỉ web; đăng nhập bằng tài khoản admin đã tạo lần đầu, sau đó admin cấp tài khoản Viewer/Technician. Xem [hướng dẫn máy mới](../infrastructure/README.md). Phần bên dưới dành cho chạy Vite để phát triển và các mốc nghiệm thu trước khi frontend được đưa vào Compose.
+
 Ứng dụng tiếng Việt theo hướng **Sổ vận hành**: thiết bị, lịch sử số đo, cảnh báo, chẩn đoán và cấu hình preview → probe → apply. Nhánh `feature/frontend`; mốc demo dự kiến khoảng 20/10/2026, chạy trên máy backend Docker Compose.
 
 ## Chạy trên máy backend

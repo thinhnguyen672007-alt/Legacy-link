@@ -1,9 +1,9 @@
 name: Stack acceptance
 on:
   push:
-    paths: ['backend/**', 'infrastructure/**', '.github/workflows/stack.yml']
+    paths: ['backend/**', 'frontend/**', 'infrastructure/**', '.github/workflows/stack.yml']
   pull_request:
-    paths: ['backend/**', 'infrastructure/**', '.github/workflows/stack.yml']
+    paths: ['backend/**', 'frontend/**', 'infrastructure/**', '.github/workflows/stack.yml']
 permissions:
   contents: read
 jobs:

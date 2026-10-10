@@ -1,26 +1,29 @@
 # Infrastructure dùng chung với backend và firmware
 
-Stack này phục vụ demo trên LAN tin cậy: PostgreSQL + Mosquitto + consumer + HTTP API + Nginx. Frontend do đội xây riêng. Cần Docker Engine, Docker Compose v2 có `up --wait`, Node >=22.9 để đọc env an toàn; không cần cài PostgreSQL/Mosquitto trên host.
+Stack này phục vụ demo trên LAN tin cậy: PostgreSQL + Mosquitto + consumer + HTTP API + frontend Nginx. Chạy stack chỉ cần Docker Engine và Docker Compose v2 có `up --wait`; không cần cài PostgreSQL/Mosquitto/Node trên host.
 
 ## Máy mới
 
 ```bash
 cd infrastructure
-node scripts/prepare-env.mjs
-# Sửa .env: HTTP_BIND_ADDRESS=0.0.0.0 nếu cho laptop khác truy cập,
-# CORS_ORIGINS đúng URL frontend, BENCH_GATEWAY_ID lấy từ ESP32.
-bash scripts/setup.sh --seed-bench
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work:z" -w /work node:22-alpine node scripts/prepare-env.mjs
+# Mở .env, đặt DEMO_LAN_IP bằng IP Wi-Fi của máy Linux trên hotspot iPhone.
+# Sau khi sửa DEMO_LAN_IP, chạy lại đúng lệnh docker run ở trên để cập nhật CORS_ORIGINS.
+docker compose up -d --build --wait
 ```
 
-`prepare-env.mjs` tạo hai token và mật khẩu riêng cho cài đặt mới, giữ nguyên giá trị đã có. Không copy mật khẩu mẫu trong firmware để chạy thật: điền credential MQTT của `.env` vào `local_settings.h` đã được Git bỏ qua. Không gửi mật khẩu PostgreSQL cho ESP32.
+`prepare-env.mjs` tạo mật khẩu PostgreSQL, MQTT, admin và hai API token cho cài đặt mới; chạy lại giữ nguyên giá trị đã có. `.env` được Git bỏ qua và chỉ chủ sở hữu đọc được. Trên DB mới, đăng nhập web bằng `ADMIN_USERNAME`/`ADMIN_PASSWORD` trong file này. Trên DB đã có tài khoản, tài khoản/mật khẩu cũ được giữ nguyên; giá trị `ADMIN_PASSWORD` mới trong `.env` không thay mật khẩu cũ. Không copy mật khẩu mẫu trong firmware để chạy thật: điền credential MQTT của `.env` vào `local_settings.h` đã được Git bỏ qua. Không gửi mật khẩu PostgreSQL cho ESP32.
 
-Không có ESP32 thì chạy `bash scripts/setup.sh` không seed, sau đó dùng luồng probe/apply khi thiết bị kết nối. Seed BENCH-01 chỉ dành cho simulator.
+Mở `http://<IP-Wi-Fi-Linux>:8080` từ máy còn lại; máy Linux cũng có thể mở `http://localhost:8080`. Khi iPhone cấp IP khác, sửa `DEMO_LAN_IP`, chạy lại lệnh chuẩn bị env rồi `docker compose up -d --force-recreate backend-api`. Cập nhật broker IP trong firmware và URL app Windows tương ứng. `HTTP_BIND_ADDRESS` mặc định là loopback vì người dùng truy cập API qua frontend `/api`.
+
+Sau lần chuẩn bị đầu, bật lại bằng `docker compose up -d --wait`. Không có ESP32 thì vẫn xem được giao diện; đăng ký máy khi thiết bị kết nối bằng commissioning trên web. Seed BENCH-01 chỉ dành cho simulator và gateway ID thật: `bash scripts/setup.sh --seed-bench` sau khi đã điền `BENCH_GATEWAY_ID`. `setup.sh` cũng là đường nâng cấp có backup trước migration; không dùng `up` đơn thuần để nâng schema trên stack đang chạy.
 
 | Thành phần | Địa chỉ mặc định |
 |---|---|
 | MQTT ESP32 | IP LAN máy Docker:1883 |
 | Database | 127.0.0.1:5432; Docker dùng postgres:5432 |
 | API qua Nginx | http://127.0.0.1:3000 |
+| Frontend và `/api` | http://localhost:8080 hoặc http://IP-Wi-Fi-Linux:8080 |
 | Consumer/API nội bộ | mosquitto:1883; không dùng localhost để tới container khác |
 
 Dữ liệu API cần Bearer read/write token. Health công khai. Backend quyết định cả auth và CORS; Nginx chuyển nguyên Authorization.

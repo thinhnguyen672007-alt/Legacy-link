@@ -128,6 +128,39 @@ it("read-only session cannot acknowledge alarms", async () => {
   await u.click(screen.getByRole("link", { name: "Cảnh báo" }));
   expect(await screen.findByRole("button", { name: "Đã xem" })).toBeDisabled();
 });
+it("places validation error immediately below gateway status in the read/apply panel", async () => {
+  const f = fixtures();
+  const original = f.fetch.getMockImplementation()!;
+  f.fetch.mockImplementation(async (input: string, init?: RequestInit) =>
+    new URL(input).pathname === "/config/preview"
+      ? new Response(
+          JSON.stringify({ error: "temperature: minimum exceeds maximum" }),
+          { status: 400 },
+        )
+      : original(input, init),
+  );
+  mount();
+  const u = await connect();
+  await u.click(screen.getByRole("link", { name: "Cấu hình" }));
+  await u.selectOptions(
+    await screen.findByLabelText("Gateway"),
+    gateway.gatewayId,
+  );
+  await u.selectOptions(screen.getByLabelText("Profile có sẵn"), "p");
+  await u.click(screen.getByRole("button", { name: "Nạp profile" }));
+  await waitFor(() =>
+    expect(screen.getByLabelText("Mã thiết bị")).toHaveValue("TEST-01"),
+  );
+  await u.click(screen.getByRole("button", { name: "Kiểm tra cấu hình" }));
+  const message = await screen.findByText(
+    /Thông số temperature:.*Giá trị nhỏ nhất dự kiến/,
+  );
+  const status = screen.getByText("Liên lạc được").closest(".badge")!;
+  expect(status.nextElementSibling).toContainElement(message);
+  expect(
+    screen.getByRole("heading", { name: "Đọc thử & áp dụng" }).parentElement,
+  ).toContainElement(message);
+});
 it("holds apply after 202, then invalidates successful probe when config changes", async () => {
   const f = fixtures();
   mount();

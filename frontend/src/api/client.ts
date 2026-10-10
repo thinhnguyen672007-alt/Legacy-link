@@ -30,6 +30,25 @@ const messages: Record<number, string> = {
   429: "API đang giới hạn số yêu cầu. Hệ thống sẽ giảm tần suất đọc.",
   503: "API chưa sẵn sàng. Kiểm tra dịch vụ backend.",
 };
+function validationMessage(detail: string) {
+  const match = /^([^:]+): (.+)$/.exec(detail);
+  if (!match) return undefined;
+  const fixes: Record<string, string> = {
+    "minimum exceeds maximum":
+      "“Giá trị nhỏ nhất dự kiến” đang lớn hơn “Giá trị lớn nhất dự kiến”. Sửa để giá trị nhỏ nhất không vượt giá trị lớn nhất.",
+    "expected range must contain finite numbers":
+      "Khoảng dự kiến phải là các số hợp lệ. Kiểm tra lại giá trị nhỏ nhất và lớn nhất.",
+    "invalid critical alarm threshold":
+      "Ngưỡng nghiêm trọng phải lớn hơn ngưỡng cao và chỉ dùng với mức cảnh báo high.",
+    "low threshold must be below high threshold":
+      "Ngưỡng cảnh báo thấp phải nhỏ hơn ngưỡng cảnh báo cao.",
+    "UNDERHEAT requires a temperature unit":
+      "Cảnh báo nhiệt độ thấp cần đơn vị nhiệt độ như C, F hoặc K.",
+  };
+  return fixes[match[2]]
+    ? `Thông số ${match[1]}: ${fixes[match[2]]}`
+    : undefined;
+}
 export function normalizeUrl(input: string) {
   const u = new URL(input.trim());
   if (
@@ -112,8 +131,11 @@ export async function request<T>(
       : 0;
     const detail = z.object({ error: z.string() }).safeParse(data);
     throw new ApiError(
-      (messages[response.status] ?? `API trả lỗi HTTP ${response.status}.`) +
-        (detail.success ? ` ${detail.data.error}` : ""),
+      (response.status === 400 && detail.success
+        ? validationMessage(detail.data.error)
+        : undefined) ??
+        (messages[response.status] ?? `API trả lỗi HTTP ${response.status}.`) +
+          (detail.success ? ` ${detail.data.error}` : ""),
       response.status,
       Math.min(120000, Math.max(0, wait || 0)),
       method === "POST" && response.status >= 500,
