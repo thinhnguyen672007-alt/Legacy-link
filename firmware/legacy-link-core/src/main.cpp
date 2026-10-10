@@ -61,6 +61,12 @@ static bool poll_active = false;
 static uint8_t poll_index = 0;
 static uint32_t last_poll_started = 0;
 static modbus_result_t poll_results[MAX_REGISTERS];
+static bool reading_seen[MAX_REGISTERS] = {};
+static uint32_t successful_reads = 0, failed_reads = 0;
+
+void invalidate_readings() {
+  memset(reading_seen, 0, sizeof(reading_seen));
+}
 
 void reset_poll_cycle() {
   poll_active = false;
@@ -482,6 +488,7 @@ bool apply_runtime_config(const char *payload, bool device_scoped = false) {
   publish_gateway_state();
   if (!active_config_persisted) Serial.println("[CONFIG] Applied in RAM; flash save failed");
   alarm_monitor.reset();
+  invalidate_readings();
   reset_poll_cycle();
   queue_config_ack("applied", active_config_persisted ? "ok" : "storage_error", request_id);
   if (identity_changed) {
@@ -502,6 +509,7 @@ bool restore_saved_configuration() {
   restored_at_boot = true;
   active_config_persisted = true;
   alarm_monitor.reset();
+  invalidate_readings();
   reset_poll_cycle();
   Serial.println("[CONFIG] Restored validated configuration from flash");
   return true;
@@ -605,6 +613,8 @@ void poll_modbus_step() {
     poll_active = true;
   }
   modbus_read_one(&global_device_config, poll_index, &poll_results[poll_index]);
+  reading_seen[poll_index] = true;
+  if (poll_results[poll_index].success) ++successful_reads; else ++failed_reads;
   if (++poll_index < global_device_config.register_count) return;
   poll_active = false;
   alarm_monitor.evaluate(&global_device_config, poll_results, poll_index, current_epoch_ms(), publish_alarm);
@@ -636,6 +646,8 @@ size_t delivery_health_json(char *output, size_t capacity) {
   doc["mqttConnected"] = mqttClient.connected();
   doc["clockReady"] = current_epoch_ms() != 0;
   doc["freeHeapBytes"] = ESP.getFreeHeap();
+  doc["successfulReads"] = successful_reads;
+  doc["failedReads"] = failed_reads;
   doc["storage"] = "RAM; cleared on reset";
   doc["mqttTransport"] = "plaintext";
   describe_outbox(doc.createNestedObject("telemetry"), telemetry_queue);
@@ -666,10 +678,45 @@ void print_outbox(const DeliveryQueue<N> &queue, const char *kind) {
     if (outbox_entry_json(queue, kind, i, output, sizeof(output))) Serial.println(output);
 }
 
+// One record per active register. Never relabel old-profile values as new ones.
+size_t inspection_json(uint8_t index, char *output, size_t capacity) {
+  if (!is_config_valid || index >= global_device_config.register_count) return 0;
+  const auto &reg = global_device_config.registers[index];
+  const auto &reading = poll_results[index];
+  StaticJsonDocument<1024> doc;
+  doc["type"] = "registerInspection";
+  doc["deviceId"] = global_device_config.device_id;
+  doc["configRequestId"] = active_request_id;
+  doc["key"] = reg.key; doc["address"] = reg.address;
+  doc["dataType"] = reg.data_type; doc["scale"] = reg.scale; doc["unit"] = reg.unit;
+  doc["state"] = !reading_seen[index] ? "unknown" : reading.success ? "ok" : "error";
+  if (reading_seen[index]) {
+    const uint32_t age = static_cast<uint32_t>(millis()) - reading.completed_at_ms;
+    const uint32_t limit = global_device_config.sampling_interval_ms * 3;
+    doc["ageMs"] = age;
+    doc["stale"] = age > (limit < 5000 ? 5000 : limit);
+    doc["errorCode"] = reading.error_code;
+    if (reading.success) {
+      doc["rawValue"] = reading.raw_value; doc["value"] = reading.scaled_value;
+      JsonArray words = doc.createNestedArray("rawWords");
+      for (uint8_t i = 0; i < reading.word_count; ++i) words.add(reading.raw_words[i]);
+    }
+  }
+  if (doc.overflowed() || measureJson(doc) >= capacity) return 0;
+  return serializeJson(doc, output, capacity);
+}
+
 bool handle_serial_diagnostic(const char *line) {
   if (!strcmp(line, ":health")) {
     char output[2048];
     if (delivery_health_json(output, sizeof(output))) Serial.println(output);
+    return true;
+  }
+  if (!strcmp(line, ":inspect")) {
+    if (!is_config_valid) Serial.println("{\"type\":\"registerInspection\",\"state\":\"unconfigured\"}");
+    char output[1024];
+    for (uint8_t i = 0; is_config_valid && i < global_device_config.register_count; ++i)
+      if (inspection_json(i, output, sizeof(output))) Serial.println(output);
     return true;
   }
   if (!strcmp(line, ":outbox")) {
@@ -679,7 +726,7 @@ bool handle_serial_diagnostic(const char *line) {
     return true;
   }
   if (!strcmp(line, ":help")) {
-    Serial.println(":health - delivery health; :outbox - pending ID ledger (JSON lines); :help - commands. JSON config remains supported.");
+    Serial.println(":health - delivery health; :inspect - active register readings; :outbox - pending ID ledger (JSON lines); :help - commands. JSON config remains supported.");
     return true;
   }
   return false;
