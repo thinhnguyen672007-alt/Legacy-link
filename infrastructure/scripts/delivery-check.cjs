@@ -131,7 +131,7 @@ async function readiness(expected) {
     await readiness(200);
     // Kiểm tra cả đường trình duyệt -> Nginx -> API, đọc dữ liệu và bảo vệ thao tác ghi.
     // Chỉ ACK một alarm của fixture; không đụng alarm thật của BENCH-01.
-    const history=await fetch(`http://api-gateway/machines/${f.deviceId}/telemetry?limit=20`,{headers:{Authorization:`Bearer ${process.env.API_WRITE_TOKEN}`}});
+    const history=await fetch(`http://api-gateway/machines/${f.deviceId}/telemetry?limit=20`,{headers:{Authorization:`Bearer ${process.env.API_READ_TOKEN}`}});
     assert.equal(history.status,200);assert.equal((await history.json()).items.length,4);
     const alarm=(await pool.query('SELECT id FROM alarms WHERE device_id=$1 LIMIT 1',[f.deviceId])).rows[0];
     const url=`http://api-gateway/alarms/${alarm.id}/ack`;
