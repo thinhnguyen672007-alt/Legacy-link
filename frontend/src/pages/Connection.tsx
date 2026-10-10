@@ -7,7 +7,7 @@ import { login } from "../api/accounts";
 export function Connection() {
   const { connect } = useSession();
   const [base, setBase] = useState(
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
+    import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? `${location.origin}/api` : "http://localhost:3000"),
   );
   const [read, setRead] = useState("");
   const [write, setWrite] = useState("");

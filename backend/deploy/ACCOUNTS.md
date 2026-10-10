@@ -57,3 +57,13 @@ Audit records include account creation/changes, successful logins, password chan
 ## Validation
 
 `npm run test:accounts` creates and removes its own PostgreSQL Docker container. It covers bootstrap replay, migration replay, role enforcement, mandatory password change, disabled users, role-change revocation, password reset, logout, expiry and protected administrator access. It never migrates an existing demo database.
+
+## Local acceptance (2026-10-10)
+
+- Account integration passed against a disposable PostgreSQL container, including migration replay, all three roles, session revocation and expiry.
+- Existing MQTT ingestion integration passed after the schema change, including COMMIT/ACK replay, broker/database outages and diagnostics.
+- Frontend: 30 tests, production build and ESLint passed. Browser inspection covered login, administrator navigation and the employee page at desktop/mobile widths.
+- The authorized local bench database was backed up before migration to version 5. Consumer/API restarted successfully and readiness returned true. A randomly generated administrator was created locally; login, account listing and logout passed both directly and through the frontend's `/api` proxy.
+- Deployment credentials, database backup and Compose overlays are local ignored files and are not part of this repository. No public/default production password is provided.
+
+The frontend Docker image uses `/api` on its own origin by default. `API_UPSTREAM` configures Nginx's backend address. For Vite development the default remains `http://localhost:3000`; either can be overridden with `VITE_API_BASE_URL` at build time or the connection form.

@@ -83,3 +83,8 @@ Hoặc đặt `LEGACY_LINK_API_URL`, `LEGACY_LINK_READ_TOKEN` trong môi trườ
 - [Hướng thiết kế](docs/surface-brief.md)
 
 P1 quản lý/import/export profile đầy đủ, hệ thống nâng cao; P2 hiệu ứng bổ sung chưa triển khai. CI/root manifest/deploy ngoài frontend chưa thay đổi. Nhánh `feature/frontend` dùng PR vào `main`; hướng dẫn nghiệm thu thật nằm trong báo cáo bên dưới.
+
+## Employee accounts
+
+Account setup and migration: [backend/deploy/ACCOUNTS.md](../backend/deploy/ACCOUNTS.md).
+Production builds default to the same-origin `/api` proxy; Vite development defaults to `http://localhost:3000`. The Docker image accepts `API_UPSTREAM` (for example `backend-api:3000`) and forwards Authorization unchanged. Set CORS_ORIGINS to the browser's actual origin on the backend. A frontend-only deployment without the updated backend/schema cannot sign in with accounts.
