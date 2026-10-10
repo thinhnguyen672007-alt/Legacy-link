@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Check, FlaskConical, Plus, Send, Trash2, X } from "lucide-react";
+import { explainError, modbusReadError } from "../api/errors";
 import { ApiError } from "../api/client";
 import {
   canApply,
@@ -57,9 +58,14 @@ export function Commissioning({ active }: { active: boolean }) {
   const { session } = useSession();
   const client = useQueryClient();
   const [params] = useSearchParams();
+  const requestedDevice = params.get("device") ?? "";
+  const [routeDevice, setRouteDevice] = useState(requestedDevice);
   const [gateway, setGateway] = useState("");
   const [source, setSource] = useState("");
-  const [config, setConfig] = useState<Config>(newConfig);
+  const [config, setConfig] = useState<Config>(() => ({
+    ...newConfig(),
+    deviceId: requestedDevice,
+  }));
   const [preview, setPreview] = useState<Config>();
   const [previewWarnings, setPreviewWarnings] = useState<string[]>([]);
   const [probeId, setProbeId] = useState("");
@@ -108,12 +114,29 @@ export function Commissioning({ active }: { active: boolean }) {
   const editable = !locked;
   const inRange =
     probe?.readings?.every((r) => r.withinRange !== false) ?? false;
+  const failedReads = probe?.readings?.some((r) => !r.success) ?? false;
+  const rangeWarnings =
+    probe?.readings?.some((r) => r.success && r.withinRange === false) ?? false;
   const ready =
-    canApply(probe, preview, g, now) &&
+    canApply(probe, preview, g, Date.now()) &&
     !gateways.error &&
+    !op.error &&
     !applyId &&
     !uncertain &&
     (inRange || acceptWarnings);
+  useEffect(() => {
+    if (!active || locked || requestedDevice === routeDevice) return;
+    setRouteDevice(requestedDevice);
+    setConfig({ ...newConfig(), deviceId: requestedDevice });
+    setGateway("");
+    setPreview(undefined);
+    setPreviewWarnings([]);
+    setProbeId("");
+    setApplyId("");
+    setAcceptedProbeId("");
+    setConfirm(false);
+    setError("");
+  }, [active, locked, requestedDevice, routeDevice]);
   useEffect(() => {
     if (!active) return;
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -151,7 +174,7 @@ export function Commissioning({ active }: { active: boolean }) {
     }
   }
   async function loadCatalog() {
-    const device = params.get("device") || config.deviceId;
+    const device = config.deviceId.trim() || params.get("device");
     if (!device) {
       setError("Nhập mã thiết bị để đọc catalog hiện tại.");
       return;
@@ -283,7 +306,8 @@ export function Commissioning({ active }: { active: boolean }) {
                 Nạp profile
               </button>
               <button type="button" onClick={() => void loadCatalog()}>
-                Đọc catalog {params.get("device") ?? "theo mã máy"}
+                Đọc catalog{" "}
+                {config.deviceId || params.get("device") || "theo mã máy"}
               </button>
             </div>
             <QueryState
@@ -740,7 +764,7 @@ export function Commissioning({ active }: { active: boolean }) {
             <p>
               Gateway <span className="mono">{gateway || "chưa chọn"}</span>
             </p>
-            <Badge value={g?.online ? "online" : "unknown"} />
+            <Badge value={g ? (g.online ? "online" : "offline") : "unknown"} />
             {error && <Notice tone="bad">{error}</Notice>}
             {uncertain && (
               <Notice tone="bad">
@@ -798,7 +822,31 @@ export function Commissioning({ active }: { active: boolean }) {
                   )}{" "}
                   giây hiệu lực; backend sẽ kiểm tra lại boot và config.
                 </p>
-                {!inRange && (
+                {now - (probe.finishedAt ?? 0) >= 60000 && (
+                  <Notice>
+                    Kết quả đọc thử đã hết hạn. Bấm Đọc thử trên gateway để lấy
+                    kết quả mới.
+                  </Notice>
+                )}
+                {g && probe.bootId !== g.bootId && (
+                  <Notice>
+                    Gateway đã khởi động lại sau lần đọc thử. Bấm Đọc thử trên
+                    gateway để kiểm tra lại.
+                  </Notice>
+                )}
+                {(probe.finishedAt ?? 0) > Date.now() && (
+                  <Notice tone="bad">
+                    Giờ trên máy này đang chậm hơn thời điểm backend ghi kết
+                    quả. Đồng bộ đồng hồ máy rồi đọc thử lại.
+                  </Notice>
+                )}
+                {failedReads && (
+                  <Notice tone="bad">
+                    Có thanh ghi không đọc được. Sửa các thông số báo lỗi rồi
+                    kiểm tra và đọc thử lại trước khi áp dụng.
+                  </Notice>
+                )}
+                {!failedReads && rangeWarnings && (
                   <label className="check">
                     <input
                       type="checkbox"
@@ -867,6 +915,13 @@ export function Commissioning({ active }: { active: boolean }) {
                       disabled={!ready || busy}
                       onClick={() => {
                         if (!preview || !ready) return;
+                        if (!canApply(probe, preview, g, Date.now())) {
+                          setConfirm(false);
+                          setError(
+                            "Kết quả đọc thử không còn hợp lệ. Đọc thử lại trước khi áp dụng.",
+                          );
+                          return;
+                        }
                         setConfirm(false);
                         void run(
                           async () =>
@@ -1030,7 +1085,9 @@ export function OperationResult({ op }: { op: Operation }) {
           Backend đã nhận lệnh; đang chờ kết quả từ gateway.
         </p>
       )}
-      {op.error && <Notice tone="bad">{op.error}</Notice>}
+      {op.error && (
+        <Notice tone="bad">{explainError(op.error) ?? op.error}</Notice>
+      )}
       {op.readings?.map((r) => (
         <div className="probe-row" key={r.key}>
           <span>{r.key}</span>
@@ -1047,7 +1104,7 @@ export function OperationResult({ op }: { op: Operation }) {
                 ? "read_error"
                 : r.withinRange === false
                   ? "out_of_range"
-                  : "healthy"
+                  : "read_ok"
             }
           />
           {!r.success && (
@@ -1079,21 +1136,5 @@ export function OperationResult({ op }: { op: Operation }) {
         </>
       )}
     </div>
-  );
-}
-function modbusReadError(code: number) {
-  const messages: Record<number, string> = {
-    1: "Thiết bị không hỗ trợ hàm đọc này. Kiểm tra lựa chọn 03/04 theo tài liệu thiết bị.",
-    2: "Thiết bị từ chối địa chỉ hoặc số thanh ghi cần đọc. Kiểm tra địa chỉ thô, hàm đọc 03/04 và số thanh ghi theo kiểu dữ liệu trong tài liệu thiết bị hoặc simulator.",
-    3: "Thiết bị từ chối tham số yêu cầu đọc. Kiểm tra hàm đọc và kiểu dữ liệu.",
-    4: "Thiết bị báo không xử lý được yêu cầu đọc. Kiểm tra trạng thái thiết bị rồi đọc thử lại.",
-    224: "Địa chỉ slave trong phản hồi không khớp. Kiểm tra địa chỉ slave đã chọn.",
-    225: "Hàm đọc trong phản hồi không khớp yêu cầu. Kiểm tra cấu hình Modbus và thiết bị đang kết nối.",
-    226: "Không nhận đủ phản hồi trong thời gian chờ. Kiểm tra nguồn thiết bị, dây kết nối, địa chỉ slave, baud rate và parity.",
-    227: "Phản hồi bị lỗi kiểm tra dữ liệu (CRC). Kiểm tra dây kết nối, nhiễu và thông số truyền thông Modbus.",
-  };
-  return (
-    messages[code] ??
-    "Chưa có mô tả cho mã lỗi này. Đối chiếu mã với log gateway và tài liệu Modbus của thiết bị."
   );
 }

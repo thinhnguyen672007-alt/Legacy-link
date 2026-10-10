@@ -220,12 +220,14 @@ export function canApply(
     op.gatewayId === gateway.gatewayId &&
     op.bootId === gateway.bootId &&
     op.finishedAt &&
+    now >= op.finishedAt &&
     now - op.finishedAt < 60000 &&
     JSON.stringify(op.config) === JSON.stringify(config) &&
     op.readings?.length === config.registerMap.length &&
     op.readings.every(
       (r, i) =>
         r.success &&
+        r.errorCode === 0 &&
         r.value !== undefined &&
         r.key === config.registerMap[i].key &&
         r.address === config.registerMap[i].address,
