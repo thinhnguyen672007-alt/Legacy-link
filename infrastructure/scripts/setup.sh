@@ -447,7 +447,10 @@ else
 fi
 echo ""
 if [[ ",$COMPOSE_PROFILES," == *,full,* ]]; then
-  echo "  API      : http://${HTTP_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-3000}"
+  # 0.0.0.0 là địa chỉ bind chứ không phải URL mở được; in localhost cho người đọc dễ bấm.
+  api_host="${HTTP_BIND_ADDRESS:-127.0.0.1}"
+  if [ "$api_host" = "0.0.0.0" ]; then api_host="127.0.0.1"; fi
+  echo "  API      : http://${api_host}:${HTTP_PORT:-3000} (bind ${HTTP_BIND_ADDRESS:-127.0.0.1})"
   echo "  Auth     : Bearer API_READ_TOKEN (GET) va API_WRITE_TOKEN (POST), trong .env"
 fi
 echo "  Kiem tra : ./scripts/status.sh"
