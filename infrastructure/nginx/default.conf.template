@@ -13,6 +13,6 @@ server {
         proxy_set_header Authorization $http_authorization;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_connect_timeout 3s;
-        proxy_read_timeout 20s;
+        proxy_read_timeout 30s; # AI có ngân sách 12s model + 8s tools.
     }
 }
