@@ -18,10 +18,9 @@ function mount() {
 }
 async function connect(writer = true) {
   const u = userEvent.setup();
-  await u.type(screen.getByLabelText("Token đọc"), "fixture-read");
-  if (writer)
-    await u.type(screen.getByLabelText(/Token thao tác/), "fixture-write");
-  await u.click(screen.getByRole("button", { name: "Kết nối API" }));
+  await u.type(screen.getByLabelText("Tên đăng nhập"), writer ? "technician" : "viewer");
+  await u.type(screen.getByLabelText("Mật khẩu"), "test-password-123");
+  await u.click(screen.getByRole("button", { name: "Đăng nhập" }));
   await screen.findByRole("heading", { name: "Thiết bị" });
   return u;
 }
@@ -55,6 +54,8 @@ function fixtures() {
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ path, method, body });
     let result: unknown = [];
+    if (path === "/auth/login") result = { token:"fixture-session",user:{id:"employee",username:body.username,role:body.username,disabled:false,mustChangePassword:false}};
+    if (path === "/auth/logout") result = {ok:true};
     if (path === "/machines") result = [machine];
     if (path === "/gateways") result = [gateway];
     if (path === "/profiles")
@@ -113,11 +114,11 @@ it("connects, renders real response including zero, clears session on disconnect
   expect(
     await screen.findByText("Thiết bị mô phỏng kiểm thử"),
   ).toBeInTheDocument();
-  await u.click(screen.getByRole("button", { name: "Ngắt kết nối" }));
+  await u.click(screen.getByRole("button", { name: "Đăng xuất" }));
   expect(
-    screen.getByRole("heading", { name: "Kết nối hệ thống" }),
+    screen.getByRole("heading", { name: "Đăng nhập" }),
   ).toBeInTheDocument();
-  expect(screen.getByLabelText("Token đọc")).toHaveValue("");
+  expect(screen.getByLabelText("Tên đăng nhập")).toHaveValue("");
   expect(localStorage.length).toBe(0);
 });
 it("read-only session cannot acknowledge alarms", async () => {

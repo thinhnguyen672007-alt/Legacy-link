@@ -1256,3 +1256,13 @@ tbody tr:hover {
     top: -30px;
   }
 }
+
+.account-panel { max-width: 680px; margin: 24px auto; }
+.account-form { display: grid; gap: 14px; max-width: 480px; margin: 24px 0 32px; }
+.account-form label { display: grid; gap: 6px; }
+.account-form button { justify-self: start; }
+
+@media (max-width: 760px) {
+  .sidebar nav { overflow-x: auto; }
+  .sidebar nav a { flex: 0 0 auto; white-space: nowrap; }
+}
