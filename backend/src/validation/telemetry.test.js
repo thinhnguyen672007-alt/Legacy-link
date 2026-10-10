@@ -76,16 +76,16 @@ test('payload sai nhieu cho thi gom du loi trong mot lan', () => {
   assert.equal(result.errors.length, 4);
 });
 
-test('metrics ngoai danh sach cho phep thi bi tu choi', () => {
+test('metric sai dinh dang thi bi tu choi', () => {
   const payload = {
     ...validPayload(),
-    metrics: { temperature: 72.5, doAm: 55 },
+    metrics: { temperature: 72.5, 'do-Am': 55 },
   };
 
   const result = validateTelemetry('esp32-01', payload);
 
   assert.equal(result.ok, false);
-  assert.ok(result.errors.some((message) => message.includes('doAm')));
+  assert.ok(result.errors.some((message) => message.includes('do-Am')));
 });
 
 test('payload null thi tu choi chu khong nem loi', () => {

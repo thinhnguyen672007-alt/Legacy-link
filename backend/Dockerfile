@@ -14,9 +14,13 @@ RUN npm ci --omit=dev
 
 # COPY: chép mã nguồn vào image. Đổi ở đây thì chỉ lớp này rebuild, không cài lại lib.
 COPY src ./src
+COPY db ./db
+COPY scripts/migrate.mjs scripts/retention.mjs ./scripts/
 
 # ENV: biến môi trường bên trong container, báo cho Node biết đang production.
 ENV NODE_ENV=production
+
+USER node
 
 # CMD: lệnh chạy khi container khởi động. Dạng array tránh shell trung gian.
 CMD ["node", "src/index.js"]

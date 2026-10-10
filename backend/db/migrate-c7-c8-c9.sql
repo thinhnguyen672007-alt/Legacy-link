@@ -1,7 +1,7 @@
 
--- C7-C9 additive upgrade; safe to re-run on existing installations.
+-- Nâng cấp C7–C9: bổ sung cấu trúc mới, có thể chạy lại trên database hiện có.
 BEGIN;
--- Columns already used by commissioning and dashboard code, missing in the old schema.
+-- Bổ sung các cột mà luồng đăng ký thiết bị/dashboard đã dùng nhưng schema cũ còn thiếu.
 ALTER TABLE device ADD COLUMN IF NOT EXISTS applied_config jsonb;
 ALTER TABLE device ADD COLUMN IF NOT EXISTS config_request_id text;
 ALTER TABLE machine_state ADD COLUMN IF NOT EXISTS diagnostics jsonb;

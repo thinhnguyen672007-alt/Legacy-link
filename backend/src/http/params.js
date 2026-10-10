@@ -1,3 +1,4 @@
+// Kiểm tra dữ liệu người gọi gửi trên URL: ID, khoảng thời gian và phân trang. Sai dữ liệu trả lỗi 400 thay vì truy vấn tùy ý.
 import { ControlError } from '../control/validation.js';
 export function integer(value, name, fallback, min, max) {
   if (value === null || value === undefined) return fallback;
@@ -13,6 +14,7 @@ export function rowId(value) {
   if (!/^[1-9][0-9]{0,18}$/.test(value) || BigInt(value) > 9223372036854775807n) throw new ControlError('Invalid record ID');
   return value;
 }
+// Mặc định xem 24 giờ, tối đa 31 ngày và 500 bản ghi mỗi trang.
 export function pageParams(params) {
   const to = integer(params.get('to'), 'to', Date.now(), 0, 8640000000000000);
   const from = integer(params.get('from'), 'from', Math.max(0, to - 86400000), 0, to);
@@ -23,6 +25,7 @@ export function pageParams(params) {
     try {
       const raw=params.get('cursor');
       if (!/^[A-Za-z0-9_-]{1,160}$/.test(raw)) throw new Error();
+      // Cursor ghi vị trí cuối trang trước (thời điểm + ID), không phải số thứ tự trang.
       cursor=JSON.parse(Buffer.from(raw,'base64url').toString());
       if (!cursor || !Number.isSafeInteger(cursor.ts) || cursor.ts < from || cursor.ts > to || typeof cursor.id !== 'string') throw new Error();
       rowId(cursor.id);

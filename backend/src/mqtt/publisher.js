@@ -16,6 +16,7 @@ import { config } from '../config.js';
 
 export function startPublisher() {
   const client = mqtt.connect(config.mqtt.url, {
+    ...config.mqtt.tls,
     // Them hau to '-pub' de khong trung clientId voi tien trinh MQTT chinh.
     clientId: `${config.mqtt.clientId}-pub-${process.pid}`,
     username: config.mqtt.username,
@@ -42,6 +43,7 @@ export function startPublisher() {
 export function publishJson(client, topic, payload) {
   if (!client.connected) return Promise.reject(new Error('MQTT publisher disconnected'));
   return new Promise((resolve, reject) => {
+    // Chờ tối đa 5 giây; timeout chỉ nói chưa biết kết quả, không chứng minh ESP32 chưa nhận.
     const timer = setTimeout(() => reject(new Error('MQTT publish confirmation timed out; outcome unknown')), 5000);
     try {
       client.publish(topic, JSON.stringify(payload), { qos: 1, retain: false }, (err) => {

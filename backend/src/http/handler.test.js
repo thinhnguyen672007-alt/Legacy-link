@@ -1,9 +1,10 @@
+// Các bài test chứng minh endpoint đúng phương thức, xử lý dữ liệu sai và trả mã lỗi phù hợp.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { createHttpHandler } from './handler.js';
 import { ControlError } from '../control/validation.js';
-// Exercise the actual HTTP handler with request streams, without a TCP listener.
+// Kiểm thử handler HTTP thật bằng request giả, không cần mở cổng mạng.
 async function request(method, path, body, headers = {}) {
   const calls = [];
   const handler = createHttpHandler({

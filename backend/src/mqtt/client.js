@@ -7,14 +7,17 @@
 // loai gi, roi chuyen cho dung handler.
 
 import mqtt from 'mqtt';
+import { createWorkQueue } from '../ingestion/queue.js';
 import { config } from '../config.js';
 
 // Dem so lan parse JSON that bai, de in ra luc tat.
 let errorsCount = 0;
 let subscribed = false;
+let queue;
+let oversized = 0;
 
 export function getStats() {
-  return { errorsCount, subscribed };
+  return { errorsCount, subscribed, oversized, queue: queue?.stats() };
 }
 
 // Bang dinh tuyen: "<ho topic>/<loai message>" -> ten handler.
@@ -57,11 +60,17 @@ function parseTopic(topic) {
 }
 
 export function startMqttClient({ onTelemetry, onStatus, onAlarm, onConfigAck, onDiagnostics }) {
+  queue = createWorkQueue({
+    ...config.ingestion,
+    onError: (err) => console.error('[MQTT] Handler lỗi:', err.message),
+  });
   const handlers = { onTelemetry, onStatus, onAlarm, onConfigAck, onDiagnostics };
 
   // mqtt.connect(url, options): tham so thu nhat la URL broker,
   // tham so thu hai la tuy chon. Khong gop URL vao trong options.
   const client = mqtt.connect(config.mqtt.url, {
+    ...config.mqtt.tls,
+    resubscribe: false, // Chính ứng dụng subscribe lại mỗi connect; tránh callback rỗng từ cache thư viện.
     clientId: config.mqtt.clientId,
     clean: false,
     username: config.mqtt.username,
@@ -83,12 +92,18 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm, onConfigAck, o
         console.error('[MQTT] Subscribe that bai:', err.message);
         return;
       }
-      subscribed = granted.length === topics.length && granted.every(g => g.qos !== 128);
-      console.log('[MQTT] Da subscribe:', granted.map((g) => g.topic).join(', '));
+      subscribed = granted?.length === topics.length && granted.every((g) => g.qos !== 128);
+      console.log('[MQTT] Da subscribe:', (granted ?? []).map((g) => g.topic).join(', '));
     });
   });
 
   client.on('message', (topic, rawPayload, packet) => {
+    packet.receivedAt = performance.now(); // Thời gian monotonic, tính cả lúc đợi queue.
+    // Kiểm tra byte trước JSON.parse để payload lớn không chiếm thêm bộ nhớ xử lý.
+    if (rawPayload.length > config.ingestion.maxBytes) {
+      oversized++;
+      return;
+    }
     const parsed = parseTopic(topic);
 
     if (parsed === null) {
@@ -106,7 +121,7 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm, onConfigAck, o
     }
 
     console.log(
-      `[MQTT] Nhan topic=${topic} qos=${packet.qos} retain=${packet.retain} byte=${rawPayload.length}`,
+      `[MQTT] Nhan topic=${topic} qos=${packet.qos} retain=${packet.retain} byte=${rawPayload.length}`
     );
 
     const handlerName = ROUTES[`${parsed.family}/${parsed.kind}`];
@@ -130,17 +145,27 @@ export function startMqttClient({ onTelemetry, onStatus, onAlarm, onConfigAck, o
     // Luoi nay KHONG thay the viec sua loi goc trong validator. No chi dam bao:
     // du mot handler co loi, cac thiet bi khac van duoc phuc vu binh thuong.
     // Tham so thu nhat la deviceId (ho devices) hoac gatewayId (ho gateways).
-    Promise.resolve()
-      .then(() => handler(parsed.id, payload, packet))
-      .catch((err) => {
-        console.error(`[MQTT] Handler "${handlerName}" loi:`, err.message);
-      });
+    const admitted = queue.submit(`${parsed.family}/${parsed.id}`, () =>
+      handler(parsed.id, payload, packet)
+    );
+    if (!admitted && queue.stats().rejected % 100 === 1) {
+      console.warn(
+        '[MQTT] Hàng đợi đầy/đang dừng; không ACK ứng dụng:',
+        JSON.stringify(queue.stats())
+      );
+    }
   });
 
   client.on('reconnect', () => console.log('[MQTT] Dang thu ket noi lai...'));
   client.on('offline', () => console.warn('[MQTT] Mat ket noi toi broker'));
-  client.on('close', () => { subscribed = false; console.log('[MQTT] Ket noi da dong'); });
+  client.on('close', () => {
+    subscribed = false;
+    console.log('[MQTT] Ket noi da dong');
+  });
   client.on('error', (err) => console.error('[MQTT] Loi:', err.message));
 
+  // Ngừng nhận việc mới, chờ việc đã nhận hoàn tất, giữ MQTT để gửi ACK cuối cùng.
+  client.stopIntake = () => queue.stop();
+  client.drain = () => queue.drain();
   return client;
 }

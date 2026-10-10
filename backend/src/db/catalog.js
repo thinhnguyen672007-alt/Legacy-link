@@ -8,6 +8,7 @@
 // CHI thu muc nay biet SQL.
 
 import { pool } from './pool.js';
+import { validateConfig } from '../control/validation.js';
 
 // Firmware chi nhan toi da 4095 byte UTF-8.
 //
@@ -23,6 +24,7 @@ const FIRMWARE_CONFIG_MAX_BYTES = 4095;
 const CATALOG_QUERY = `
   SELECT
     b.metric_key,
+    COALESCE(o.word_order,b.word_order) AS word_order,
     COALESCE(o.protocol_address, b.protocol_address) AS protocol_address,
     COALESCE(o.modicon_address,  b.modicon_address)  AS modicon_address,
     COALESCE(o.function_code,    b.function_code)    AS function_code,
@@ -55,6 +57,7 @@ function toFirmwareRegister(row) {
     dataType: row.data_type,
     scale: row.scale,
     unit: row.unit,
+    wordOrder: row.word_order,
   };
 
   // Chi gui alarm khi co DU ca NGUONG lan MA.
@@ -74,15 +77,13 @@ function toFirmwareRegister(row) {
   // Tang database da co rang buoc CHECK ngan chan du lieu nay. Day la lop thu
   // hai — phong khi du lieu sai lot vao bang cach khac.
   if (row.alarm_high !== null && row.alarm_code !== null) {
-    register.alarm_high = row.alarm_high;
-    register.alarm_code = row.alarm_code;
-    register.alarm_hysteresis = row.alarm_hysteresis;
-    register.alarm_severity = row.alarm_severity;
-
-    // Nguong nghiem trong la TUY CHON. Chi gui khi co.
-    if (row.alarm_critical !== null) {
-      register.alarm_critical = row.alarm_critical;
-    }
+    register.alarm = {
+      threshold: row.alarm_high,
+      code: row.alarm_code,
+      hysteresis: row.alarm_hysteresis,
+      severity: row.alarm_severity,
+    };
+    if (row.alarm_critical !== null) register.alarm.criticalThreshold = row.alarm_critical;
   }
 
   return register;
@@ -92,13 +93,13 @@ function toFirmwareRegister(row) {
 //
 // Ham tra ve null chu khong nem loi, vi "khong tim thay" la chuyen BINH THUONG,
 // khong phai su co. Ben goi se quyet dinh tra ma HTTP nao.
-export async function getCatalog(deviceId) {
-  const deviceResult = await pool.query(
+export async function getCatalog(deviceId, db = pool) {
+  const deviceResult = await db.query(
     `SELECT device_id, machine_type, name, protocol, baud_rate, parity,
             stop_bits, slave_id, sampling_interval_ms, applied_config
      FROM device
      WHERE device_id = $1`,
-    [deviceId],
+    [deviceId]
   );
 
   if (deviceResult.rowCount === 0) {
@@ -106,8 +107,8 @@ export async function getCatalog(deviceId) {
   }
 
   const device = deviceResult.rows[0];
-  if (device.applied_config) return device.applied_config;
-  const registerResult = await pool.query(CATALOG_QUERY, [deviceId, device.machine_type]);
+  if (device.applied_config) return validateConfig(device.applied_config);
+  const registerResult = await db.query(CATALOG_QUERY, [deviceId, device.machine_type]);
 
   const catalog = {
     deviceId: device.device_id,
@@ -131,11 +132,11 @@ export async function getCatalog(deviceId) {
   if (size > FIRMWARE_CONFIG_MAX_BYTES) {
     throw new Error(
       `Catalog vuot gioi han firmware: ${size} byte > ${FIRMWARE_CONFIG_MAX_BYTES}. ` +
-        `Thiet bi "${deviceId}" co ${catalog.registerMap.length} thanh ghi.`,
+        `Thiet bi "${deviceId}" co ${catalog.registerMap.length} thanh ghi.`
     );
   }
 
-  return catalog;
+  return validateConfig(catalog);
 }
 
 // Lay moi thu can thiet de GUI cau hinh xuong mot thiet bi:
@@ -155,17 +156,14 @@ export async function getConfigTarget(deviceId) {
     return null;
   }
 
-  const result = await pool.query(
-    'SELECT gateway_id FROM device WHERE device_id = $1',
-    [deviceId],
-  );
+  const result = await pool.query('SELECT gateway_id FROM device WHERE device_id = $1', [deviceId]);
 
   const gatewayId = result.rows[0].gateway_id;
 
   if (!gatewayId) {
     throw new Error(
       `Thiet bi "${deviceId}" chua co gateway_id trong bang device. ` +
-        `Khong biet cho ACK o topic nao, nen khong the gui cau hinh.`,
+        `Khong biet cho ACK o topic nao, nen khong the gui cau hinh.`
     );
   }
 

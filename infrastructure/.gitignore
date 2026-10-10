@@ -21,3 +21,11 @@ mosquitto/data/*
 mosquitto/log/*
 !mosquitto/log/.gitkeep
 *.log
+
+# Backup chứa dữ liệu thật; report có fixture và lịch sử chụp trước kiểm thử.
+# Giữ chúng cục bộ để không công khai dữ liệu vận hành trên GitHub.
+backups/
+reports/
+
+# Khóa chỉ mô tả thao tác đang chạy trên máy này; không chia sẻ khóa qua Git.
+.operation-lock/

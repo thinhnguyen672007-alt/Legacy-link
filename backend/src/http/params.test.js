@@ -1,3 +1,4 @@
+// Kiểm tra giới hạn truy vấn để tránh số sai, khoảng thời gian quá lớn và con trỏ phân trang không hợp lệ.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { pageParams, rowId } from './params.js';

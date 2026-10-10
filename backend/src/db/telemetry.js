@@ -1,8 +1,11 @@
+import { requireCatalogMetrics } from './metric-policy.js';
 import { storeEvent } from './ingestion.js';
 
+// Lưu lịch sử trước; mẫu cũ gửi bù vẫn vào lịch sử nhưng không ghi đè số mới trên dashboard.
 export async function saveTelemetry(event) {
   const { deviceId, timestamp, metrics } = event;
   return storeEvent('telemetry', event, async (client, storageId) => {
+    await requireCatalogMetrics(client, event);
     const inserted = await client.query(
       `INSERT INTO telemetry (device_id, ts, metrics, message_id)
        VALUES ($1, $2, $3, $4)

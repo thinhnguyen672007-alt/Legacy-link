@@ -10,10 +10,8 @@
 #            This is what fits a developer who just needs the messaging hop on
 #            their machine, runs the Node apps manually next, and skips the rest.
 #
-#   full   — full stack: broker + database + any project services you add later
-#            (backend, API, frontend). Same as --profile broker today, because
-#            every service currently bears both tags, but ready to diverge the
-#            moment a service is tagged "full" only.
+#   full   — broker + database + consumer + HTTP API + authenticated gateway.
+#            Frontend can be added when available.
 #
 #          Existing services (mosquitto-init, mosquitto, postgres) carry both
 #          tags, so either profile brings them up. New services you add for
@@ -59,6 +57,19 @@ services:
     depends_on:
       mosquitto-init:
         condition: service_completed_successfully
+    restart: unless-stopped
+    environment:
+      MQTT_USERNAME: ${MQTT_DEV_USER:-legacy_admin}
+      MQTT_PASSWORD: ${MQTT_DEV_PASS:-legacy_secret_2026}
+    # Publish QoS1 có xác thực chứng minh broker xử lý được tin, không chỉ process còn sống.
+    # Dùng timeout bên ngoài vì mosquitto_pub trong image đã thử không hỗ trợ -W.
+    # $$ giữ biến cho shell trong container; $ đơn có thể bị Compose nội suy ở máy host.
+    healthcheck:
+      test: ["CMD-SHELL", 'timeout 4 mosquitto_pub -h 127.0.0.1 -u "$$MQTT_USERNAME" -P "$$MQTT_PASSWORD" -t legacy-link/test/broker-health -m ready -q 1']
+      interval: 10s
+      timeout: 6s
+      retries: 3
+      start_period: 10s
     container_name: ${MQTT_CONTAINER_NAME:-legacy-link-mosquitto}
     ports:
       - "${MQTT_PORT:-1883}:1883"
@@ -105,7 +116,7 @@ services:
   #   POSTGRES_DB       -> tên database mặc định được tạo ra
   # Sau khi volume đã có dữ liệu, Postgres BỎ QUA hoàn toàn 3 biến này. Đổi
   # POSTGRES_USER trong .env rồi `up -d` lại sẽ KHÔNG tạo user mới — nếu bạn
-  # cần đổi thật thì phải xóa volume (xem runbook).
+  # cần đổi thật thì thay tài khoản trong DB có kiểm soát (xem runbook).
   #
   # VÌ SAO CẦN healthcheck:
   # Postgres sau khi bật listener vẫn còn vài giây để tạo database và chạy
@@ -124,6 +135,7 @@ services:
     # sẵn câu lệnh `docker exec -i legacy-link-postgres psql ...` trong comment.
     # Đổi tên ở đây thì script của team backend hỏng mà không có báo lỗi rõ.
     # Nếu bạn buộc phải đổi thì sửa cả hai file kia cùng lúc.
+    restart: unless-stopped
     container_name: ${POSTGRES_CONTAINER_NAME:-legacy-link-postgres}
     # Dạng mapping `KEY: value` (không phải dạng danh sách `- KEY=value` như ở
     # compose cũ). Cả hai đều hợp lệ, nhưng mapping đọc dễ hơn khi giá trị chứa
@@ -209,9 +221,8 @@ services:
   #     trong infrastructure/.env (MQTT_DEV_USER / MQTT_DEV_PASS) để khớp với
   #     hash trong mosquitto/config/passwd.
   #
-  #   restart: on-failure:5
-  #     Nếu process crash thì restart tối đa 5 lần. Lỗi thật (sai credential)
-  #     thì 5 lần là đủ để log bị spam, không restart vô hạn.
+  #   restart: unless-stopped
+  #     Tự chạy lại sau crash/daemon restart; dừng bằng tay thì giữ trạng thái dừng.
   #
   #   profiles: ["full"]
   #     Chỉ chạy khi dùng profile full. Dev local chỉ cần broker+postgres thì
@@ -219,23 +230,103 @@ services:
   # ------------------------------------------------------------------------------
   backend-consumer:
     build: ../backend
-    container_name: legacy-link-consumer
-    restart: on-failure:5
+    container_name: ${CONSUMER_CONTAINER_NAME:-legacy-link-consumer}
+    # Wrapper infra giám sát readiness, sau đó chạy đúng entrypoint consumer của backend.
+    command: ["node", "/app/infra-run.cjs", "consumer"]
+    restart: unless-stopped
     profiles: ["full"]
+    volumes:
+      - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z
+      - type: bind
+        # Mount script kiểm tra từ infra; không đưa code kiểm tra vào source backend.
+        source: ./scripts/check-backend.cjs
+        target: /app/infra-check.cjs
+        read_only: true
+        bind:
+          create_host_path: false
+          selinux: z
+    healthcheck:
+      test: ["CMD", "node", "/app/infra-check.cjs"]
+      interval: 10s
+      timeout: 8s
+      retries: 3
+      start_period: 15s
     depends_on:
       postgres:
         condition: service_healthy
       mosquitto-init:
         condition: service_completed_successfully
       mosquitto:
-        condition: service_started
+        condition: service_healthy
     environment:
       MQTT_URL: mqtt://mosquitto:1883
       MQTT_USERNAME: ${MQTT_DEV_USER:-legacy_admin}
       MQTT_PASSWORD: ${MQTT_DEV_PASS:-legacy_secret_2026}
-      MQTT_CLIENT_ID: legacy-link-backend
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-legacy-link-backend}
       MQTT_QOS: ${MQTT_QOS:-2}
       DATABASE_URL: postgres://${POSTGRES_USER:-legacy_admin}:${POSTGRES_PASS:-change_me}@postgres:5432/${POSTGRES_DB:-legacy_link}
+    networks:
+      - legacy-link-net
+
+  # API là tiến trình Node riêng; thiếu service này thì consumer nhận tin nhưng HTTP không chạy.
+  # Không publish cổng API trực tiếp ra host để request ghi luôn đi qua gateway có token.
+  backend-api:
+    build: ../backend
+    container_name: ${API_CONTAINER_NAME:-legacy-link-api}
+    profiles: ["full"]
+    restart: unless-stopped
+    command: ["node", "/app/infra-run.cjs", "api"]
+    volumes:
+      - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    environment:
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_USERNAME: ${MQTT_DEV_USER:-legacy_admin}
+      MQTT_PASSWORD: ${MQTT_DEV_PASS:-legacy_secret_2026}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-legacy-link-backend}
+      MQTT_QOS: ${MQTT_QOS:-2}
+      DATABASE_URL: postgres://${POSTGRES_USER:-legacy_admin}:${POSTGRES_PASS:-change_me}@postgres:5432/${POSTGRES_DB:-legacy_link}
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: 3000
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/ready',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 6s
+      retries: 3
+      start_period: 25s
+    networks:
+      - legacy-link-net
+
+  # Gateway là cửa vào từ trình duyệt. API có thể đang lỗi dependency nhưng process đã bật,
+  # nên chỉ đợi service_started để vẫn truy cập được live/ready và thấy lỗi thực tế.
+  api-gateway:
+    image: nginx:1.28-alpine
+    profiles: ["full"]
+    restart: unless-stopped
+    depends_on:
+      backend-api:
+        condition: service_started
+    environment:
+      API_WRITE_TOKEN: ${API_WRITE_TOKEN:-}
+      # Chỉ thay biến token trong template; giữ nguyên các biến $request_method/$api của Nginx.
+      NGINX_ENVSUBST_FILTER: API_WRITE_TOKEN
+    volumes:
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro,z
+      - ./nginx/05-token-check.sh:/docker-entrypoint.d/05-token-check.sh:ro,z
+    ports:
+      # Cổng bên ngoài có thể đổi mà Node vẫn nghe 3000 trong mạng Docker.
+      # IP bind do .env quyết định; PostgreSQL vẫn chỉ publish trên loopback.
+      - "${HTTP_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-3000}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/health/ready"]
+      interval: 10s
+      timeout: 6s
+      retries: 3
+      start_period: 25s
     networks:
       - legacy-link-net
 

@@ -1,3 +1,4 @@
+// Kiểm tra quy tắc C7: chưa lưu xong thì chưa ACK; mẫu gửi lại đã lưu vẫn được ACK; lỗi database không ACK thành công.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createIngestionHandler } from './handler.js';
