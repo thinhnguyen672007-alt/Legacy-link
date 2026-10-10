@@ -10,7 +10,7 @@ it("xác định hướng cho mọi nhóm sidebar và chi tiết thiết bị", 
 });
 it("đi xuống: cũ lên, mới từ dưới; đảo hướng và dọn snapshot khi chuyển nhanh", () => {
  vi.stubGlobal('matchMedia', () => ({matches:false}));
- const animate=vi.fn(() => ({finished:new Promise<void>(()=>{}),cancel:vi.fn()}));
+ const animate=vi.fn<(...args: unknown[]) => unknown>(() => ({finished:new Promise<void>(()=>{}),cancel:vi.fn()}));
  Object.defineProperty(Element.prototype,'animate',{configurable:true,value:animate});
  const r=render(<DashboardTransition pathname="/machines"><h1>Thiết bị</h1></DashboardTransition>);
  r.rerender(<DashboardTransition pathname="/alarms"><h1>Cảnh báo</h1></DashboardTransition>);
