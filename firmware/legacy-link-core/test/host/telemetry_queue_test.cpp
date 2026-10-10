@@ -21,9 +21,14 @@ int main() {
   assert(q.dropped()==1);
   for (size_t i=0; i<TelemetryQueue::capacity; ++i) {
     char id[40]; snprintf(id,sizeof(id),"boot-%u",unsigned(i));
+    const auto *entry = q.at(0);
+    assert(entry && !strcmp(entry->id, id));
+    assert(!q.at(q.size()));
     assert(q.acknowledge(i%2?"B":"A",id));
   }
   assert(!q.front());
   assert(q.push("C","next","{}"));
+  assert(!strcmp(q.at(0)->id, "next"));
+  assert(!q.at(1));
   puts("Telemetry queue tests passed");
 }

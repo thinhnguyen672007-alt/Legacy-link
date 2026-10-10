@@ -1,0 +1,21 @@
+name: Stack acceptance
+on:
+  push:
+    paths: ['backend/**', 'infrastructure/**', '.github/workflows/stack.yml']
+  pull_request:
+    paths: ['backend/**', 'infrastructure/**', '.github/workflows/stack.yml']
+permissions:
+  contents: read
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check graceful watchdog shutdown
+        run: node --test infrastructure/test/*.test.cjs
+      - name: Test isolated deployment, outages and maintenance
+        run: node infrastructure/scripts/test-stack.mjs

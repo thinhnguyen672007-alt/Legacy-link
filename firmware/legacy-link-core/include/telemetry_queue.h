@@ -26,6 +26,10 @@ class DeliveryQueue {
     if (!s || strcmp(s->device, device) || strcmp(s->id, id)) return false;
     head_ = (head_ + 1) % capacity; --size_; ++committed_; return true;
   }
+  // Read-only logical FIFO access for acceptance evidence, including wraparound.
+  const Sample *at(size_t index) const {
+    return index < size_ ? &samples_[(head_ + index) % capacity] : nullptr;
+  }
   size_t size() const { return size_; }
   uint32_t committed() const { return committed_; }
   size_t highWater() const { return high_water_; }

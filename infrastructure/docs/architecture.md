@@ -1,41 +1,14 @@
-# Infrastructure Architecture & Design Notes
+# Kiến trúc triển khai thống nhất
 
-> **Role:** Technical reference document detailing network topology, MQTT communication flows, topic conventions, and future service extensibility for the **Legacy-link** project.  
-> **Audience:** Firmware engineers, backend developers, infrastructure engineers, and system integrators.
->
-> **Deprecation notice (payload contract):** MQTT payload examples in this document are deprecated and kept for historical architecture context only. The active payload contract is defined in `README.md`, `backend/src/validation/telemetry.js`, and `backend/src/validation/status.js`.
-
----
-
-## English
-
-### 1. System Overview & Problem Context
-In industrial and laboratory environments, legacy equipment (PLCs, sensors, meters) typically communicates via serial protocols such as **Modbus RTU over RS-485 or UART**. These devices cannot directly connect to modern web services or cloud platforms.
-
-**Legacy-link** solves this by using a low-cost microcontroller gateway (ESP32) running custom firmware (`firmware/legacy-link-core`). The gateway reads raw serial frames, translates them into structured JSON payloads, and forwards them over the local network via **MQTT**.
-
-The infrastructure layer hosts the containerized **Eclipse Mosquitto MQTT Broker**, which acts as the decoupled, real-time message bus uniting edge devices and backend services.
-
----
-
-### 2. Network Topology & System Architecture
-
-```mermaid
-graph TD
-    subgraph EdgeLayer["Hardware & Edge Layer — Edge / On-Site"]
-        DeviceA["Modbus RTU Sensor / PLC"] -->|RS-485 / Serial| ESP32["ESP32 Gateway<br/>firmware/legacy-link-core"]
-        DeviceB[Legacy Laboratory Meter] -->|UART 115200| ESP32
-    end
-
-    subgraph InfrastructureLayer["Infrastructure Layer — Docker: legacy-link-net"]
-        ESP32 -->|TCP 1883 / MQTT Auth| Broker["Mosquitto MQTT Broker<br/>Container: legacy-link-mosquitto"]
-        Broker <-->|Docker Internal DNS: mosquitto:1883| Backend["Backend Core API<br/>backend/"]
-        Backend <-->|Internal Port 5432| DB[("Time-Series / Relational DB<br/>PostgreSQL / TimescaleDB")]
-    end
-
-    subgraph ApplicationLayer["Application Layer — Web & Client"]
-        Backend -->|REST API / WebSocket| Frontend["Operator Dashboard UI<br/>frontend/"]
-    end
+```text
+ESP32 (Modbus + queue RAM)
+  │ MQTT QoS0, ID ổn định, giữ mẫu tới ACK
+  ▼
+Mosquitto ──► consumer ──► PostgreSQL
+  ▲              │           ▲
+  └── ACK sau COMMIT          │ đọc dữ liệu / lưu operation
+                             │
+Frontend ── HTTP ── Nginx ── API ── MQTT probe/apply ──► ESP32
 ```
 
 ---
@@ -207,47 +180,23 @@ Việc đặt tên topic rõ ràng giúp hệ thống dễ mở rộng khi có h
        }
      }
      ```
+- Broker chuyển tin, không thay PostgreSQL xác nhận lưu nghiệp vụ.
+- Consumer kiểm tra payload/catalog/gateway, lưu transaction và receipt chống trùng rồi ACK.
+- API phục vụ dữ liệu/commissioning, kiểm tra read/write token và CORS. Proxy giữ Authorization.
+- Watchdog nằm ngoài mỗi tiến trình Node, kiểm tra readiness và dành đủ thời gian drain khi dừng.
+- Diagnostics firmware mang rawWords/read error và delivery queue; API không giả vờ biết queue khi báo cáo đã cũ.
 
-2. **Trạng thái kết nối (Device Status & LWT):**
-   * **Topic:** `legacy-link/devices/{device_id}/status`
-   * **Nội dung mẫu:**
-     ```json
-     {
-       "device_id": "esp32_gateway_01",
-       "online": true,
-       "firmware_version": "1.0.0",
-       "ip_address": "192.168.1.50"
-     }
-     ```
+| Đường kết nối | Cấu hình |
+|---|---|
+| ESP32 → MQTT | IP LAN host:1883, credential trong local_settings.h |
+| Node → MQTT/DB | mosquitto:1883 và postgres:5432 trong Docker |
+| Trình duyệt → API | HTTP_BIND_ADDRESS:HTTP_PORT, mặc định 127.0.0.1:3000 qua Nginx |
+| Host → DB | 127.0.0.1:POSTGRES_PORT; không mở DB ra LAN |
 
-3. **Lệnh điều khiển xuống Gateway (Downstream Commands):**
-   * **Topic:** `legacy-link/devices/{device_id}/commands`
-   * **Nội dung mẫu:**
-     ```json
-     {
-       "command_id": "cmd_98765",
-       "action": "write_register",
-       "register_address": 40002,
-       "value": 1
-     }
-     ```
+PostgreSQL là service hiện có, không phải thành phần tương lai. Không có dịch vụ TimescaleDB hay MQTT WebSocket 9001 trong Compose này. Frontend gọi HTTP API, không cần credential MQTT.
 
-4. **Xác nhận thực thi lệnh (Command Acknowledgment):**
-   * **Topic:** `legacy-link/devices/{device_id}/ack`
-   * **Nội dung mẫu:**
-     ```json
-     {
-       "command_id": "cmd_98765",
-       "success": true,
-       "executed_at": 1725400125,
-       "error_message": null
-     }
-     ```
+Named volume postgres-data giữ dữ liệu khi recreate container. Profile maintenance tùy chọn thêm backup-data và lịch retention. Hai volume cùng host chưa thay thế bản backup ngoài máy.
 
----
+Bản stack này dành cho LAN tin cậy, HTTP/MQTT chưa mã hóa. Tài khoản MQTT chung phù hợp demo nhỏ; triển khai ngoài LAN cần TLS/ACL và quản lý credential theo thiết bị. Mẫu backend/deploy phục vụ kiểm thử TLS/ACL riêng, không tự biến ESP32 thành client TLS.
 
-### 6. Kiến trúc bảo mật & Quản lý thông tin nhạy cảm
-- **Vô hiệu hóa truy cập tự do:** Bật `allow_anonymous false` trong `mosquitto.conf`. Bất kỳ kết nối nào không cung cấp tài khoản đều bị Broker từ chối lập tức.
-- **Mã hóa và cô lập mật khẩu:**
-  - Mật khẩu được mã hóa băm (SHA512-PBKDF2) trong file `mosquitto/config/passwd`.
-  - File mật khẩu thật và file môi trường `.env` tuyệt đối **không được đẩy lên Git** (đã được cấu hình chặn trong file [infrastructure/.gitignore](../../.gitignore)).
+Lỗi giao tiếp được kiểm thử bằng infrastructure/scripts/test-stack.mjs trên project riêng; script không sửa hay flash phần cứng. Khi có frontend, vẫn phải kiểm tra trình duyệt và đường Wi-Fi/RS-485 thực tế.

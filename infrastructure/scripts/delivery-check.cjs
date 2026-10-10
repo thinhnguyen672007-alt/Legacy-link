@@ -69,11 +69,7 @@ async function readiness(expected) {
     // Ghi danh tính fixture trước INSERT: nếu lỗi giữa chừng vẫn biết phải dọn đúng thiết bị.
     // Topic retained riêng kiểm tra broker có giữ dữ liệu qua restart.
     fs.writeFileSync(`${dir}/fixture.json`,JSON.stringify(fixture));
-    await pool.query("INSERT INTO device(device_id,machine_type,gateway_id,name) VALUES($1,'INFRA-TEST',$2,'Temporary infra acceptance fixture')",[deviceId,gatewayId]);
-    // C11: backend chỉ nhận metric có trong catalog của máy. Đăng ký metric fixture
-    // cho machine_type INFRA-TEST, nếu không telemetry bị trả metric_not_configured
-    // và sẽ không có ACK committed.
-    await pool.query("INSERT INTO register_map(machine_type,metric_key,protocol_address,data_type,scale) VALUES('INFRA-TEST','temperature',0,'INT16',1.0) ON CONFLICT DO NOTHING");
+    await pool.query("INSERT INTO device(device_id,machine_type,gateway_id,name,applied_config) VALUES($1,'INFRA-TEST',$2,'Temporary infra acceptance fixture','{\"registerMap\":[{\"key\":\"temperature\"}]}')",[deviceId,gatewayId]);
     await connect();
     await client.publishAsync(fixture.retainedTopic,id,{qos:1,retain:true});
     console.log('PASS prepared 4 telemetry + 2 alarm samples; historical rows snapshotted');
@@ -151,7 +147,6 @@ async function readiness(expected) {
     // Payload retained rỗng xóa đúng marker MQTT; sau đó đối chiếu lại lịch sử cũ.
     const f=load();assert.match(f.deviceId,/^INFRA-[a-f0-9-]+$/);
     for(const table of ['ingestion_receipt','telemetry','alarms','machine_state','device']) await pool.query(`DELETE FROM ${table} WHERE device_id=$1`,[f.deviceId]);
-    await pool.query("DELETE FROM register_map WHERE machine_type='INFRA-TEST'");
     await connect();await client.publishAsync(f.retainedTopic,'',{qos:1,retain:true});
     await verifyBaseline(f.saved);
     console.log('PASS removed only this run\'s synthetic fixture; original history preserved');

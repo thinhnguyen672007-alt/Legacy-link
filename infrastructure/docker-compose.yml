@@ -245,6 +245,8 @@ services:
     # Wrapper infra giám sát readiness, sau đó chạy đúng entrypoint consumer của backend.
     command: ["node", "/app/infra-run.cjs", "consumer"]
     restart: unless-stopped
+    init: true
+    stop_grace_period: 130s
     profiles: ["full"]
     # init: dọn tiến trình con của wrapper. stop_grace_period phải dài hơn deadline
     # drain của backend (15s) cộng biên, nếu không Docker SIGKILL sẽ cắt drain.
@@ -253,14 +255,8 @@ services:
     logging: *default-logging
     volumes:
       - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z
-      - type: bind
-        # Mount script kiểm tra từ infra; không đưa code kiểm tra vào source backend.
-        source: ./scripts/check-backend.cjs
-        target: /app/infra-check.cjs
-        read_only: true
-        bind:
-          create_host_path: false
-          selinux: z
+      # Cú pháp :z đã kiểm trên Fedora SELinux; long bind.selinux bị bỏ qua bởi Compose đang dùng.
+      - ./scripts/check-backend.cjs:/app/infra-check.cjs:ro,z
     healthcheck:
       test: ["CMD", "node", "/app/infra-check.cjs"]
       interval: 10s
@@ -275,6 +271,8 @@ services:
       mosquitto:
         condition: service_healthy
     environment:
+      NODE_ENV: production
+      SHUTDOWN_TIMEOUT_MS: ${SHUTDOWN_TIMEOUT_MS:-15000}
       MQTT_URL: mqtt://mosquitto:1883
       # Explicit private-LAN demo choice; backend production otherwise requires TLS.
       MQTT_ALLOW_PLAINTEXT: "true"
@@ -296,6 +294,7 @@ services:
     init: true
     stop_grace_period: 25s
     logging: *default-logging
+    stop_grace_period: 130s
     command: ["node", "/app/infra-run.cjs", "api"]
     volumes:
       - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z
@@ -305,6 +304,8 @@ services:
       mosquitto:
         condition: service_healthy
     environment:
+      NODE_ENV: production
+      SHUTDOWN_TIMEOUT_MS: ${SHUTDOWN_TIMEOUT_MS:-15000}
       MQTT_URL: mqtt://mosquitto:1883
       # Match the ESP32 plaintext demo transport; do not expose this broker publicly.
       MQTT_ALLOW_PLAINTEXT: "true"
@@ -313,14 +314,12 @@ services:
       MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-legacy-link-backend}
       MQTT_QOS: ${MQTT_QOS:-2}
       DATABASE_URL: postgres://${POSTGRES_USER:-legacy_admin}:${POSTGRES_PASS:-change_me}@postgres:5432/${POSTGRES_DB:-legacy_link}
+      API_READ_TOKEN: ${API_READ_TOKEN:?Run scripts/prepare-env.mjs first}
+      API_WRITE_TOKEN: ${API_WRITE_TOKEN:?Run scripts/prepare-env.mjs first}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      API_AUTH_DISABLED: "false"
       HTTP_HOST: 0.0.0.0
       HTTP_PORT: 3000
-      # Backend bắt buộc hai token khác nhau (đọc/ghi) khi auth bật; thiếu là API không khởi động.
-      # Nginx cũng đọc API_WRITE_TOKEN để chặn request ghi ở tầng gateway.
-      API_READ_TOKEN: ${API_READ_TOKEN:-}
-      API_WRITE_TOKEN: ${API_WRITE_TOKEN:-}
-      # Backend trả 403 nếu Origin của request thật không thuộc danh sách này.
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/ready',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -343,6 +342,7 @@ services:
         condition: service_started
     environment:
       API_WRITE_TOKEN: ${API_WRITE_TOKEN:-}
+      API_READ_TOKEN: ${API_READ_TOKEN:-}
       # Chỉ thay biến token trong template; giữ nguyên các biến $request_method/$api của Nginx.
       NGINX_ENVSUBST_FILTER: API_WRITE_TOKEN
     volumes:
@@ -361,6 +361,52 @@ services:
     networks:
       - legacy-link-net
 
+  # Opt-in bằng COMPOSE_PROFILES=full,maintenance; không tự dọn DB đang demo.
+  retention:
+    build: ../backend
+    profiles: ["maintenance"]
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    command: ["node", "/app/retention-loop.cjs"]
+    volumes:
+      - ./scripts/retention-loop.cjs:/app/retention-loop.cjs:ro,z
+    environment:
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_USERNAME: ${MQTT_DEV_USER:-legacy_admin}
+      MQTT_PASSWORD: ${MQTT_DEV_PASS:-legacy_secret_2026}
+      MQTT_QOS: ${MQTT_QOS:-2}
+      MQTT_ALLOW_PLAINTEXT: "true"
+      DATABASE_URL: postgres://${POSTGRES_USER:-legacy_admin}:${POSTGRES_PASS:-change_me}@postgres:5432/${POSTGRES_DB:-legacy_link}
+      RETENTION_APPLY: ${RETENTION_APPLY:-false}
+      RETENTION_INTERVAL_SECONDS: ${RETENTION_INTERVAL_SECONDS:-3600}
+      TELEMETRY_RETENTION_DAYS: ${TELEMETRY_RETENTION_DAYS:-30}
+      ALARM_RETENTION_DAYS: ${ALARM_RETENTION_DAYS:-90}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [legacy-link-net]
+
+  backup:
+    image: postgres:16-alpine
+    profiles: ["maintenance"]
+    init: true
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/backup-loop.sh"]
+    volumes:
+      - ./scripts/backup-loop.sh:/backup-loop.sh:ro,z
+      - backup-data:/backups
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-legacy_admin}
+      PGPASSWORD: ${POSTGRES_PASS:-change_me}
+      PGDATABASE: ${POSTGRES_DB:-legacy_link}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [legacy-link-net]
+
 networks:
   legacy-link-net:
     name: ${DOCKER_NETWORK_NAME:-legacy-link-net}
@@ -372,3 +418,5 @@ volumes:
   # không có khối `volumes:` tương ứng, Docker coi đó là bind mount và tạo một
   # thư mục rỗng — dữ liệu sẽ nằm trong thư mục đó chứ không phải trong volume.
   postgres-data:
+
+  backup-data:

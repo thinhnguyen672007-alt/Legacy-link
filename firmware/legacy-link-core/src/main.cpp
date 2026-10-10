@@ -1,6 +1,7 @@
 #include "telemetry_queue.h"
 #include "config_parser.h"
 #include "command_deadline.h"
+#include "json_text.h"
 #include "modbus_reader.h"
 #include "alarm_monitor.h"
 #include "config_store.h"
@@ -47,6 +48,8 @@ static bool restored_at_boot = false;
 static char device_config_topic[80];
 static bool pending_device_config = false;
 static constexpr size_t CONFIG_BUFFER_SIZE = MAX_CONFIG_PAYLOAD_BYTES + 1;
+// Report chứa rawWords + trạng thái queue, lớn hơn lệnh config. Thêm 2 KiB có giới hạn.
+static constexpr size_t REPORT_BUFFER_SIZE = 6144;
 static char pending_config[CONFIG_BUFFER_SIZE];
 static bool config_pending = false;
 static AlarmMonitor alarm_monitor;
@@ -60,6 +63,13 @@ static bool poll_active = false;
 static uint8_t poll_index = 0;
 static uint32_t last_poll_started = 0;
 static modbus_result_t poll_results[MAX_REGISTERS];
+static bool reading_seen[MAX_REGISTERS] = {};
+static uint32_t successful_reads = 0, failed_reads = 0;
+static uint32_t read_report_drops = 0;
+
+void invalidate_readings() {
+  memset(reading_seen, 0, sizeof(reading_seen));
+}
 
 void reset_poll_cycle() {
   poll_active = false;
@@ -357,16 +367,35 @@ void reconnect_mqtt() {
 template<size_t N>
 void accept_ingestion_ack(DeliveryQueue<N> &queue, const JsonDocument &ack) {
   auto *sample = queue.front();
-  const char *device = ack["deviceId"] | "";
-  const char *id = ack["messageId"] | "";
-  if (!sample || strcmp(sample->device, device) || strcmp(sample->id, id)) return;
-  const char *status = ack["status"] | "";
+  const char *device = json_text(ack["deviceId"], 63);
+  const char *id = json_text(ack["messageId"], 79);
+  if (!sample || !device || !id || strcmp(sample->device, device) || strcmp(sample->id, id)) return;
+  const char *status = json_text(ack["status"], 16);
+  if (!status) return;
   if (!strcmp(status, "committed")) queue.acknowledge(device, id);
   else if (!strcmp(status, "rejected")) {
-    const char *reason = ack["reason"] | "rejected";
+    const char *reason = json_text(ack["reason"], 128);
+    if (!reason) reason = "rejected";
     if (strcmp(reason, sample->rejection)) Serial.printf("[OUTBOX] Rejected %s: %s; retained for retry\r\n", id, reason);
     strlcpy(sample->rejection, reason, sizeof(sample->rejection));
   }
+}
+
+// Validate the control envelope both on receipt and immediately before execution.
+const char *command_rejection(const JsonDocument &command, bool probe) {
+  if (!command.is<JsonObjectConst>()) return "invalid_payload";
+  for (const char *field : {"requestId", "expectedBootId", "expectedConfigRequestId"}) {
+    if (command.containsKey(field) && !json_text(command[field],
+        !strcmp(field, "expectedBootId") ? 16 : 64, !strcmp(field, "expectedConfigRequestId")))
+      return "invalid_payload";
+  }
+  const char *id = command["requestId"] | "";
+  if (!command_deadline_valid(command, current_epoch_ms()) ||
+      (command.containsKey("expectedBootId") && strcmp(command["expectedBootId"], boot_id)) ||
+      (!probe && command.containsKey("expectedConfigRequestId") &&
+       strcmp(command["expectedConfigRequestId"], active_request_id) && strcmp(id, active_request_id)))
+    return "stale_command";
+  return nullptr;
 }
 
 // Copy the MQTT-owned bytes before returning; apply outside the callback.
@@ -376,7 +405,8 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length) {
   if (!strcmp(topic, ack_topic)) {
     StaticJsonDocument<768> ack;
     if (length >= 768 || deserializeJson(ack, payload, length) || ack["schemaVersion"] != 1) return;
-    const char *kind = ack["kind"] | "";
+    const char *kind = json_text(ack["kind"], 16);
+    if (!kind) return;
     if (!strcmp(kind, "telemetry")) accept_ingestion_ack(telemetry_queue, ack);
     else if (!strcmp(kind, "alarm")) accept_ingestion_ack(alarm_queue, ack);
     return;
@@ -389,24 +419,21 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length) {
     queue_config_ack("rejected", "invalid_payload");
     return;
   }
-  if (config_pending) {
-    queue_config_ack("rejected", "busy");
+  DynamicJsonDocument command(8192);
+  if (deserializeJson(command, reinterpret_cast<const char *>(payload), length)) {
+    queue_config_ack("rejected", "invalid_payload");
     return;
   }
-  // New control commands are bounded to this boot and a short time window.
-  // Legacy/manual configuration without these fields remains supported.
-  DynamicJsonDocument command(8192);
-  if (!deserializeJson(command, reinterpret_cast<const char *>(payload), length)) {
-    const char *id = command["requestId"] | "";
-    const char *expected_boot = command["expectedBootId"] | "";
-    const char *expected_config = command["expectedConfigRequestId"] | "";
-    if (!command_deadline_valid(command, current_epoch_ms()) ||
-        (command.containsKey("expectedBootId") && strcmp(expected_boot, boot_id)) ||
-        (!is_probe && command.containsKey("expectedConfigRequestId") &&
-         strcmp(expected_config, active_request_id) && strcmp(id, active_request_id))) {
-      queue_config_ack("rejected", "stale_command", id);
-      return;
-    }
+  const char *id = json_text(command["requestId"], 64);
+  if (!id) id = "";
+  if (config_pending) {
+    queue_config_ack("rejected", "busy", id);
+    flush_config_ack();
+    return;
+  }
+  if (const char *reason = command_rejection(command, is_probe)) {
+    queue_config_ack("rejected", reason, id);
+    return;
   }
   memcpy(pending_config, payload, length);
   pending_config[length] = '\0';
@@ -464,6 +491,7 @@ bool apply_runtime_config(const char *payload, bool device_scoped = false) {
   publish_gateway_state();
   if (!active_config_persisted) Serial.println("[CONFIG] Applied in RAM; flash save failed");
   alarm_monitor.reset();
+  invalidate_readings();
   reset_poll_cycle();
   queue_config_ack("applied", active_config_persisted ? "ok" : "storage_error", request_id);
   if (identity_changed) {
@@ -484,6 +512,7 @@ bool restore_saved_configuration() {
   restored_at_boot = true;
   active_config_persisted = true;
   alarm_monitor.reset();
+  invalidate_readings();
   reset_poll_cycle();
   Serial.println("[CONFIG] Restored validated configuration from flash");
   return true;
@@ -508,66 +537,6 @@ void add_reading(JsonArray rows, const register_config_t &reg, const modbus_resu
   }
 }
 
-void send_read_report(const device_config_t &cfg, modbus_result_t *results,
-                      const char *request_id = nullptr) {
-  if (!mqttClient.connected()) return;
-  DynamicJsonDocument doc(8192);
-  doc["schemaVersion"] = 1;
-  doc["gatewayId"] = gateway_id;
-  doc["deviceId"] = cfg.device_id;
-  doc["bootId"] = boot_id;
-  doc["timestamp"] = current_epoch_ms();
-  doc["samplingIntervalMs"] = cfg.sampling_interval_ms;
-  doc["configRequestId"] = active_request_id;
-  if (request_id) { doc["requestId"] = request_id; doc["result"] = "completed"; }
-  JsonArray rows = doc.createNestedArray("readings");
-  for (uint8_t i = 0; i < cfg.register_count; ++i) add_reading(rows, cfg.registers[i], results[i]);
-  char topic[96];
-  if (request_id) snprintf(topic, sizeof(topic), "legacy-link/gateways/%s/probe/result", gateway_id);
-  else snprintf(topic, sizeof(topic), "legacy-link/devices/%s/diagnostics", cfg.device_id);
-  std::unique_ptr<char[]> payload(new (std::nothrow) char[4096]);
-  if (!payload || doc.overflowed() || measureJson(doc) >= 4096) return;
-  serializeJson(doc, payload.get(), 4096);
-  mqttClient.publish(topic, payload.get(), false);
-}
-
-void run_probe(const char *payload) {
-  char request_id[65] = {};
-  std::unique_ptr<device_config_t> candidate(new (std::nothrow) device_config_t{});
-  if (!candidate || !read_request_id(payload, request_id) || !request_id[0] ||
-      !parse_device_config(payload, candidate.get())) {
-    queue_config_ack("rejected", "invalid_probe", request_id);
-    return;
-  }
-  // Temporarily switch UART settings; never replace global config, NVS or alarms.
-  device_config_t fallback = {};
-  fallback.baud_rate = 9600; fallback.stop_bits = 1;
-  apply_uart_config(candidate.get());
-  modbus_result_t results[MAX_REGISTERS] = {};
-  for (uint8_t i = 0; i < candidate->register_count; ++i)
-    modbus_read_one(candidate.get(), i, &results[i]);
-  apply_uart_config(is_config_valid ? &global_device_config : &fallback);
-  reset_poll_cycle();
-  send_read_report(*candidate, results, request_id);
-}
-
-void poll_modbus_step() {
-  if (!is_config_valid) return;
-  const uint32_t now = millis();
-  if (!poll_active) {
-    if (static_cast<uint32_t>(now - last_poll_started) < global_device_config.sampling_interval_ms) return;
-    last_poll_started = now;
-    poll_index = 0;
-    poll_active = true;
-  }
-  modbus_read_one(&global_device_config, poll_index, &poll_results[poll_index]);
-  if (++poll_index < global_device_config.register_count) return;
-  poll_active = false;
-  alarm_monitor.evaluate(&global_device_config, poll_results, poll_index, current_epoch_ms(), publish_alarm);
-  publish_telemetry(&global_device_config, poll_results, poll_index);
-  send_read_report(global_device_config, poll_results);
-}
-
 // Read-only bench diagnostics. No credentials or payload values are exposed.
 template<size_t N>
 void describe_outbox(JsonObject target, const DeliveryQueue<N> &queue) {
@@ -584,6 +553,108 @@ void describe_outbox(JsonObject target, const DeliveryQueue<N> &queue) {
     target["rejection"] = head->rejection;
   }
 }
+// Cùng bộ đếm trên USB và MQTT để frontend thấy backlog mà không cắm cáp.
+void describe_delivery(JsonObject target) {
+  target["storage"] = "RAM"; // Khởi động lại sẽ mất mẫu chưa ACK; không tuyên bố lưu bền.
+  target["bootId"] = boot_id;
+  target["clockReady"] = current_epoch_ms() != 0;
+  target["freeHeapBytes"] = ESP.getFreeHeap();
+  describe_outbox(target.createNestedObject("telemetry"), telemetry_queue);
+  describe_outbox(target.createNestedObject("alarm"), alarm_queue);
+}
+
+bool send_read_report(const device_config_t &cfg, modbus_result_t *results,
+                      const char *request_id = nullptr) {
+  if (!mqttClient.connected()) { ++read_report_drops; return false; }
+  DynamicJsonDocument doc(8192);
+  doc["schemaVersion"] = 1;
+  doc["gatewayId"] = gateway_id;
+  doc["deviceId"] = cfg.device_id;
+  doc["bootId"] = boot_id;
+  doc["timestamp"] = current_epoch_ms();
+  doc["samplingIntervalMs"] = cfg.sampling_interval_ms;
+  doc["configRequestId"] = active_request_id;
+  if (request_id) { doc["requestId"] = request_id; doc["result"] = "completed"; }
+  else describe_delivery(doc.createNestedObject("delivery"));
+  JsonArray rows = doc.createNestedArray("readings");
+  for (uint8_t i = 0; i < cfg.register_count; ++i) add_reading(rows, cfg.registers[i], results[i]);
+  char topic[96];
+  if (request_id) snprintf(topic, sizeof(topic), "legacy-link/gateways/%s/probe/result", gateway_id);
+  else snprintf(topic, sizeof(topic), "legacy-link/devices/%s/diagnostics", cfg.device_id);
+  std::unique_ptr<char[]> payload(new (std::nothrow) char[REPORT_BUFFER_SIZE]);
+  if (!payload || doc.overflowed() || measureJson(doc) >= REPORT_BUFFER_SIZE) { ++read_report_drops; return false; }
+  serializeJson(doc, payload.get(), REPORT_BUFFER_SIZE);
+  const bool sent = mqttClient.publish(topic, payload.get(), false);
+  if (!sent) ++read_report_drops;
+  return sent;
+}
+
+void run_probe(const char *payload) {
+  char request_id[65] = {};
+  std::unique_ptr<device_config_t> candidate(new (std::nothrow) device_config_t{});
+  if (!candidate || !read_request_id(payload, request_id) || !request_id[0] ||
+      !parse_device_config(payload, candidate.get())) {
+    queue_config_ack("rejected", "invalid_probe", request_id);
+    return;
+  }
+  uint64_t expires_at = 0;
+  {
+    DynamicJsonDocument command(8192);
+    if (deserializeJson(command, payload) || !command_deadline_valid(command, current_epoch_ms())) {
+      queue_config_ack("rejected", "stale_command", request_id);
+      return;
+    }
+    expires_at = command["expiresAt"] | uint64_t(0);
+  }
+  const uint64_t started_epoch = current_epoch_ms();
+  const uint32_t started_ms = millis();
+  // Keep large workspaces off the ESP32 loop stack.
+  std::unique_ptr<modbus_result_t[]> results(new (std::nothrow) modbus_result_t[MAX_REGISTERS]{});
+  std::unique_ptr<device_config_t> fallback;
+  if (!is_config_valid) fallback.reset(new (std::nothrow) device_config_t{});
+  if (!results || (!is_config_valid && !fallback)) {
+    queue_config_ack("rejected", "out_of_memory", request_id);
+    return;
+  }
+  if (fallback) { fallback->baud_rate = 9600; fallback->stop_bits = 1; }
+  // Temporarily switch UART settings; never replace global config, NVS or alarms.
+  apply_uart_config(candidate.get());
+  bool expired = false;
+  for (uint8_t i = 0; i < candidate->register_count; ++i) {
+    modbus_read_one(candidate.get(), i, &results[i]);
+    // A transaction cannot be interrupted; stop before starting the next one.
+    // Monotonic elapsed time also protects against an NTP clock step backwards.
+    expired = expires_at && (current_epoch_ms() >= expires_at ||
+        expires_at <= started_epoch ||
+        static_cast<uint32_t>(millis() - started_ms) >= expires_at - started_epoch);
+    if (expired) break;
+  }
+  apply_uart_config(is_config_valid ? &global_device_config : fallback.get());
+  reset_poll_cycle();
+  if (expired) queue_config_ack("rejected", "stale_command", request_id);
+  else if (!send_read_report(*candidate, results.get(), request_id))
+    queue_config_ack("rejected", "report_publish_failed", request_id);
+}
+
+void poll_modbus_step() {
+  if (!is_config_valid) return;
+  const uint32_t now = millis();
+  if (!poll_active) {
+    if (static_cast<uint32_t>(now - last_poll_started) < global_device_config.sampling_interval_ms) return;
+    last_poll_started = now;
+    poll_index = 0;
+    poll_active = true;
+  }
+  modbus_read_one(&global_device_config, poll_index, &poll_results[poll_index]);
+  reading_seen[poll_index] = true;
+  if (poll_results[poll_index].success) ++successful_reads; else ++failed_reads;
+  if (++poll_index < global_device_config.register_count) return;
+  poll_active = false;
+  alarm_monitor.evaluate(&global_device_config, poll_results, poll_index, current_epoch_ms(), publish_alarm);
+  publish_telemetry(&global_device_config, poll_results, poll_index);
+  send_read_report(global_device_config, poll_results);
+}
+
 size_t delivery_health_json(char *output, size_t capacity) {
   StaticJsonDocument<2048> doc;
   doc["gatewayId"] = gateway_id;
@@ -592,6 +663,9 @@ size_t delivery_health_json(char *output, size_t capacity) {
   doc["mqttConnected"] = mqttClient.connected();
   doc["clockReady"] = current_epoch_ms() != 0;
   doc["freeHeapBytes"] = ESP.getFreeHeap();
+  doc["successfulReads"] = successful_reads;
+  doc["failedReads"] = failed_reads;
+  doc["readReportDrops"] = read_report_drops;
   doc["storage"] = "RAM; cleared on reset";
   doc["mqttTransport"] = "plaintext";
   describe_outbox(doc.createNestedObject("telemetry"), telemetry_queue);
@@ -599,14 +673,78 @@ size_t delivery_health_json(char *output, size_t capacity) {
   if (doc.overflowed() || measureJson(doc) >= capacity) return 0;
   return serializeJson(doc, output, capacity);
 }
+template<size_t N>
+size_t outbox_entry_json(const DeliveryQueue<N> &queue, const char *kind,
+                         size_t index, char *output, size_t capacity) {
+  const auto *sample = queue.at(index);
+  if (!sample) return 0;
+  StaticJsonDocument<768> doc;
+  doc["type"] = "outboxEntry"; doc["kind"] = kind;
+  doc["bootId"] = boot_id; doc["index"] = index;
+  doc["deviceId"] = sample->device; doc["messageId"] = sample->id;
+  doc["attempts"] = sample->attempts; doc["rejection"] = sample->rejection;
+  doc["payloadBytes"] = strlen(sample->payload);
+  if (doc.overflowed() || measureJson(doc) >= capacity) return 0;
+  return serializeJson(doc, output, capacity);
+}
+
+template<size_t N>
+void print_outbox(const DeliveryQueue<N> &queue, const char *kind) {
+  // Stream bounded lines instead of allocating a JSON array for all 40 entries.
+  char output[768];
+  for (size_t i = 0; i < queue.size(); ++i)
+    if (outbox_entry_json(queue, kind, i, output, sizeof(output))) Serial.println(output);
+}
+
+// One record per active register. Never relabel old-profile values as new ones.
+size_t inspection_json(uint8_t index, char *output, size_t capacity) {
+  if (!is_config_valid || index >= global_device_config.register_count) return 0;
+  const auto &reg = global_device_config.registers[index];
+  const auto &reading = poll_results[index];
+  StaticJsonDocument<1024> doc;
+  doc["type"] = "registerInspection";
+  doc["deviceId"] = global_device_config.device_id;
+  doc["configRequestId"] = active_request_id;
+  doc["key"] = reg.key; doc["address"] = reg.address;
+  doc["dataType"] = reg.data_type; doc["scale"] = reg.scale; doc["unit"] = reg.unit;
+  doc["state"] = !reading_seen[index] ? "unknown" : reading.success ? "ok" : "error";
+  if (reading_seen[index]) {
+    const uint32_t age = static_cast<uint32_t>(millis()) - reading.completed_at_ms;
+    const uint32_t limit = global_device_config.sampling_interval_ms * 3;
+    doc["ageMs"] = age;
+    doc["stale"] = age > (limit < 5000 ? 5000 : limit);
+    doc["errorCode"] = reading.error_code;
+    if (reading.success) {
+      doc["rawValue"] = reading.raw_value; doc["value"] = reading.scaled_value;
+      JsonArray words = doc.createNestedArray("rawWords");
+      for (uint8_t i = 0; i < reading.word_count; ++i) words.add(reading.raw_words[i]);
+    }
+  }
+  if (doc.overflowed() || measureJson(doc) >= capacity) return 0;
+  return serializeJson(doc, output, capacity);
+}
+
 bool handle_serial_diagnostic(const char *line) {
   if (!strcmp(line, ":health")) {
     char output[2048];
     if (delivery_health_json(output, sizeof(output))) Serial.println(output);
     return true;
   }
+  if (!strcmp(line, ":inspect")) {
+    if (!is_config_valid) Serial.println("{\"type\":\"registerInspection\",\"state\":\"unconfigured\"}");
+    char output[1024];
+    for (uint8_t i = 0; is_config_valid && i < global_device_config.register_count; ++i)
+      if (inspection_json(i, output, sizeof(output))) Serial.println(output);
+    return true;
+  }
+  if (!strcmp(line, ":outbox")) {
+    handle_serial_diagnostic(":health");
+    print_outbox(telemetry_queue, "telemetry");
+    print_outbox(alarm_queue, "alarm");
+    return true;
+  }
   if (!strcmp(line, ":help")) {
-    Serial.println(":health - read-only delivery health JSON; :help - commands. JSON config remains supported.");
+    Serial.println(":health - delivery health; :inspect - active register readings; :outbox - pending ID ledger (JSON lines); :help - commands. JSON config remains supported.");
     return true;
   }
   return false;
@@ -649,7 +787,7 @@ void setup() {
   modbus_init(1); // Bind UART and optional RS-485 direction callbacks; no poll yet.
   modbus_set_idle_callback(service_modbus_wait);
   // Include MQTT header and topic overhead in addition to the config payload.
-  if (!mqttClient.setBufferSize(CONFIG_BUFFER_SIZE + 128)) {
+  if (!mqttClient.setBufferSize(REPORT_BUFFER_SIZE + 128)) {
     Serial.println("[MQTT] Failed to allocate configuration receive buffer");
   }
   restore_saved_configuration();
@@ -675,16 +813,19 @@ void loop() {
   }
 
   if (config_pending) {
-    config_pending = false;
+    // Keep the command busy while Modbus idle callbacks service MQTT.
     // Admission can precede execution by a slow network/Modbus operation.
     // Recheck expiry before any UART changes or flash writes.
     DynamicJsonDocument command(8192);
     const bool parsed = !deserializeJson(command, static_cast<const char *>(pending_config));
-    if (parsed && !command_deadline_valid(command, current_epoch_ms())) {
-      queue_config_ack("rejected", "stale_command", command["requestId"] | "");
+    const char *reason = parsed ? command_rejection(command, pending_probe) : "invalid_payload";
+    if (reason) {
+      const char *id = json_text(command["requestId"], 64);
+      queue_config_ack("rejected", reason, id ? id : "");
     }
     else if (pending_probe) run_probe(pending_config);
     else apply_runtime_config(pending_config, pending_device_config);
+    config_pending = false;
   }
 
   // 2. Nhận JSON qua Serial Monitor để cấu hình (backup khi chưa có MQTT config)

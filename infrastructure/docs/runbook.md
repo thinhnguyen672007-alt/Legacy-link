@@ -1,11 +1,9 @@
-# Runbook demo Legacy-link
+# Chạy và nâng cấp stack
 
-Các lệnh dưới đây chạy từ `infrastructure/`, trừ khi ghi khác.
-
-## 1. Khởi động và cập nhật
+Các lệnh chạy trong `infrastructure/`. Máy mới xem README; máy đang chạy Node trực tiếp xem `docs/chay-local.md` ở root repo.
 
 ```bash
-./scripts/setup.sh
+bash scripts/setup.sh
 ```
 
 Dùng cùng lệnh sau khi kéo code mới. Script giữ `.env`, build hai tiến trình Node22,
@@ -25,43 +23,24 @@ Database có 15 bảng (schema version 4): 10 bảng dữ liệu `telemetry`, `m
 `gateway_command_lease`, `control_operation`, `device_config_history`, `device_profile`.
 Schema được lấy trực tiếp từ `../backend/db/schema.sql`; infra không giữ bản sao SQL.
 Setup kiểm tra đủ 15 bảng và version 4 sau khi nạp, không chỉ đếm một phần danh sách.
+Thứ tự: kiểm tra env/Compose/tên container → build → backup DB đang chạy → chuẩn bị broker → dừng consumer/API → khởi động dependency → migration có version → seed nếu yêu cầu → bật dịch vụ → kiểm tra health. Build lỗi thì chưa dừng worker. Migration lỗi thì dừng quy trình; đọc lỗi và phục hồi theo backup, không chạy code mới vào schema dở dang.
 
-## 3. Sức khỏe và xem lỗi
+Migration thuộc `backend/scripts/migrate.mjs`, readiness thuộc `backend/src/db/schema-version.js`. Không đếm cố định 10 bảng hay nạp riêng schema cũ nữa. Schema hiện tại là version 4.
 
 ```bash
-./scripts/status.sh
-docker compose logs --since 5m backend-consumer backend-api
-docker compose logs --since 5m mosquitto postgres
+bash scripts/status.sh
 curl -i http://127.0.0.1:3000/health/ready
+docker compose logs --since 5m backend-consumer backend-api
 ```
 
-- `/health/live`: tiến trình HTTP còn trả lời.
-- `/health/ready`: DB/schema dùng được, heartbeat consumer mới và MQTT đã subscribe.
-  Lỗi dependency trả 503; không dùng `/health` cũ làm bằng chứng sẵn sàng.
-- Broker probe publish QoS1 có credential. Consumer probe đọc đủ cột schema và heartbeat.
-- `mosquitto-init` kết thúc `Exited (0)` là bình thường.
-- `unless-stopped` tự bật lại khi tiến trình chết hoặc Docker khởi động lại, trừ dịch vụ
-  đã bị người dùng chủ động stop. Docker phải được bật khi khởi động máy.
-- Watchdog Node đợi 15 giây lúc khởi động, kiểm tra mỗi 5 giây; ba lần readiness lỗi
-  liên tiếp thì thoát để Docker restart. Lần restart đầu khi lỗi liên tục từ khởi động thường khoảng 25–40 giây.
-  Đây là biện pháp phục hồi infra; không thay thế sửa lỗi reconnect của backend.
+`live=200` chỉ chứng minh HTTP còn sống. `ready=200` còn cần DB/schema, consumer heartbeat và kết nối MQTT đã subscribe. `mosquitto-init Exited(0)` là bình thường.
 
-**Đã kiểm chứng lại sau C16:** backend tắt resubscribe của thư viện và tự subscribe lại
-trên mỗi lần connect, kiểm tra số topic broker cấp. Bài `test-recovery.sh mosquitto` tắt
-rồi bật broker: `ready` xuống 503, sau đó trở lại 200 và nhận đủ ACK committed cho 6 ID.
-Nếu còn gặp `Da subscribe:` rỗng hoặc `mqttControl=false` sau reconnect, ghi log và báo
-backend; infra không sửa source backend và không biến lỗi readiness thành OK giả.
+Watchdog kiểm tra định kỳ và restart sau ba lần readiness lỗi. Khi dừng, cho backend dùng deadline `SHUTDOWN_TIMEOUT_MS` (mặc định 15 giây), rồi chờ thêm 5 giây mới buộc dừng. Docker cho tối đa 130 giây để bao cả cấu hình backend tối đa 120 giây; bình thường dừng xong sớm thì thoát ngay. Đây không phải bảo đảm phục hồi sau đúng một số giây cố định.
 
-`unknown_device`: kiểm tra đăng ký BENCH-01/gateway ID. `relation ... does not exist`:
-chạy lại setup và đọc lỗi SQL. Cổng đã dùng: đổi cổng host trong `.env`.
-Không in `.env` hay `docker compose config` đầy đủ vào log chia sẻ vì có credential.
+Backend đã sửa lỗi cache/resubscribe MQTT từng xuất hiện ở PR54. Bài kiểm thử hiện tại xác nhận reconnect và ACK mới sau broker restart; không còn coi lỗi cũ là phần chưa làm.
 
-Setup và bài thử phục hồi dùng chung `.operation-lock` để tránh chạy chồng nhau.
-Nếu máy bị tắt đột ngột, kiểm tra PID trong `.operation-lock/owner` đã ngừng trước khi
-xóa lock cũ và chạy lại. Không xóa lock khi một thao tác vẫn đang chạy.
+Setup và recovery dùng `.operation-lock`. Nếu máy mất điện, kiểm tra PID trong owner đã ngừng rồi mới gỡ lock cũ. Không chạy hai thao tác gây outage đồng thời.
 
-## Hướng dẫn theo việc
+`unknown_device`: kiểm tra registry và gateway ID. `metric_not_configured`: kiểm tra catalog/profile lịch sử. `401/403`: kiểm tra token/quyền/Origin. `EADDRINUSE`: không khởi động thêm API trên cùng cổng. `EACCES` trên Fedora: kiểm tra mount `:z`, không tắt SELinux toàn máy.
 
-- [Env, gateway ID, credential và token API](environment.md)
-- [Restart, backup và restore](backup-restore.md)
-- [Kiểm thử tự động và ESP32 thật](demo-acceptance.md)
+[Backup/restore](backup-restore.md) · [Maintenance tự động](maintenance.md) · [Test ESP32](demo-acceptance.md).

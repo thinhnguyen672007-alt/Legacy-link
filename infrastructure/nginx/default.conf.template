@@ -1,51 +1,17 @@
-# Nginx dùng bảng hash cho map bên dưới. Chuỗi Bearer + token dài có thể vượt bucket
-# mặc định và làm Nginx không khởi động; 128 xử lý token 64 ký tự do setup tạo.
-map_hash_bucket_size 128;
-# GET/HEAD đọc dữ liệu; OPTIONS hỏi quyền CORS trước khi trình duyệt gửi request thật.
-# Các phương thức có thể ghi dữ liệu phải khớp Bearer token từ .env.
-# Đây là token chung cho demo, chưa phải hệ thống tài khoản/phân quyền người dùng.
-map $http_authorization $authorized {
-    default 0;
-    "Bearer ${API_WRITE_TOKEN}" 1;
-}
-# Đánh dấu request có thể thay đổi dữ liệu. Phương thức lạ mặc định cũng cần token.
-map $request_method $mutation {
-    default 1;
-    GET 0;
-    HEAD 0;
-    OPTIONS 0;
-}
-# Chỉ chặn tổ hợp ghi dữ liệu + chưa xác thực; các trường hợp còn lại chuyển tới API.
-map "$mutation:$authorized" $deny_write {
-    default 0;
-    "1:0" 1;
-}
+# Backend là nơi duy nhất quyết định token đọc/ghi và CORS.
+# Proxy giữ nguyên Authorization; xóa header này sẽ khiến API trả 401 dù token đúng.
 server {
     listen 80;
     server_tokens off;
-    client_max_body_size 128k;
+    client_max_body_size 12k;
     location / {
-        default_type application/json;
-        # Nginx quản lý hai header này để không bị trùng với header backend.
-        # Cho phép frontend gửi Authorization trong preflight; CORS không thay thế kiểm tra token.
-        proxy_hide_header Access-Control-Allow-Headers;
-        proxy_hide_header Access-Control-Allow-Origin;
-        add_header Access-Control-Allow-Headers "Content-Type, Authorization" always;
-        add_header Access-Control-Allow-Origin "*" always;
-        # Preflight trả lời ngay tại gateway để không phụ thuộc CORS_ORIGINS của backend.
-        if ($request_method = OPTIONS) { return 204; }
-        # Chặn sớm request ghi thiếu token; backend vẫn kiểm tra lại đầy đủ quyền đọc/ghi.
-        if ($deny_write) { return 401 '{"error":"Bearer token required","code":"unauthorized"}'; }
-        # Khi API bị recreate có thể đổi IP nội bộ. Docker DNS 127.0.0.11 được hỏi lại
-        # qua upstream dạng biến, thay vì giữ IP cũ từ lúc Nginx khởi động.
         resolver 127.0.0.11 valid=10s ipv6=off;
         set $api http://backend-api:3000;
         proxy_pass $api;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
-        # Backend tự kiểm tra quyền đọc/ghi theo token, nên Authorization phải được
-        # chuyển tiếp; gateway chỉ chặn thêm request ghi thiếu token ở trên.
-        # Giới hạn thời gian chờ để API mất kết nối không làm request treo mãi.
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_connect_timeout 3s;
         proxy_read_timeout 20s;
     }
