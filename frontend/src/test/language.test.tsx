@@ -38,9 +38,7 @@ it("switches login copy without clearing input and saves only the language", () 
     target: { value: "private-password" },
   });
   fireEvent.click(screen.getByRole("button", { name: "English" }));
-  expect(
-    screen.getByRole("heading", { name: "Welcome back." }),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   expect(screen.getByLabelText("Username")).toHaveValue("thinh");
   expect(screen.getByLabelText("Password")).toHaveValue("private-password");
   expect(document.documentElement.lang).toBe("en");
@@ -137,9 +135,7 @@ it("keeps switching when browser storage is blocked", () => {
   });
   mount();
   fireEvent.click(screen.getByRole("button", { name: "English" }));
-  expect(
-    screen.getByRole("heading", { name: "Welcome back." }),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
 });
 it("updates another tab's language without remounting its form", async () => {
   mount();
