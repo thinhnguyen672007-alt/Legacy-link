@@ -16,6 +16,7 @@
 // "that bai" trong truong hop nay la noi sai su that.
 
 import { pool } from './pool.js';
+import { acquireLease, acquireDeviceLease } from './operations.js';
 
 // Tao mot yeu cau moi o trang thai 'pending'.
 //
@@ -23,11 +24,23 @@ import { pool } from './pool.js';
 // schema.sql se nem loi. Ben goi nen kiem tra truoc bang findPendingByGateway
 // de co thong bao ro rang.
 export async function createConfigRequest({ requestId, deviceId, gatewayId, payload }) {
-  await pool.query(
-    `INSERT INTO config_request (request_id, device_id, gateway_id, payload)
-     VALUES ($1, $2, $3, $4)`,
-    [requestId, deviceId, gatewayId, JSON.stringify(payload)],
-  );
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const deadline = Date.now() + 15000;
+    await acquireLease(client, gatewayId, requestId, deadline);
+    await acquireDeviceLease(client, deviceId, gatewayId, requestId, deadline);
+    await client.query(
+      `INSERT INTO config_request (request_id,device_id,gateway_id,payload) VALUES($1,$2,$3,$4)`,
+      [requestId, deviceId, gatewayId, JSON.stringify(payload)]
+    );
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 // Yeu cau dang cho cua mot gateway, hoac null neu khong co.
@@ -38,7 +51,7 @@ export async function findPendingByGateway(gatewayId) {
      WHERE gateway_id = $1 AND status = 'pending'
      ORDER BY sent_at DESC
      LIMIT 1`,
-    [gatewayId],
+    [gatewayId]
   );
 
   return result.rowCount === 0 ? null : result.rows[0];
@@ -59,9 +72,11 @@ export async function applyConfigAck({ requestId, gatewayId, result, reason, per
      SET status = $2, result = $2, reason = $3, persisted = $4, ack_at = now()
      WHERE request_id = $1 AND gateway_id = $5 AND status = 'pending'
      RETURNING request_id, gateway_id, device_id`,
-    [requestId, result, reason, persisted, gatewayId],
+    [requestId, result, reason, persisted, gatewayId]
   );
 
+  if (updated.rowCount)
+    await pool.query('DELETE FROM gateway_command_lease WHERE operation_id=$1', [requestId]);
   return { matched: updated.rowCount > 0, row: updated.rows[0] ?? null };
 }
 
@@ -74,7 +89,7 @@ export async function failConfigRequest({ requestId, reason }) {
     `UPDATE config_request
      SET status = 'timeout', reason = $2
      WHERE request_id = $1 AND status = 'pending'`,
-    [requestId, reason],
+    [requestId, reason]
   );
 }
 
@@ -89,7 +104,7 @@ export async function expireStaleRequests(timeoutSeconds) {
      WHERE status = 'pending'
        AND sent_at < now() - make_interval(secs => $1)
      RETURNING request_id, gateway_id, device_id`,
-    [timeoutSeconds],
+    [timeoutSeconds]
   );
 
   return result.rows;
@@ -102,7 +117,7 @@ export async function getConfigRequest(requestId) {
             sent_at, ack_at
      FROM config_request
      WHERE request_id = $1`,
-    [requestId],
+    [requestId]
   );
 
   if (result.rowCount === 0) {
