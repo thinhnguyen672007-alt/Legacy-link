@@ -12,7 +12,9 @@ Copy `.env.example` thành `.env` nếu chưa có, rồi điền trước khi de
 | `MQTT_CLIENT_ID` | Cùng một giá trị ở consumer/API để API đọc đúng heartbeat |
 | `POSTGRES_USER`, `POSTGRES_PASS`, `POSTGRES_DB` | Dùng chữ/số và `_ . ~ -`; Compose ghép thành DATABASE_URL |
 | `HTTP_PORT`, `HTTP_BIND_ADDRESS` | Mặc định `3000`, `127.0.0.1`; mở `0.0.0.0` khi cần LAN |
-| `API_WRITE_TOKEN` | Setup tự tạo hex ngẫu nhiên khi để trống; giữ riêng trong `.env` |
+| `API_READ_TOKEN` | Token đọc (GET); setup tự tạo hex ngẫu nhiên khi để trống |
+| `API_WRITE_TOKEN` | Token ghi (POST) và token Nginx dùng để chặn ghi; setup tự tạo khi để trống |
+| `CORS_ORIGINS` | Origin frontend được phép, phân tách dấu phẩy; để trống là không cho origin nào |
 | `BENCH_GATEWAY_ID` | Gateway ID thật 12 ký tự HEX hoa; không lấy ID ví dụ làm ID thật |
 
 Postgres chỉ đọc tài khoản khởi tạo khi volume còn trống. Đổi `.env` không đổi
@@ -32,11 +34,14 @@ qua quy trình commissioning. Dữ liệu lịch sử không tự tạo bản đ
 
 ## 4. API và token cho frontend
 
-API trực tiếp chỉ ở mạng Docker; cổng host đi qua Nginx. GET/HEAD/OPTIONS không cần token.
-POST/PUT/PATCH/DELETE cần header `Authorization: Bearer <API_WRITE_TOKEN>`.
+API trực tiếp chỉ ở mạng Docker; cổng host đi qua Nginx. Health không cần token.
+GET/HEAD cần `Authorization: Bearer <API_READ_TOKEN>`; POST cần `Bearer <API_WRITE_TOKEN>`.
+Nginx giữ vai trò chặn sớm request ghi thiếu token (401) và trả lời preflight OPTIONS (204);
+backend vẫn kiểm tra lại quyền, nên token phải được chuyển tiếp, không bị xóa ở gateway.
 Frontend cần cho người vận hành nhập token, không nhúng token vào repo/bundle công khai.
-Preflight CORS cho phép header Authorization. Đây là shared token demo, chưa có phân quyền
-người dùng. Khi truy cập ngoài môi trường LAN tin cậy cần HTTPS; không gửi token qua mạng công cộng HTTP.
+`CORS_ORIGINS` phải chứa origin thật của frontend, nếu không backend trả 403 cho request thật.
+Đây là token dùng chung theo vai trò cho demo, chưa có phân quyền người dùng.
+Khi truy cập ngoài môi trường LAN tin cậy cần HTTPS; không gửi token qua mạng công cộng HTTP.
 
 Ví dụ dùng token mà không in ra màn hình (thay đường dẫn và body theo API docs):
 

@@ -12,10 +12,14 @@ Nếu chưa có `.env`, script tạo từ `.env.example`. Trước khi kết n�
 đặt credential MQTT giống firmware. Cần Docker Engine đang chạy và Docker Compose v2
 có `up --wait`; không cần cài Node/Postgres lên máy host.
 
-Script build Node.js 22, backup DB hiện có, nạp schema backend, kiểm tra đủ 10 bảng,
-và bật broker + PostgreSQL + MQTT consumer + HTTP API + gateway bảo vệ API.
-Mọi dịch vụ chạy nền; lỗi ở bước nào sẽ dừng và báo tại bước đó.
+Script build Node.js 22, backup DB hiện có, nạp schema backend, kiểm tra đủ 15 bảng
+(schema version 4), và bật broker + PostgreSQL + MQTT consumer + HTTP API + gateway
+bảo vệ API. Mọi dịch vụ chạy nền; lỗi ở bước nào sẽ dừng và báo tại bước đó.
 Frontend chưa có service trong stack này.
+
+API cần token: `API_READ_TOKEN` cho GET, `API_WRITE_TOKEN` cho thao tác ghi. Setup tự
+sinh hai token khác nhau khi `.env` để trống. `CORS_ORIGINS` liệt kê origin frontend
+được phép; để trống nghĩa là không origin nào được phép gọi.
 
 | Thành phần | Địa chỉ mặc định | Vai trò |
 | --- | --- | --- |

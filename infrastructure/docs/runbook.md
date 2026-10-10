@@ -15,9 +15,12 @@ Không xóa volume. Setup làm gián đoạn ingestion trong lúc nâng cấp.
 Nếu build lỗi, worker cũ chưa bị dừng. Nếu migration lỗi, worker giữ trạng thái dừng
 để tránh ghi vào schema dở dang: đọc lỗi, sửa nguyên nhân rồi chạy lại setup.
 
-Database có 10 bảng: `telemetry`, `machine_state`, `alarms`, `device`, `register_map`,
-`register_override`, `config_request`, `service_run`, `ingestion_receipt`, `consumer_health`.
+Database có 15 bảng (schema version 4): 10 bảng dữ liệu `telemetry`, `machine_state`,
+`alarms`, `device`, `register_map`, `register_override`, `config_request`, `service_run`,
+`ingestion_receipt`, `consumer_health`, cộng 5 bảng C16 `schema_migrations`,
+`gateway_command_lease`, `control_operation`, `device_config_history`, `device_profile`.
 Schema được lấy trực tiếp từ `../backend/db/schema.sql`; infra không giữ bản sao SQL.
+Setup kiểm tra đủ 15 bảng và version 4 sau khi nạp, không chỉ đếm một phần danh sách.
 
 ## 3. Sức khỏe và xem lỗi
 
@@ -39,11 +42,11 @@ curl -i http://127.0.0.1:3000/health/ready
   liên tiếp thì thoát để Docker restart. Lần restart đầu khi lỗi liên tục từ khởi động thường khoảng 25–40 giây.
   Đây là biện pháp phục hồi infra; không thay thế sửa lỗi reconnect của backend.
 
-**Lỗi quan sát với backend PR54:** sau broker restart, consumer ghi được dữ liệu nhưng
-log `Da subscribe:` rỗng, heartbeat `ready=false`; API có `mqttControl=false`.
-Backend kiểm tra `granted.length` trong callback subscribe; MQTT.js có thể trả danh sách
-rỗng khi các topic đã được cache/resubscribe. Cần backend kiểm tra lại xử lý này.
-Infra không sửa source backend và không biến lỗi readiness thành OK giả.
+**Đã kiểm chứng lại sau C16:** backend tắt resubscribe của thư viện và tự subscribe lại
+trên mỗi lần connect, kiểm tra số topic broker cấp. Bài `test-recovery.sh mosquitto` tắt
+rồi bật broker: `ready` xuống 503, sau đó trở lại 200 và nhận đủ ACK committed cho 6 ID.
+Nếu còn gặp `Da subscribe:` rỗng hoặc `mqttControl=false` sau reconnect, ghi log và báo
+backend; infra không sửa source backend và không biến lỗi readiness thành OK giả.
 
 `unknown_device`: kiểm tra đăng ký BENCH-01/gateway ID. `relation ... does not exist`:
 chạy lại setup và đọc lỗi SQL. Cổng đã dùng: đổi cổng host trong `.env`.
