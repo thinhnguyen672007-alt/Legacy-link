@@ -4,6 +4,8 @@
 
 Tài liệu lập ngày 08/10/2026, đối chiếu code tại `/home/nguyenvuducthinh/Legacy-link`, nhánh `feature/backend-base`, nền commit `6572fb8`, có các chỉnh sửa comment tiếng Việt chưa commit. Đây là ghi chép việc đã làm và lý do thiết kế, không phải lời khẳng định hệ thống đã sẵn sàng triển khai công nghiệp.
 
+> **Cập nhật 09/10/2026:** phần 25–35 ghi đợt hoàn thiện backend mới nhất, API mới, migration version 4, bằng chứng kiểm thử và bài tập. Các phần 1–24 giữ nguyên làm lịch sử. [Đọc phần mới](#muc-25).
+
 ## Mục lục
 
 - [1. Dự án đang giải quyết bài toán gì?](#muc-1)
@@ -1307,3 +1309,554 @@ Cấu hình thiết bị và ACL phải được phối hợp cập nhật. ACL 
 - Giải thích cho người không biết lập trình: thẻ vào cửa, quyền vào kho và phong bì kín tương ứng auth, ACL và TLS như thế nào.
 
 **Điều cần nắm:** mỗi giải pháp đều phải có một lỗi cụ thể nó ngăn được, một phép thử chứng minh và một giới hạn chưa vượt qua. Hiểu ba điều đó sẽ giúp em trả lời câu hỏi sâu mà không phải học thuộc thuật ngữ.
+
+<a id="muc-25"></a>
+## 25. Ngày 09/10/2026 — đợt hoàn thiện backend sau C15
+
+**Đọc phần 25 trở đi để biết trạng thái mới.** Các phần trước là nhật ký theo thời điểm; câu “chưa có profile”, “operation chỉ nằm trong RAM”, “chưa benchmark” hoặc “mẫu mới chỉ kiểm tra catalog hiện tại” trong phần cũ không còn mô tả đầy đủ phiên bản này.
+
+Trong đợt này, mình làm trên local `/home/nguyenvuducthinh/Legacy-link`, nhánh `feature/backend-base`, nền commit `2b1d510`. Không commit, push, tạo PR hoặc cập nhật main. Các thay đổi nằm trong working tree để Thịnh đọc và tự quyết định đưa lên nhánh.
+
+Mình gọi nhóm thay đổi mới là **C16 / schema version 4** để dễ tìm trong code và test. Đây là tên cho đợt hoàn thiện thêm; không có nghĩa file review ban đầu đã liệt kê một lỗi C16.
+
+### 25.1. “Backend hoàn thành” phải được hiểu theo tiêu chí nào?
+
+Phạm vi backend cho demo hiện có: nhận dữ liệu, lưu và chống trùng; lịch sử/cảnh báo; registry; cấu hình có probe/apply/ACK; profile; theo dõi sức khỏe; xác thực; migration; kiểm thử và đóng gói. Những phần dưới đây đã được viết và kiểm thử ở local.
+
+Không thể dùng câu “backend 100%” để suy ra “toàn hệ thống không mất một mẫu nào trong mọi hoàn cảnh”. Ví dụ, backend không thể khôi phục mẫu chưa rời ESP32 nếu ESP32 mất điện và queue chỉ nằm trong RAM. Backend cũng không tự chứng minh thanh ghi trên PLC thật là đúng khi đội mới có simulator.
+
+| Hạng mục | Đợt này đã làm | Bằng chứng/giới hạn |
+|---|---|---|
+| Operation qua restart API | Lưu PostgreSQL trước publish; đọc lại bằng ID; tiếp tục ghi catalog từ ACK đã lưu | Test service mới với PostgreSQL thật; phần MQTT commissioning dùng client giả trong test này |
+| Chống lệnh chồng/gán trùng máy | Lease gateway + device chung trong DB, kiểm tra chủ registry | Hai service cạnh tranh và hai gateway giành deviceId đều bị chặn đúng |
+| Import/export/preview profile | API + revision bất biến + hai profile simulator | Gọi HTTP thật trong integration |
+| Catalog tương thích firmware | wordOrder + alarm lồng đúng cấu trúc + validate chung | Test SQL override → JSON canonical |
+| Replay sau đổi cấu hình | History 7 ngày, kiểm tra ID/gateway/thời điểm và tập metric | Chấp nhận mẫu cũ hợp lệ, từ chối metric lạ/future |
+| Reconnect MQTT | Subscribe chủ động trên mỗi connect, readiness theo subscribe thực | Tắt/bật broker, cùng consumer/API nhận lại mẫu có ACK |
+| Theo dõi vận hành | Counters, queue, histogram, memory, freshness, readHealth | API metrics trong integration; số liệu là snapshot theo heartbeat |
+| Retention | CLI dry-run/apply theo lô, giữ receipt | Xóa mẫu cũ rồi replay vẫn không tạo bản mới |
+| Migration và readiness | CLI tạo/nâng cấp schema, advisory lock, version + cột thiết yếu | DB rỗng, DB cũ, chạy lặp, thiếu cột |
+| Rate limit/proxy | Giới hạn đọc/ghi; Nginx giữ Bearer token và CORS | Unit test hạn mức + Nginx thật |
+| Đóng gói/CI | Image có migration/retention; root test chuyển vào backend; CI thêm proxy test | Docker build local thành công; chưa có lần GitHub Actions cho code chưa push |
+
+### 25.2. File nào thay đổi và tại sao?
+
+Các đường dẫn dưới đây tính từ root repo; không phải file được tải từ main xuống.
+
+| File/nhóm file | Vai trò trong thay đổi |
+|---|---|
+| `backend/db/migrate-c16.sql`, `backend/db/schema.sql` | Thêm bảng operation, lease, history, profile, version; thêm word_order và consumer stats |
+| `backend/scripts/migrate.mjs`, `backend/src/db/schema-version.js` | Chạy migration theo thứ tự; kiểm tra DB có đúng cấu trúc cần thiết |
+| `backend/src/db/operations.js` | Lưu thao tác, giành khóa chung, không cho callback cũ ghi lùi trạng thái |
+| `backend/src/control/service.js`, `client.js`, `service.test.js` | Điều phối async, phục hồi operation, chờ công việc khi dừng, subscribe lại |
+| `backend/src/db/config-request.js`, `backend/src/service/apply-config.js` | Đường dispatch cũ dùng cùng lease; thêm thời hạn cho lệnh |
+| `backend/src/db/catalog.js`, `provisioning.js`, `metric-policy.js` | Catalog đúng contract, archive cấu hình cũ, xét replay và tránh phục hồi catalog lỗi thời |
+| `backend/src/ingestion/identity.js`, `identity.test.js` | Hash nội dung độc lập thứ tự key, kể cả object trong mảng |
+| `backend/src/db/profiles.js` | Import revision, danh sách, export, preview |
+| `backend/src/http/handler.js`, `server.js` | Nối API mới, rate limit, shutdown có drain |
+| `backend/src/http/rate-limit.js`, `rate-limit.test.js` | Giới hạn request trong RAM có chặn số IP lưu |
+| `backend/src/observability.js`, `src/ingestion/handler.js` | Đếm kết quả xử lý; đo receive → save, tách lỗi ACK khỏi lỗi DB |
+| `backend/src/mqtt/client.js`, `src/index.js`, `src/db/health.js` | Reconnect, heartbeat stats, readiness schema và API metrics |
+| `backend/src/db/machines.js`, `dashboard.js` | dataFresh, readHealth, deliveryDelayMs, delayed |
+| `backend/src/db/retention.js`, `scripts/retention.mjs` | Dọn dữ liệu theo policy, mặc định chỉ thống kê |
+| `backend/openapi.json`, `examples/frontend-client.js` | Hợp đồng API và hàm gọi sẵn cho frontend |
+| `backend/examples/profile-temperature.json`, `profile-humidity.json` | Hai profile simulator để import và trình diễn đổi cấu hình |
+| `backend/scripts/ingestion-integration.mjs`, `completion-checks.mjs` | Nghiệm thu DB/MQTT/HTTP, restart logic và migration |
+| `backend/scripts/benchmark.mjs`, `load-benchmark.mjs` | Đo tải nhỏ có đếm số mẫu thật đã lưu |
+| `backend/scripts/proxy-integration.mjs` | Kiểm tra Authorization/CORS đi qua Nginx thật |
+| `backend/Dockerfile`, `compose.yml`, `compose.proxy.yml`, `deploy/nginx.conf` | Đóng gói CLI, mạng mặc định, proxy API tùy chọn |
+| `backend/.env.example`, `deploy/README.md`, `package.json` | Lệnh và cấu hình vận hành mới |
+| `package.json`, `package-lock.json` ở root | Sửa test root đang vô ích; bỏ mysql2 không dùng, vẫn giữ MQTT root |
+| `.github/workflows/backend.yml` | Thêm test proxy vào CI; GitHub yêu cầu workflow ở thư mục này |
+| Hai bản `SO-TAY-HIEU-DU-AN-LEGACY-LINK.md` tại root và `docs/` | Cùng một nội dung nhật ký mới để bạn không đọc nhầm bản cũ |
+
+Không chỉnh sửa source firmware hoặc source infrastructure của Huy trong đợt này. Mẫu triển khai bổ sung đặt trong `backend/` để Huy đối chiếu và tích hợp.
+
+<a id="muc-26"></a>
+## 26. Cách chạy phiên bản mới mà không nhầm migration với seed
+
+### 26.1. Ba thứ khác nhau
+
+- **Code** là cách chương trình xử lý yêu cầu.
+- **Migration** sửa cấu trúc nơi lưu dữ liệu để code mới dùng được. Ví dụ thêm bảng lưu operation.
+- **Seed** thêm một số bản ghi minh họa như BENCH-01. Seed không phải điều kiện bắt buộc để máy thật hoạt động.
+
+Hình dung database là văn phòng: migration xây thêm tủ hồ sơ; seed đặt một bộ hồ sơ giả vào tủ; dữ liệu từ thiết bị thật là hồ sơ được tạo trong công việc hằng ngày. Xóa file seed khỏi source không tự xóa hồ sơ đã được seed vào DB.
+
+`npm run db:migrate` **không tự seed BENCH-01**. Máy thật được đăng ký bằng luồng commissioning đã xác nhận ACK; chỉ dùng seed simulator khi thật sự cần demo giả lập.
+
+### 26.2. Các bước trên local
+
+1. Dừng API và consumer cũ bằng Ctrl+C ở hai terminal đang chạy. Phối hợp để firmware giữ/retry các mẫu trong lúc bảo trì.
+2. Backup DB demo theo quy trình của Huy trước khi nâng cấp. Xem kỹ `DATABASE_URL` trong `.env` tại máy, không chép mật khẩu vào chat hoặc Git.
+3. Giữ `.env` hiện có; bảo đảm hai API token khác nhau và mỗi token ít nhất 32 ký tự. Lỗi trong ảnh `Cần API_READ_TOKEN...` là kiểm tra cấu hình khóa truy cập, không phải lỗi seed hay PostgreSQL.
+4. Chạy trong thư mục backend:
+
+```bash
+cd /home/nguyenvuducthinh/Legacy-link/backend
+npm ci
+npm run db:migrate
+```
+
+Kết quả mong đợi: `Migration thành công, version=4`.
+
+Terminal thứ nhất:
+
+```bash
+npm start
+```
+
+Terminal thứ hai:
+
+```bash
+npm run start:http
+```
+
+Kiểm tra:
+
+```bash
+curl http://127.0.0.1:3000/health/live
+curl http://127.0.0.1:3000/health/ready
+```
+
+`live` trả 200 chỉ xác nhận tiến trình HTTP còn sống. `ready` cần DB đúng schema, heartbeat consumer còn mới, MQTT publisher và MQTT control sẵn sàng. Ready 503 không đồng nghĩa API đã chết; đọc `checks` để biết thành phần nào chưa đạt.
+
+**Mình đã thử migration trên DB Docker tạm, chưa chạy migration trên DB demo của bạn.** Đây là bước bạn cần thực hiện trước khi chạy code mới. Không tự đổi mật khẩu, token hoặc dữ liệu thiết bị trong `.env`.
+
+### 26.3. Vì sao không tự migrate mỗi lần API khởi động?
+
+Một API restart vì mạng chập chờn không nên bất ngờ chạy lệnh thay cấu trúc DB. Tách migration thành bước triển khai giúp biết chính xác lúc nào đổi schema và ai đã backup. Advisory lock là “một chìa khóa chung”: hai terminal cùng chạy migration sẽ lần lượt làm, không đan xen SQL.
+
+Migration mới có transaction: các lệnh trong bản C16 cùng thành công hoặc rollback. Khi nâng cấp qua nhiều file, mỗi file có transaction riêng; không hứa mọi migration lịch sử là một transaction khổng lồ. Nếu có lỗi, đọc lỗi, sửa nguyên nhân và chạy lại; không drop database để né lỗi.
+
+Readiness kiểm tra version **và các cột thiết yếu**, tránh trường hợp bảng version ghi “4” nhưng người thao tác đã làm thiếu cột. Kiểm tra này không thay thế backup/restore hay kiểm toán toàn bộ index và constraint.
+
+<a id="muc-27"></a>
+## 27. Operation bền vững: API tắt rồi thì ai nhớ việc đang làm?
+
+### 27.1. Vấn đề cốt lõi
+
+Trước đây operation nằm trong `Map` của Node. `Map` giống giấy nháp trên bàn: tắt process là mất. Nếu ESP32 đã nhận lệnh mà API restart, frontend hỏi requestId cũ có thể không tìm thấy. Người dùng dễ bấm lại và tạo hai thao tác mâu thuẫn.
+
+Bây giờ `control_operation` giữ “phiếu công việc” trong PostgreSQL. Mỗi phiếu có ID, gateway, loại probe/apply, config, bootId, trạng thái và thời điểm. RAM chỉ là bản đang dùng nhanh; DB là nơi đọc lại sau restart.
+
+### 27.2. Thứ tự lưu trước, gửi sau
+
+Luồng mới:
+
+```text
+Validate cấu hình và gateway
+→ BEGIN transaction
+→ giành lease gateway
+→ ghi operation phase=sending
+→ COMMIT
+→ publish MQTT
+→ cập nhật sent / received / completed hoặc applied
+```
+
+Nếu DB lỗi ngay ở bước ghi ý định, backend **không gửi lệnh**. Nếu gửi trước rồi mới ghi, có thể ESP32 đổi cấu hình trong khi backend không có phiếu nào để theo dõi.
+
+Nhưng lưu trước cũng có một khoảng chưa biết: process chết sau COMMIT mà trước publish. Khi đó operation `sending` không chứng minh ESP32 đã nhận gì. Hệ thống không tự đánh dấu thành công; timeout nghĩa là chưa biết kết quả. Người vận hành kiểm tra gateway/probe lại. Đây là lựa chọn tránh tự gửi lại lệnh cấu hình không kiểm soát.
+
+### 27.3. Lease khác khóa RAM ở đâu?
+
+`gateway_command_lease` có gatewayId duy nhất, operationId và expiresAt. Thao tác INSERT/UPDATE trong DB đảm bảo cùng một gateway chỉ có một bên thắng khi hai API gửi đồng thời. Khóa RAM chỉ bảo vệ bên trong một process; mở process thứ hai sẽ có một Map khác.
+
+Ví dụ:
+
+- Thịnh nhấn Apply cấu hình A.
+- Một tab khác đồng thời dispatch catalog B bằng API cũ.
+- Cả hai đều phải xin cùng lease. Một bên được gửi, bên còn lại nhận 409 “gateway đang có thao tác khác”.
+
+Lease có thời hạn để API bị tắt không khóa gateway vĩnh viễn. Probe/apply dùng deadline 45 giây cộng 5 giây khoảng đệm. Timeout hoặc lỗi publish vẫn giữ lease tới deadline vì chưa chắc lệnh chưa đến ESP32. Thành công/từ chối có kết quả rõ thì giải phóng sớm. Dispatch cũ dùng lệnh hạn 10 giây và lease 15 giây.
+
+Một chốt bổ sung là lease theo `device:<deviceId>` và kiểm tra chủ sở hữu trong registry. Chỉ khóa gateway chưa đủ: hai ESP32 khác nhau có thể cùng xin dùng tên `MACHINE-01`. Backend giữ cả tài nguyên gateway và device trong cùng transaction; chỉ một bên được bắt đầu. Device đã đăng ký cho gateway A không bị gateway B tự lấy lại qua Apply. Hàm ghi catalog cũng kiểm tra chủ sở hữu dưới khóa transaction để chặn cả đường gọi trực tiếp hoặc ACK đến trễ. Có test cạnh tranh một device mới và test giữ nguyên registry khi gateway sai cố đăng ký. Nếu cần thay gateway cho máy thật, phải có quy trình chuyển thiết bị có chủ đích; phiên bản này chưa cung cấp API chuyển chủ tự động.
+
+Lease không phải cơ chế điện/firmware khóa PLC. Nó chỉ phối hợp các đường gửi của backend này. Thiết bị vẫn phải kiểm tra request/boot/deadline, và ACL vẫn phải ngăn client khác publish tùy ý.
+
+### 27.4. Vì sao cần chống trạng thái bị ghi lùi?
+
+Hai tiến trình có thể nhận sự kiện khác thứ tự. Process B đã ghi `applied`; callback publish ở process A đến trễ rồi muốn ghi `sent`. Nếu UPDATE vô điều kiện, giao diện sẽ từ thành công quay về đang gửi.
+
+`operations.js` chỉ cho trạng thái tiến lên theo các trường hợp được phép. Trạng thái cuối không bị callback cũ ghi đè; `saving_catalog` không bị `sent`, `received` hoặc timeout kéo lùi. Test chủ động ghi `sent` sau `applied` và xác nhận DB vẫn là `applied`.
+
+### 27.5. ESP32 apply xong, API chết lúc ghi catalog thì sao?
+
+ACK hợp lệ được ghi vào operation dưới phase `saving_catalog` trước. Nếu API tắt lúc đó, lần GET operation sau restart thấy đã có bằng chứng ACK nên tiếp tục ghi catalog, **không gửi lại lệnh xuống ESP32**. Frontend phải lưu ID và tiếp tục polling `GET /operations/:id`; list lịch sử là snapshot, không tự refresh mọi operation.
+
+`saveAppliedConfig` dùng transaction và kiểm tra đã có thao tác mới hơn trên gateway chưa. Nếu đã có, backend từ chối khôi phục catalog cũ và báo `catalog_error` để tránh ghi đè cấu hình mới bằng kết quả cũ. Lúc này cần kiểm tra gateway và probe lại, không tự coi catalog cũ là đúng.
+
+Nếu API chết trước khi nhận/lưu ACK, không có bằng chứng để làm bước trên. Trạng thái vẫn có thể timeout. Lưu operation giúp giữ được lịch sử, không biến giao tiếp mạng thành điều chắc chắn tuyệt đối.
+
+`persisted:true` là **ESP32 báo đã lưu flash**; `applied` là đã apply và backend lưu được catalog. `restoredAfterRestart:true` cần thêm state từ boot mới xác nhận phục hồi. Ba thông tin này trả lời ba câu hỏi khác nhau.
+
+<a id="muc-28"></a>
+## 28. Profile, preview và lỗi “hai JSON giống nhau mà lại bị từ chối”
+
+### 28.1. Profile là gì?
+
+Profile là mẫu cấu hình có tên, ID và revision. Nó giúp đổi thiết bị/đại lượng bằng dữ liệu cấu hình thay vì sửa firmware rồi flash lại. Ví dụ profile temperature đọc address 1 và nhân 0,1; profile humidity đọc address 4 và nhân 0,1.
+
+Hai file trong `backend/examples/` chỉ là **map simulator**. Để dùng thật phải lấy đúng tài liệu Modbus của thiết bị: địa chỉ, function code, kiểu số, scale, word order. Backend không thể đoán các thông số đó chỉ từ tên máy.
+
+### 28.2. API nào dùng ở bước nào?
+
+| Bước trên frontend | Lệnh tương ứng | Ý nghĩa |
+|---|---|---|
+| Nạp mẫu JSON | POST `/profiles/import` | Validate và tạo revision mới, trả 201 |
+| Chọn mẫu | GET `/profiles` | Liệt kê bản mới nhất của mỗi profile |
+| Lấy đúng bản | GET `/profiles/:id/export?revision=1` | Không vô tình lấy bản vừa bị người khác sửa |
+| Xem trước | POST `/config/preview` với `{config}` | Chuẩn hóa và phát hiện lỗi tĩnh; không nói máy đã đọc được |
+| Đọc thử | POST `/gateways/:id/probe` với `{config}` | ESP32 thực sự thử đọc thanh ghi |
+| Theo dõi đọc thử | GET `/operations/:id` | Xem từng reading, lỗi và range |
+| Áp dụng | POST `/gateways/:id/apply` với `{config,probeRequestId}` | Chỉ nhận đúng cấu hình đã thử, cùng boot, probe mới trong 60 giây |
+| Theo dõi kết quả | GET `/operations/:id` | Chờ applied/persisted và xử lý lỗi |
+
+Export trả một “phong bì” profile gồm id/name/revision/config. Probe/apply nhận **config trong phong bì**, không nhận nguyên phong bì. Client mẫu đã thêm các hàm tương ứng.
+
+Import cùng profile ID không ghi đè revision 1; nó tạo revision 2. Lý do: người đang xem revision 1 cần một bản ổn định để trình bày hoặc debug. Advisory lock theo profile ID tránh hai lần import cùng lúc tự tính ra cùng số revision.
+
+Preview kiểm tra được slaveId, kiểu dữ liệu, số thanh ghi, kích thước JSON… nhưng không kiểm tra được dây cắm và register thật. Vì vậy response luôn yêu cầu probe. Đây là khác biệt giữa “điền phiếu đúng” và “ra máy thử thật”.
+
+### 28.3. Lỗi JSONB làm đổi thứ tự key
+
+Hai object sau có cùng nội dung:
+
+```json
+{"address":1,"dataType":"INT16"}
+```
+
+```json
+{"dataType":"INT16","address":1}
+```
+
+PostgreSQL JSONB có thể trả key theo thứ tự khác khi đọc lại. So sánh `JSON.stringify(a) === JSON.stringify(b)` trực tiếp sẽ thấy hai chuỗi khác nhau, rồi từ chối Apply dù người dùng không sửa config.
+
+Cách sửa: chuẩn hóa tên key theo thứ tự trước khi tạo fingerprint (dấu vân tay nội dung). Hàm đi **đệ quy vào cả mảng**, vì registerMap là mảng chứa object. Chỉ sort object ở ngoài cùng thì chưa sửa được lỗi.
+
+Không sort thứ tự phần tử của mảng. `[registerA, registerB]` vẫn khác `[registerB, registerA]`; thứ tự đọc/thứ tự cấu hình có thể có ý nghĩa. Unit test kiểm tra cả “key đổi thứ tự vẫn bằng nhau” và “giá trị/thứ tự mảng đổi thì khác nhau”.
+
+### 28.4. wordOrder và alarm phải đúng hình dạng firmware đọc
+
+`wordOrder` mô tả thứ tự hai word 16-bit khi ghép số 32-bit. `HIGH_FIRST` và `LOW_FIRST` có thể tạo hai số hoàn toàn khác từ cùng hai thanh ghi. Backend thêm cột vào map chung và override, dùng override nếu có; validate trước khi gửi.
+
+Alarm được trả dạng:
+
+```json
+{"alarm":{"threshold":90,"criticalThreshold":100,"hysteresis":3,"code":"OVERHEAT","severity":"high"}}
+```
+
+Nếu backend trả ngưỡng ở field phẳng khác contract, JSON vẫn hợp lệ nhưng firmware không đọc đúng ý nghĩa. Đây là lỗi **hợp đồng dữ liệu**, không phải lỗi mạng. Test đi từ dòng SQL override thật tới catalog JSON để kiểm tra hình dạng và giá trị.
+
+<a id="muc-29"></a>
+## 29. Dữ liệu gửi lại sau khi đổi cấu hình: đúng lúc đo, nhưng khác cấu hình hiện tại
+
+Ví dụ lúc 10:00 gateway đo humidity=55 theo profile A rồi mất mạng. Lúc 10:01 đội đổi sang profile B chỉ có temperature. Lúc 10:02 mẫu humidity trong queue được gửi lại. Nếu backend chỉ nhìn profile B thì từ chối mẫu đã hợp lệ tại thời điểm đo.
+
+Khi lưu cấu hình mới, `provisioning.js` khóa dòng device, đọc catalog cũ, so fingerprint và lưu vào `device_config_history` nếu có thay đổi và gateway cũ đã được gán. Archive và cập nhật cấu hình mới nằm cùng transaction: không cập nhật xong rồi mới nhớ ghi history.
+
+Với mẫu chưa từng lưu có metric ngoài cấu hình hiện tại, `metric-policy.js` chỉ xét history nếu:
+
+1. Mẫu có messageId và gatewayId.
+2. Registry vẫn xác nhận gateway đó phục vụ device.
+3. History cùng device/gateway, được nghỉ dùng trong 7 ngày gần đây.
+4. Timestamp mẫu không sau thời điểm cấu hình đó nghỉ dùng.
+5. **Toàn bộ** metric của mẫu thuộc một snapshot cấu hình phù hợp, không ghép metric tùy tiện từ nhiều bản.
+
+Truy vấn tối đa 100 snapshot gần nhất để chặn công việc tăng không giới hạn. Không có snapshot hợp lệ thì trả `metric_not_configured`; không lưu receipt thành công cho mẫu bị từ chối.
+
+Mẫu đã từng lưu được kiểm tra receipt trước. Nếu ID/nội dung khớp, backend xác nhận lại dù cấu hình hiện tại đã khác. Không bắt một mẫu đã commit phải “xin phép cấu hình mới” lần nữa.
+
+**Giới hạn phải nói rõ:** firmware v1 chưa gắn configVersion vào từng mẫu. Vì vậy history + timestamp là phương án tương thích có giới hạn, chưa chứng minh chính xác cấu hình sinh ra mẫu. History chưa có khoảng valid-from hoàn chỉnh; metric vẫn thuộc cấu hình hiện tại được nhận theo luật hiện tại. Nếu hai config giữ cùng key nhưng khác scale thì server không dùng history để suy lại raw value: giá trị firmware gửi đã scale. Muốn truy vết chính xác phải thống nhất thêm config revision/fingerprint trong payload firmware rồi migrate contract có chủ đích.
+
+Không gọi mọi số đo nhận trễ là “replay chắc chắn”. Clock lệch cũng làm receivedAt và timestamp khác nhau.
+
+<a id="muc-30"></a>
+## 30. MQTT reconnect và vì sao QoS0 vẫn cần ACK ứng dụng
+
+### 30.1. Kết nối lại chưa đủ
+
+MQTT connect là “đã vào được phòng”. Subscribe là “đã đăng ký nghe đúng kênh”. HTTP báo ready chỉ vì socket đã connect có thể làm đội tưởng hệ thống hoạt động trong khi không nhận số đo.
+
+Trong thư viện MQTT đang cài, tự resubscribe và code tự subscribe trên connect có thể tương tác qua cache subscription; callback có thể không có đủ granted như mình cần để kết luận readiness. Consumer và control client hiện tắt tự resubscribe của thư viện, tự subscribe trên **mỗi** connect và kiểm tra số lượng/quyền broker cấp. Close thì xóa cờ subscribed.
+
+Bài integration tắt broker, thấy ready 503 trong khi live còn 200, bật lại broker, chờ ready 200 rồi gửi mẫu mới và nhận committed ACK. Lúc viết bài test còn gặp Docker đổi port khi dùng port publish ngẫu nhiên qua stop/start; đã cố định một port trống cho vòng đời container thử để test đúng sự kiện reconnect, không vô tình đổi địa chỉ broker.
+
+### 30.2. QoS không trả lời “PostgreSQL đã lưu chưa”
+
+Với QoS0, broker không đảm bảo mẫu được nhận. Đổi thành QoS1 giúp ở chặng MQTT, nhưng không chứng minh transaction PostgreSQL đã commit. Backend có thể đã nhận MQTT rồi DB bị tắt.
+
+Cơ chế đang dùng:
+
+```text
+ESP32 tạo ID ổn định, giữ mẫu trong queue
+→ gửi MQTT (hiện firmware có thể vẫn QoS0)
+→ backend validate, lưu mẫu + receipt trong transaction
+→ COMMIT xong mới gửi ACK committed
+→ ESP32 thấy ACK đúng device/kind/ID mới xóa mẫu
+```
+
+Nếu ACK mất, ESP32 gửi lại **cùng ID và cùng nội dung**. Backend tra receipt, không ghi trùng, vẫn ACK lại. Nếu dùng ID mới mỗi lần retry thì server không biết đó là bản gửi lại.
+
+DB lỗi/queue backend đầy thì không ACK committed. Firmware vẫn là nơi có trách nhiệm giữ và retry. RAM queue hữu hạn không chịu mất điện và không giữ được vô hạn khi mạng mất nhiều giờ. Backend hoàn thiện phần của nó không có nghĩa firmware có thể bỏ queue.
+
+<a id="muc-31"></a>
+## 31. Nhìn đúng sức khỏe hệ thống: online, dữ liệu mới và đọc thanh ghi là ba việc
+
+Một ESP32 có Wi-Fi tốt vẫn có thể đọc Modbus lỗi. Dashboard chỉ có chấm xanh online sẽ gây hiểu nhầm.
+
+`GET /machines` bổ sung:
+
+- `gatewayOnline`: còn heartbeat/status phù hợp trong TTL hiện có.
+- `dataFresh`: thời điểm đo mới hơn `max(5 giây, 3 × samplingIntervalMs)`.
+- `readHealth`: `unknown` nếu chưa có diagnostics; `stale` nếu diagnostics quá cũ; `healthy` khi các reading gần nhất thành công; `read_error` khi có reading thất bại.
+
+Ví dụ: gateway online=true, dataFresh=false, readHealth=read_error. Cách trình bày đúng là “gateway còn kết nối nhưng đường đọc thiết bị đang lỗi”, không phải “toàn bộ hệ thống bình thường”. Diagnostics không chứng minh giá trị đọc hợp lý về vật lý; range/probe vẫn có vai trò riêng.
+
+History telemetry thêm `deliveryDelayMs = receivedAt - timestamp`, `delayed` khi vượt 5 giây. Số này phụ thuộc clock gateway; nếu âm phải xem NTP/clock thay vì tự kết luận mạng có độ trễ âm.
+
+### 31.1. Counters trả lời mẫu đã đi tới đâu
+
+`GET /system/metrics` lấy snapshot được consumer ghi cùng heartbeat vào DB:
+
+| Bộ đếm | Câu hỏi được trả lời |
+|---|---|
+| received | Handler telemetry/alarm đã nhận bao nhiêu mẫu để xử lý? |
+| validationRejected | Bao nhiêu mẫu không qua cấu trúc/kiểu dữ liệu? |
+| stored | Bao nhiêu lần thật sự thêm mẫu mới? |
+| duplicate | Bao nhiêu lần gặp lại dữ liệu đã lưu? |
+| policyRejected | Bao nhiêu mẫu bị luật registry/metric/identity từ chối? |
+| saveFailed | Bao nhiêu lần lưu DB gặp lỗi ngoài luật nghiệp vụ? |
+| ackCommitted / ackFailed | Bao nhiêu lần gửi ACK thành công theo hàm publish hoặc gặp lỗi gửi? |
+| mqtt queue/errors/oversized | Có nghẽn queue, JSON sai hoặc payload quá lớn không? |
+
+Đếm ở từng giai đoạn nên không lấy tổng packet MQTT làm mẫu số rồi đòi bằng stored. Status/diagnostics đi đường khác; JSON sai và queue đầy có thể bị chặn trước ingestion handler. `ackCommitted` cũng không chứng minh firmware đã nhận ACK; nó phản ánh việc publish phía backend.
+
+Lỗi gửi ACK sau COMMIT được tách riêng với saveFailed. Nếu không tách, log “DB lỗi” có thể xuất hiện dù DB đã lưu xong, khiến người vận hành sửa nhầm chỗ.
+
+`receiveToSaveMs` dùng đồng hồ monotonic của process, tính từ callback MQTT nhận message đến save thành công, có tính thời gian chờ queue. Histogram chia các khoảng ≤10, (10,50], (50,200], (200,1000], >1000 ms; đây là **các bucket riêng biệt**, không phải bucket cộng dồn Prometheus. Chỉ những save thành công/duplicate có thời gian này; không dùng để mô tả mọi lần xử lý lỗi.
+
+Snapshot gồm bộ đếm từ lúc process khởi động; restart sẽ reset counter. Có startedAt, heartbeatAt và memory để biết tuổi số liệu. Đây chưa phải kho metrics lịch sử hoặc hệ thống cảnh báo vận hành.
+
+<a id="muc-32"></a>
+## 32. Retention: xóa số đo cũ nhưng không quên đã từng nhận chúng
+
+**Retention** là chính sách giữ dữ liệu trong một khoảng thời gian. Không có nó, demo chạy lâu sẽ tạo nhiều dòng không cần thiết. Xóa bừa lại phá cơ chế chống trùng.
+
+Ví dụ: mẫu X đã lưu 31 ngày trước. Nếu xóa cả telemetry X và receipt X, hôm nay ESP32 gửi lại X thì backend thấy “chưa từng nhận” và tạo dòng mới. Dọn dữ liệu đã vô tình làm mẫu cũ sống lại.
+
+Policy hiện tại:
+
+| Bảng | Mặc định | Điều kiện thêm |
+|---|---|---|
+| telemetry | 30 ngày theo received_at | Không tính từ timestamp do gateway gửi |
+| alarms | 90 ngày theo received_at | Chỉ xóa cảnh báo đã được người vận hành acknowledge |
+| control_operation | 30 ngày theo updated_at | Chỉ trạng thái cuối, không xóa việc đang chạy |
+| device_config_history | 7 ngày theo retired_at | Khớp cửa sổ replay cấu hình cũ |
+| ingestion_receipt | Giữ lại | Bảo vệ chống replay trùng sau khi xóa số đo |
+| device / profile | Giữ lại | Không xóa registry/cấu hình chỉ vì dọn history |
+
+Mỗi lần xử lý tối đa 5.000 dòng mỗi bảng; code cho phép batch 1..10.000. Xóa theo lô nhỏ giảm thời gian giữ lock. `SKIP LOCKED` bỏ qua dòng đang được công việc khác khóa để job dọn không chờ mãi.
+
+```bash
+npm run db:retention
+```
+
+Lệnh trên là dry-run, chỉ đếm **tối đa một lô**, không phải tổng mọi dòng cũ trong DB. Muốn thực hiện xóa:
+
+```bash
+npm run db:retention -- --apply
+```
+
+Không có cron tự được cài vào máy. Huy có thể đặt job mỗi giờ và theo dõi kết quả; nếu backlog nhiều thì lặp theo tải phù hợp. Không loop xóa vô hạn trong một request HTTP.
+
+Giữ receipt là đánh đổi có chủ đích: receipt cũng tăng dung lượng. Chưa xóa receipt khi chưa có hợp đồng giới hạn thời gian replay/boot ID/sequence từ firmware. Sản phẩm lớn cần một chính sách end-to-end, đo dung lượng, index/partition/archiving phù hợp; không giải bằng câu “cứ xóa hết hơn 30 ngày”.
+
+<a id="muc-33"></a>
+## 33. Ranh giới backend với proxy, rate limit và hạ tầng
+
+### 33.1. Token đúng ở frontend nhưng tới backend lại mất
+
+Frontend gửi `Authorization: Bearer ...`. Nếu Nginx xóa/ghi đè header này, backend trả 401 dù token người dùng nhập đúng. Mẫu `backend/deploy/nginx.conf` truyền lại Authorization và để backend quyết định quyền/CORS.
+
+Bài test chạy Nginx thật trước HTTP handler/auth thật, kiểm tra: thiếu token → 401; read token GET → 200; read token POST → 403; write token POST → 200; origin được cho phép nhận CORS header. Dữ liệu ở bài proxy được giả lập; bài DB/MQTT/HTTP riêng kiểm tra nghiệp vụ thật.
+
+Mẫu này chưa cấp HTTPS/domain hoặc phục vụ frontend tĩnh. Huy tích hợp vào stack của mình và kiểm thử lại đúng đường người dùng truy cập. Token chung read/write chưa phải đăng nhập nhiều người, phân quyền từng nhà máy hay audit danh tính cá nhân.
+
+### 33.2. Tại sao rate limit phân biệt đọc và ghi?
+
+Một dashboard cần poll số đo, còn Apply config không cần gọi liên tục. Vì vậy mặc định mỗi socket IP/process có 300 lượt đọc và 30 lượt thao tác trong một phút. Vượt thì 429 và `Retry-After` cho biết thời gian chờ. Health và preflight OPTIONS được miễn để giám sát không bị khóa bởi thao tác người dùng.
+
+Limiter không tin `X-Forwarded-For` tùy ý: client không được tự khai IP khác để né hạn mức. Hệ quả là phía sau proxy các client dùng chung bucket theo IP proxy. Với demo ít người chấp nhận được; nhiều người cần proxy tin cậy/limiter dùng chung như Redis và danh tính người dùng. Thêm nhiều process hiện cũng nhân hạn mức; không gọi đây là chống DDoS toàn hệ thống.
+
+Frontend không nên poll machines, health, metrics và mọi operation đều mỗi giây mãi mãi. Ví dụ machines mỗi 2 giây, health/metrics mỗi 10 giây, operation chỉ poll khi đang thao tác; dừng khi có trạng thái cuối. Giữ ID để tiếp tục sau refresh.
+
+### 33.3. Shutdown phải khớp watchdog
+
+Backend dừng theo thứ tự: ngừng nhận việc mới, chờ việc được nhận xử lý xong, còn MQTT để gửi ACK cuối, rồi đóng MQTT/DB. Deadline mặc định 15 giây; Compose cho 25 giây.
+
+Watchdog bên hạ tầng kill process sau 7 giây sẽ cắt ngang khoảng drain đã thiết kế. Huy cần tăng thời gian chờ tương ứng, không chỉ nhìn `stop_grace_period` trong file backend rồi cho rằng mọi đường restart đều tuân thủ.
+
+MQTT production cần TLS hoặc opt-in rõ ràng cho chặng plaintext trong mạng riêng đã kiểm soát. Opt-in không tạo mã hóa. Test TLS phía Node thành công không chứng minh firmware đã dùng CA đúng; Hoàng Anh cần test trên ESP32.
+
+<a id="muc-34"></a>
+## 34. Bằng chứng kiểm thử và cách đọc benchmark
+
+Kết quả local ngày 09/10/2026, không dùng DB demo của đội:
+
+- Unit: **64/64 pass**, bao gồm fingerprint nested array và rate limit.
+- Integration PostgreSQL/MQTT/HTTP: **23 nhóm kiểm tra pass**. Bao gồm migration CLI DB rỗng/upgrade/chạy lặp; catalog wordOrder/alarm; tranh lease; service restart; phục hồi đoạn ghi catalog; callback cũ; schema thiếu cột; profile API; dedupe/replay; DB down; queue đầy; drain; broker reconnect.
+- TLS/ACL: pass; CA được tin mới kết nối, gateway được gửi máy của mình, không gửi máy khác, backend ACK đúng đường.
+- Nginx/auth/CORS: pass.
+- Docker image `legacy-link-backend:c16-local`: build thành công. Không push registry, không triển khai đè stack đang chạy.
+
+Test operation dùng hai/ba đối tượng service mới và PostgreSQL thật để mô phỏng RAM process bị mất; MQTT client ở phần đó là giả. Test ingestion/outage/reconnect dùng broker, DB và entrypoint HTTP/consumer thật. Nói rõ mức độ này khi trình bày, không gọi tất cả là thử ESP32 thật.
+
+### 34.1. Benchmark có thể chạy lại
+
+```bash
+cd /home/nguyenvuducthinh/Legacy-link/backend
+npm run benchmark
+# Có thể thay số mẫu, từ 20 đến 10000:
+BENCHMARK_SAMPLES=1000 npm run benchmark
+```
+
+Lệnh tạo DB/broker tạm, chạy các kiểm tra rồi gửi tải giả lập; không bắn 1.000 mẫu vào DB demo. Kết quả một lần đo 200 mẫu:
+
+| Thông số | Kết quả |
+|---|---|
+| Máy giả lập | 4, cùng gateway trong môi trường thử |
+| Số mẫu / số thực tế lưu | 200 / 200 |
+| Số việc gửi đồng thời | 8 |
+| Thời gian đoạn gửi tải | khoảng 242 ms |
+| Tốc độ quan sát | khoảng 825 mẫu/giây |
+| Publish → committed ACK p50 | khoảng 8,55 ms |
+| Publish → committed ACK p95 | khoảng 15,23 ms |
+| Publish → committed ACK lớn nhất | khoảng 35,42 ms |
+
+p95 nghĩa là khoảng 95% mẫu của lần đo đó có độ trễ không lớn hơn mức tương ứng. Nó không nói 95% mọi mẫu trong tương lai đều đạt như vậy. Benchmark ngắn có DB/broker local, không có Wi-Fi ESP32/đường RS-485 thật, không phải thử tải bền nhiều giờ; không được quảng cáo “hệ thống đảm bảo 825 mẫu/s trong nhà máy”.
+
+Số đo này gồm publish MQTT → nhận ở backend → queue → DB commit → ACK trở lại chương trình gửi. Histogram trong metrics là receive backend → save; hai phép đo bắt đầu/kết thúc khác nhau nên không cần bằng nhau.
+
+Chạy `npm run test:all` để kiểm tra unit + integration + security + proxy. CI đã được nối các suite tương ứng nhưng chưa có kết quả cho code này trên GitHub vì bạn chưa push. Image build được không chứng minh `.env.compose`, DNS, network, volume, HTTPS và watchdog thật của Huy đã ghép đúng.
+
+<a id="muc-35"></a>
+## 35. Câu hỏi để hiểu bản chất và trình bày dự án
+
+### 35.1. Hỏi–đáp kỹ thuật
+
+**1. Vì sao không lưu operation trong RAM cho đơn giản?**
+
+RAM đủ cho demo không restart nhưng không giữ được kết quả qua restart. DB giúp frontend hỏi lại đúng requestId và giúp nhiều đường gửi chia sẻ khóa. Đổi lại thêm truy vấn và migration; quy mô hiện tại đã có PostgreSQL nên không cần thêm Redis chỉ để làm việc này.
+
+**2. Lưu operation trước publish có đảm bảo command được gửi đúng một lần không?**
+
+Không. Có khoảng chết giữa lưu ý định và publish, hoặc giữa publish và nhận ACK. Thiết kế giữ bằng chứng, tránh tự khẳng định thành công và không tự retry apply mù. Muốn delivery outbox cho command cần thêm retry/idempotency end-to-end ở firmware và kiểm chứng riêng.
+
+**3. Lease hết hạn có chắc ESP32 đã ngừng làm việc không?**
+
+Không. Lease là phối hợp backend. Deadline trong command và kiểm tra firmware mới giới hạn việc chấp nhận lệnh; kết quả đã apply nhưng mất ACK vẫn có thể chưa biết. Vì vậy timeout cần kiểm tra state/probe.
+
+**4. Nếu mở hai tab cùng Apply thì sao?**
+
+Cả hai xin lease một gateway; DB chỉ cho một bên giành được. Nếu khác gateway thì có thể xử lý độc lập. Bài test cạnh tranh chứng minh khóa dùng chung, không dựa vào nút frontend bị disable.
+
+**5. GET operation có làm lại thao tác vật lý không?**
+
+Không gửi lại MQTT command. Nó có thể cập nhật trạng thái timeout hoặc hoàn tất ghi catalog của một apply trước đó đã có ACK lưu trong DB. Đây là tiếp tục bookkeeping của công việc đã được yêu cầu, không phải apply mới.
+
+**6. Vì sao không tin callback publish để hiển thị đã apply?**
+
+Callback ở backend chỉ nói về việc gửi MQTT. ESP32 vẫn có thể từ chối config hoặc ghi flash lỗi. Cần matching ACK đúng request/gateway/boot và trạng thái persisted.
+
+**7. Vì sao profile revision không dùng chung với operation ID?**
+
+Revision là phiên bản nội dung mẫu, có thể dùng cho nhiều thiết bị/lần áp dụng. Operation ID là một lần thực hiện cụ thể. Cùng profile revision có thể được probe/apply nhiều lần và nhận kết quả khác nhau vì dây/máy/boot khác.
+
+**8. Preview thành công có thể bỏ probe không?**
+
+Không. Preview kiểm tra dữ liệu khai báo; probe kiểm tra ESP32 đọc được theo khai báo đó. Config đúng cú pháp vẫn có thể sai slaveId hoặc không có thiết bị trả lời.
+
+**9. JSONB đổi key ảnh hưởng chuyện gì ngoài thẩm mỹ?**
+
+So sánh chuỗi có thể từ chối cấu hình thực ra giống nhau. Chuẩn hóa đệ quy trước hash giải quyết khác biệt cách biểu diễn; vẫn phát hiện đổi giá trị và đổi thứ tự mảng.
+
+**10. History 7 ngày có nghĩa mọi mẫu offline 7 ngày đều được cứu không?**
+
+Không. Còn phụ thuộc mẫu vẫn ở queue firmware, ID đúng, registry/gateway đúng, cấu hình phù hợp nằm trong history giới hạn và clock hợp lệ. Cửa sổ history là một điều kiện phía backend, không phải dung lượng lưu ngoại tuyến của ESP32.
+
+**11. Vì sao không chấp nhận mọi metric rồi tính sau?**
+
+Làm vậy khó phân biệt cấu hình đúng, firmware lỗi hoặc payload gửi sai máy. Policy theo catalog/history giữ ranh giới dữ liệu được phép. Khi bị từ chối phải có reason để đội sửa nguyên nhân, không âm thầm ACK thành công.
+
+**12. Vì sao không xóa receipt cùng telemetry?**
+
+Receipt là bằng chứng đã xử lý ID. Xóa nó khiến mẫu cũ được gửi lại trở thành “mới”. Có thể thiết kế retention receipt trong tương lai, nhưng cần giới hạn replay mà cả firmware/backend cùng tuân thủ.
+
+**13. Alarm ACK của người dùng giống ingestion ACK không?**
+
+Không. Ingestion ACK nói DB đã lưu sự kiện; alarm acknowledge nói người vận hành đã nhìn nhận/xử lý cảnh báo trên dashboard. Retention alarm cần điều kiện acknowledge để tránh tự xóa cảnh báo chưa được xem.
+
+**14. Sao dùng received_at cho retention số đo?**
+
+Đây là thời điểm backend kiểm soát. Dữ liệu đo hôm qua nhưng hôm nay mới gửi về vẫn được giữ đủ thời gian sau khi nhận; clock sai trên gateway không dễ làm nó bị xóa ngay vì timestamp quá cũ.
+
+**15. Online=true mà readHealth=read_error có mâu thuẫn không?**
+
+Không. Wi-Fi/MQTT và Modbus là hai chặng khác nhau. Tách trạng thái giúp tìm đúng dây/thiết bị/phần mềm gây lỗi.
+
+**16. Counters có chứng minh không mất dữ liệu ở ESP32 không?**
+
+Không. Backend chỉ đếm thứ nó nhìn thấy. Muốn đo mất dữ liệu từ đầu nguồn phải so với số mẫu ESP32 tạo, queue/drop counters và IDs; mẫu chưa tới backend không tự xuất hiện trong counters này.
+
+**17. Bật QoS2 ở backend subscribe có nâng mẫu firmware QoS0 lên đảm bảo DB không?**
+
+Không. Chất lượng chặng publish không tự được nâng bằng subscription, và MQTT ACK không đồng nghĩa SQL COMMIT. Queue ở nguồn + ACK ứng dụng + dedupe vẫn cần.
+
+**18. Vì sao health phải có live và ready?**
+
+Live giúp biết process còn trả HTTP. Ready cho biết nó có đủ phụ thuộc để làm việc. DB tắt mà live còn 200 giúp người vận hành nhìn rõ sự cố phụ thuộc, không kết luận process chết rồi restart liên tục vô ích.
+
+**19. Sao không lấy X-Forwarded-For làm IP để chia rate limit?**
+
+Nếu chưa cấu hình danh sách proxy tin cậy, client có thể tự gửi header giả. Phiên bản này chọn socket IP rõ ràng và chấp nhận bucket chung phía sau proxy. Khi mở rộng sẽ thiết kế trusted proxy và limiter dùng chung.
+
+**20. Có thể nói đã sẵn sàng production sau khi mọi test xanh không?**
+
+Chưa. Test kiểm tra các giả thuyết trong phạm vi đã viết. Còn tải lâu dài, tài khoản người dùng/tenant, backup restore thật, TLS thiết bị, nguồn điện/đường truyền và tương thích máy công nghiệp. Câu trả lời tốt là nêu đúng bằng chứng và giới hạn, không dùng từ “100%” thay việc nghiệm thu.
+
+### 35.2. Bài tập không cần học thuộc
+
+1. Vẽ bốn điểm có thể tắt API: trước lưu operation, sau lưu/trước publish, sau publish/trước ACK, sau ACK lưu/trước catalog. Nói ở mỗi điểm DB biết gì và chưa biết gì.
+2. Tự sửa thứ tự key của một register trong JSON, dự đoán fingerprint. Sau đó đổi address và dự đoán lại.
+3. Vẽ timeline profile humidity → profile temperature → mẫu humidity gửi lại. Chỉ ra các điều kiện history cần kiểm tra.
+4. Mô tả hai trường hợp cùng “không thấy mẫu trên dashboard”: firmware chưa gửi và DB đã lưu nhưng frontend bị 401 qua proxy. Nêu dữ liệu/log cần xem để phân biệt.
+5. Chạy retention dry-run trước, giải thích vì sao con số tối đa 5.000 không phải tổng backlog.
+6. Đọc p95 benchmark thành một câu có nêu môi trường, số mẫu và giới hạn. Không biến throughput đo được thành SLA cam kết.
+
+### 35.3. Bài trình bày khoảng một phút
+
+“Legacy Link dùng ESP32 làm gateway cấu hình theo profile cho thiết bị Modbus trong phạm vi map đã biết. Backend tách luồng nhận số đo khỏi API điều khiển. Dữ liệu được kiểm tra, lưu cùng biên nhận trong transaction, rồi mới ACK để gateway có thể retry mà không tạo bản trùng. Với cấu hình, backend lưu phiếu thao tác và khóa gateway trước khi gửi, yêu cầu đọc thử đúng cấu hình, theo dõi ACK và giữ lịch sử qua restart. Bọn em có profile import/export, chẩn đoán tách kết nối khỏi lỗi đọc, cùng kiểm thử DB/broker mất kết nối và khôi phục. Hiện đã thử backend bằng PostgreSQL/MQTT/Nginx thật trong môi trường local và tải nhỏ từ simulator; chưa tuyên bố kiểm chứng PLC công nghiệp hoặc không mất dữ liệu khi ESP32 mất điện.”
+
+### 35.4. Việc bàn giao còn cần ba người phối hợp
+
+**Thịnh (backend + frontend):** backup/migrate DB local, chạy hai entrypoint, nối UI theo OpenAPI; lưu/poll operation ID; hiển thị readHealth/freshness/persisted và lỗi timeout; import hai profile, demo đổi profile không flash; UI tạo/đọc QR chỉ chứa gateway ID rồi đối chiếu `/gateways`, không nhúng mật khẩu trong QR.
+
+**Hoàng Anh (firmware):** dùng đúng ACK contract, giữ cùng ID/nội dung khi retry; kiểm tra queue overflow/rejected/backoff; thử mất mạng, mất ACK, reboot NVS; xác minh wordOrder/alarm và clock; đo heap/queue thật; phối hợp TLS/CA. Queue RAM không được gọi là bộ đệm bền qua mất điện.
+
+**Huy (infrastructure):** tích hợp image và migration vào stack, giữ Authorization qua proxy, HTTPS/ACL/TLS và credential riêng; network đúng tên; watchdog cho đủ drain; backup rồi restore thử; đặt lịch retention có theo dõi; xác minh health từ đúng domain và firmware tới đúng broker.
+
+**Cả đội:** quay/ghi kết quả demo toàn tuyến ESP32 → broker → DB → frontend; diễn tập đổi profile, rút mạng/replay, reboot, lỗi Modbus. Đo thời gian onboarding/BOM từ phần cứng thực tế và hoàn thiện hồ sơ. Những việc này cần nghiệm thu với thiết bị/UI/stack thật; code backend và test local không thay thế được.
+
+### 35.5. Kiểm tra lại ngày 10/10/2026
+
+Sau khi tiếp tục công việc, đã xác nhận code vẫn nằm trên local nhánh `feature/backend-base`, HEAD `2b1d510`; chưa commit hoặc push các thay đổi của đợt này. Các log tạm ngày trước không còn trong `/tmp`, nên đã chạy lại nghiệm thu và lưu log trong thư mục workspace để dễ tra cứu.
+
+- `npm run test:all`: exit 0; 64/64 unit test, 23 nhóm integration PostgreSQL/MQTT/HTTP, TLS/ACL và Nginx/auth/CORS đều pass.
+- `docker build -t legacy-link-backend:c16-local .`: exit 0. Chỉ build local, không push image hoặc thay stack đang chạy.
+- `git diff --check`: không có lỗi whitespace; các tham chiếu schema trong OpenAPI hợp lệ; hai bản sổ tay đồng nhất.
+- Không chạy migration/retention lên database demo. Test dùng container và dữ liệu riêng.
+
+Log tại máy Thịnh: `/home/nguyenvuducthinh/Documents/Codex/2026-10-06/li/outputs/backend-verification-2026-10-10/tests.log` và `build.log` cùng thư mục. Kết quả benchmark ở phần 34 là lần đo ngày trước; không phải số đo mới của lượt kiểm tra này.
+
+Để bắt đầu dùng code mới: dừng hai process backend cũ, backup database, chạy `npm run db:migrate` trong `backend/`, rồi mở lại `npm start` và `npm run start:http` ở hai terminal. Xem phần 26 và `backend/deploy/README.md` trước khi thực hiện. Nghiệm thu toàn tuyến với ESP32, frontend và stack hạ tầng thật vẫn là việc cần phối hợp của ba thành viên.
