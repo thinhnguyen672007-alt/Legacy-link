@@ -10,19 +10,31 @@ export function checkIdentity(payload, errors, kind) {
     if (typeof payload.gatewayId !== 'string' || !/^[A-F0-9]{12}$/.test(payload.gatewayId))
       errors.push('gatewayId must contain 12 uppercase hexadecimal characters');
   }
-  if (kind === 'alarm' && (present || payload.metricKey !== undefined) &&
-      (typeof payload.metricKey !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(payload.metricKey)))
+  if (
+    kind === 'alarm' &&
+    (present || payload.metricKey !== undefined) &&
+    (typeof payload.metricKey !== 'string' ||
+      !/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(payload.metricKey))
+  )
     errors.push('metricKey is required for identified alarms (1..64 characters)');
   return present ? { gatewayId: payload.gatewayId, [field]: payload[field] } : {};
 }
 
 // Sắp xếp tên trường trước khi băm: đổi thứ tự các key JSON không làm đổi dấu vân tay.
 function canonical(value) {
+  // Chuẩn hóa cả object nằm trong mảng; PostgreSQL JSONB có thể đổi thứ tự key.
+  if (Array.isArray(value)) return value.map(canonical);
   if (value && typeof value === 'object' && !Array.isArray(value))
-    return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]));
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, canonical(value[key])])
+    );
   return value;
 }
 // Hàm băm tạo dấu vân tay để phát hiện cùng ID nhưng nội dung bị thay đổi.
 export function fingerprint(value) {
-  return createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(canonical(value)))
+    .digest('hex');
 }

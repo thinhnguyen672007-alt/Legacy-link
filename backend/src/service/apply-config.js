@@ -65,6 +65,7 @@ export async function applyConfig({ deviceId, publishClient }) {
     await publishJson(publishClient, deviceConfigTopic(deviceId), {
       ...target.config,
       requestId,
+      expiresAt: Date.now() + 10000,
     });
   } catch (err) {
     // Gửi lệnh lỗi hoặc quá hạn: chưa biết ESP32 đã nhận hay chưa, không kết luận thất bại chắc chắn.
