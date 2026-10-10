@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "simulator-humidity",
+  "name": "Simulator humidity",
+  "config": {
+    "deviceId": "BENCH-01",
+    "deviceName": "Modbus simulator",
+    "protocol": "MODBUS_RTU",
+    "baudRate": 9600,
+    "parity": "NONE",
+    "stopBits": 1,
+    "slaveId": 1,
+    "samplingIntervalMs": 2000,
+    "registerMap": [
+      {
+        "key": "humidity",
+        "address": 4,
+        "functionCode": 3,
+        "dataType": "INT16",
+        "wordOrder": "HIGH_FIRST",
+        "scale": 0.1,
+        "unit": "%"
+      }
+    ]
+  }
+}
