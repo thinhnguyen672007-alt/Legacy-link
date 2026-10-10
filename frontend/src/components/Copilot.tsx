@@ -1,3 +1,4 @@
+import { tr } from "../language";
 import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Link } from "react-router-dom";
@@ -24,7 +25,7 @@ export function Copilot() {
   const [open, setOpen] = useState(false),
     [question, setQuestion] = useState("");
   const [responses, setResponses] = useState<
-    { question: string; answer: CopilotResponse }[]
+    { question: string; action?: string; answer: CopilotResponse }[]
   >([]);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -53,6 +54,7 @@ export function Copilot() {
             body.question ??
             quick.find((q) => q[0] === body.action)?.[1] ??
             "Kiểm tra",
+          action: body.action,
           answer,
         },
       ]);
@@ -70,7 +72,9 @@ export function Copilot() {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <button className="copilot-launch">AI Copilot · Hỏi về máy</button>
+        <button className="copilot-launch">
+          {tr("AI Copilot · Hỏi về máy")}
+        </button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
@@ -78,11 +82,13 @@ export function Copilot() {
           <header>
             <Dialog.Title>Legacy-link · AI Copilot</Dialog.Title>
             <Dialog.Close asChild>
-              <button aria-label="Đóng Copilot">Đóng</button>
+              <button aria-label={tr("Đóng Copilot")}>{tr("Đóng")}</button>
             </Dialog.Close>
           </header>
           <Dialog.Description>
-            Đọc số đo và cảnh báo. AI không điều khiển máy hoặc sửa cấu hình.
+            {tr(
+              "Đọc số đo và cảnh báo. AI không điều khiển máy hoặc sửa cấu hình.",
+            )}
           </Dialog.Description>
           <div className="copilot-quick">
             {quick.map(([action, label]) => (
@@ -91,52 +97,69 @@ export function Copilot() {
                 key={action}
                 onClick={() => void send({ action })}
               >
-                {label}
+                {tr(label)}
               </button>
             ))}
           </div>
           <p className="copilot-note">
-            Nút kiểm tra nhanh không cần Gemini. Dữ liệu dưới đây phản ánh thời
-            điểm truy vấn, không tự cập nhật.
+            {tr(
+              "Nút kiểm tra nhanh không cần Gemini. Dữ liệu dưới đây phản ánh thời điểm truy vấn, không tự cập nhật.",
+            )}
           </p>
           <div className="copilot-messages" aria-live="polite">
             {!responses.length && (
-              <p>Thử hỏi: “Máy nào đang quá nóng?” hoặc “Kiểm tra BENCH-01”.</p>
+              <p>
+                {tr(
+                  "Thử hỏi: “Máy nào đang quá nóng?” hoặc “Kiểm tra BENCH-01”.",
+                )}
+              </p>
             )}
-            {responses.map(({ question: prompt, answer }, i) => (
+            {responses.map(({ question: prompt, action, answer }, i) => (
               <article key={i}>
-                <h3>{prompt}</h3>
+                <h3>{action ? tr(prompt) : prompt}</h3>
                 <p>
                   {answer.mode === "gemini"
-                    ? "Gemini chọn công cụ · Backend xác minh"
-                    : "Bộ quy tắc backend"}
+                    ? tr("Gemini chọn công cụ · Backend xác minh")
+                    : tr("Bộ quy tắc backend")}
                 </p>
                 {answer.notice && (
-                  <p className="copilot-note">{answer.notice}</p>
+                  <p className="copilot-note">{tr(answer.notice)}</p>
                 )}
-                <p>{answer.text}</p>
+                <p>{tr(answer.text)}</p>
                 {answer.results.map((r, j) => (
                   <section key={j}>
-                    <p>Database · Lấy lúc {stamp(r.queriedAt)}</p>
+                    <p>
+                      {tr("Database · Lấy lúc ")}
+                      {stamp(r.queriedAt)}
+                    </p>
                     {r.counts && (
                       <p>
-                        Đã kiểm tra {r.counts.inspected} máy · Gateway có kết
-                        nối: {r.counts.gatewayOnline} · Mất kết nối:{" "}
-                        {r.counts.offline} · Dữ liệu cũ: {r.counts.stale}. Máy
-                        có số đo quá nóng: {r.counts.overheat}; dưới ngưỡng
-                        thấp: {r.counts.underheat}. Một máy nhiều cảm biến có
-                        thể thuộc cả hai nhóm.
+                        {tr("Đã kiểm tra ")}
+                        {r.counts.inspected} {tr(" máy · Gateway có kết nối: ")}
+                        {r.counts.gatewayOnline} {tr(" · Mất kết nối:")}{" "}
+                        {r.counts.offline} {tr(" · Dữ liệu cũ: ")}
+                        {r.counts.stale}
+                        {tr(". Máy có số đo quá nóng: ")}
+                        {r.counts.overheat}
+                        {tr("; dưới ngưỡng thấp: ")}
+                        {r.counts.underheat}
+                        {tr(
+                          ". Một máy nhiều cảm biến có thể thuộc cả hai nhóm.",
+                        )}
                       </p>
                     )}
                     {r.truncated && (
                       <p>
-                        Đang hiển thị kết quả giới hạn; chưa kiểm tra toàn bộ dữ
-                        liệu.
+                        {tr(
+                          "Đang hiển thị kết quả giới hạn; chưa kiểm tra toàn bộ dữ liệu.",
+                        )}
                       </p>
                     )}
-                    {r.note && <p className="copilot-note">{r.note}</p>}
+                    {r.note && <p className="copilot-note">{tr(r.note)}</p>}
                     {r.devices?.length === 0 && (
-                      <p>Không có máy phù hợp trong phạm vi đã kiểm tra.</p>
+                      <p>
+                        {tr("Không có máy phù hợp trong phạm vi đã kiểm tra.")}
+                      </p>
                     )}
                     {r.devices?.map((d) => (
                       <div className="copilot-device" key={d.deviceId}>
@@ -148,24 +171,36 @@ export function Copilot() {
                         </Link>
                         <p>
                           Gateway{" "}
-                          {d.gatewayOnline ? "có kết nối" : "mất kết nối"} ·{" "}
+                          {d.gatewayOnline
+                            ? tr("có kết nối")
+                            : tr("mất kết nối")}{" "}
+                          ·{" "}
                           {d.dataFresh
-                            ? "số đo còn mới"
-                            : "số đo cũ hoặc chưa có"}
+                            ? tr("số đo còn mới")
+                            : tr("số đo cũ hoặc chưa có")}
                         </p>
                         {!d.temperatures.length && (
-                          <p>Chưa xác định thanh ghi nhiệt độ từ cấu hình.</p>
+                          <p>
+                            {tr(
+                              "Chưa xác định thanh ghi nhiệt độ từ cấu hình.",
+                            )}
+                          </p>
                         )}
                         {d.temperatures.map((t) => (
                           <div key={t.metricKey}>
-                            <strong>{statusLabels[t.status]}</strong> ·{" "}
+                            <strong>{tr(statusLabels[t.status])}</strong> ·{" "}
                             {t.metricKey}: {t.value ?? "—"} {t.unit}
                             <p>
-                              Ngưỡng thấp: {t.low ?? "chưa đặt"} · Ngưỡng cao:{" "}
-                              {t.high ?? "chưa đặt"}. Đo lúc:{" "}
-                              {t.measuredAt ? stamp(t.measuredAt) : "chưa có"}.
+                              {tr("Ngưỡng thấp: ")}
+                              {t.low ?? tr("chưa đặt")} {tr(" · Ngưỡng cao:")}{" "}
+                              {t.high ?? tr("chưa đặt")}
+                              {tr(". Đo lúc:")}{" "}
+                              {t.measuredAt
+                                ? stamp(t.measuredAt)
+                                : tr("chưa có")}
+                              .
                             </p>
-                            {t.reason && <p>{t.reason}</p>}
+                            {t.reason && <p>{tr(t.reason)}</p>}
                           </div>
                         ))}
                       </div>
@@ -174,7 +209,9 @@ export function Copilot() {
                       <>
                         {!r.alerts.length && (
                           <p>
-                            Không có sự kiện cảnh báo trong khoảng đã kiểm tra.
+                            {tr(
+                              "Không có sự kiện cảnh báo trong khoảng đã kiểm tra.",
+                            )}
                           </p>
                         )}
                         {r.alerts.map((a) => (
@@ -187,18 +224,23 @@ export function Copilot() {
                     )}
                     {r.series?.map((s) => (
                       <p key={s.metricKey}>
-                        Lịch sử {s.metricKey}: {s.points.length} mẫu; thấp nhất{" "}
-                        {s.min ?? "—"}, cao nhất {s.max ?? "—"}, thay đổi{" "}
-                        {s.change ?? "—"} {s.unit}. Đây là xu hướng, chưa xác
-                        định nguyên nhân.
+                        {tr("Lịch sử ")}
+                        {s.metricKey}: {s.points.length} {tr(" mẫu; thấp nhất")}{" "}
+                        {s.min ?? "—"}
+                        {tr(", cao nhất ")}
+                        {s.max ?? "—"}
+                        {tr(", thay đổi")} {s.change ?? "—"} {s.unit}
+                        {tr(". Đây là xu hướng, chưa xác định nguyên nhân.")}
                       </p>
                     ))}
                   </section>
                 ))}
               </article>
             ))}
-            {busy && <p role="status">Đang chọn công cụ và đọc dữ liệu…</p>}
-            {error && <p role="alert">{error}</p>}
+            {busy && (
+              <p role="status">{tr("Đang chọn công cụ và đọc dữ liệu…")}</p>
+            )}
+            {error && <p role="alert">{tr(error)}</p>}
           </div>
           <form
             onSubmit={(e) => {
@@ -206,16 +248,20 @@ export function Copilot() {
               void send({ question });
             }}
           >
-            <label htmlFor="copilot-question">Câu hỏi về thiết bị</label>
+            <label htmlFor="copilot-question">
+              {tr("Câu hỏi về thiết bị")}
+            </label>
             <textarea
               id="copilot-question"
               maxLength={1000}
               required
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Máy nào cần kiểm tra?"
+              placeholder={tr("Máy nào cần kiểm tra?")}
             />
-            <button disabled={busy || !question.trim()}>Gửi câu hỏi</button>
+            <button disabled={busy || !question.trim()}>
+              {tr("Gửi câu hỏi")}
+            </button>
           </form>
         </Dialog.Content>
       </Dialog.Portal>

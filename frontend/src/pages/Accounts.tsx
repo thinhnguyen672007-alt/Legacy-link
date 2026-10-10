@@ -1,3 +1,4 @@
+import { tr } from "../language";
 import { useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountsApi, roleLabel, type Account } from "../api/accounts";
@@ -39,15 +40,15 @@ export function PasswordChange() {
   }
   return (
     <section className="account-panel">
-      <h1>Đổi mật khẩu</h1>
+      <h1>{tr("Đổi mật khẩu")}</h1>
       <p>
         {session?.user?.mustChangePassword
-          ? "Đặt mật khẩu riêng trước khi sử dụng hệ thống."
-          : "Sau khi đổi, hãy đăng nhập lại bằng mật khẩu mới."}
+          ? tr("Đặt mật khẩu riêng trước khi sử dụng hệ thống.")
+          : tr("Sau khi đổi, hãy đăng nhập lại bằng mật khẩu mới.")}
       </p>
       <form onSubmit={submit} className="account-form">
         <label>
-          Mật khẩu hiện tại
+          {tr("Mật khẩu hiện tại")}
           <input
             disabled={busy}
             type="password"
@@ -58,7 +59,7 @@ export function PasswordChange() {
           />
         </label>
         <label>
-          Mật khẩu mới
+          {tr("Mật khẩu mới")}
           <input
             disabled={busy}
             type="password"
@@ -71,7 +72,7 @@ export function PasswordChange() {
           />
         </label>
         <label>
-          Nhập lại mật khẩu mới
+          {tr("Nhập lại mật khẩu mới")}
           <input
             disabled={busy}
             type="password"
@@ -81,10 +82,10 @@ export function PasswordChange() {
             onChange={(e) => setConfirm(e.target.value)}
           />
         </label>
-        <p>Tối thiểu 12 ký tự.</p>
-        {error && <Notice tone="bad">{error}</Notice>}
+        <p>{tr("Tối thiểu 12 ký tự.")}</p>
+        {error && <Notice tone="bad">{tr(error)}</Notice>}
         <button className="primary" disabled={busy}>
-          {busy ? "Đang lưu…" : "Lưu và đăng nhập lại"}
+          {busy ? tr("Đang lưu…") : tr("Lưu và đăng nhập lại")}
         </button>
       </form>
     </section>
@@ -145,20 +146,20 @@ export function Accounts() {
   }
   return (
     <section>
-      <h1>Nhân viên</h1>
-      <p>Cấp quyền xem hoặc thao tác cho từng nhân viên.</p>
-      {error && <Notice tone="bad">{error}</Notice>}
-      {message && <p role="status">{message}</p>}
+      <h1>{tr("Nhân viên")}</h1>
+      <p>{tr("Cấp quyền xem hoặc thao tác cho từng nhân viên.")}</p>
+      {error && <Notice tone="bad">{tr(error)}</Notice>}
+      {message && <p role="status">{tr(message)}</p>}
       <form onSubmit={submit} className="account-form">
         <h2>
           {selected
-            ? `Đặt lại mật khẩu: ${selected.username}`
-            : "Tạo tài khoản"}
+            ? tr("Đặt lại mật khẩu: {0}", selected.username)
+            : tr("Tạo tài khoản")}
         </h2>
         {!selected && (
           <>
             <label>
-              Tên đăng nhập
+              {tr("Tên đăng nhập")}
               <input
                 disabled={busy}
                 required
@@ -170,20 +171,22 @@ export function Accounts() {
               />
             </label>
             <label>
-              Quyền
+              {tr("Quyền")}
               <select
                 disabled={busy}
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               >
-                <option value="viewer">Viewer · Chỉ xem</option>
-                <option value="technician">Technician · Kỹ thuật</option>
+                <option value="viewer">{tr("Viewer · Chỉ xem")}</option>
+                <option value="technician">
+                  {tr("Technician · Kỹ thuật")}
+                </option>
               </select>
             </label>
           </>
         )}
         <label>
-          Mật khẩu tạm
+          {tr("Mật khẩu tạm")}
           <input
             disabled={busy}
             type="password"
@@ -195,9 +198,13 @@ export function Accounts() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
-        <p>Tối thiểu 12 ký tự. Gửi riêng cho nhân viên.</p>
+        <p>{tr("Tối thiểu 12 ký tự. Gửi riêng cho nhân viên.")}</p>
         <button className="primary" disabled={busy}>
-          {busy ? "Đang lưu…" : selected ? "Đặt lại mật khẩu" : "Tạo tài khoản"}
+          {busy
+            ? tr("Đang lưu…")
+            : selected
+              ? tr("Đặt lại mật khẩu")
+              : tr("Tạo tài khoản")}
         </button>
         {selected && (
           <button
@@ -208,23 +215,23 @@ export function Accounts() {
               setPassword("");
             }}
           >
-            Hủy
+            {tr("Hủy")}
           </button>
         )}
       </form>
       {users.isPending ? (
-        <p role="status">Đang tải nhân viên…</p>
+        <p role="status">{tr("Đang tải nhân viên…")}</p>
       ) : users.error ? (
-        <Notice tone="bad">{users.error.message}</Notice>
+        <Notice tone="bad">{tr(users.error.message)}</Notice>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Tài khoản</th>
-                <th>Quyền</th>
-                <th>Trạng thái</th>
-                <th>Thao tác</th>
+                <th>{tr("Tài khoản")}</th>
+                <th>{tr("Quyền")}</th>
+                <th>{tr("Trạng thái")}</th>
+                <th>{tr("Thao tác")}</th>
               </tr>
             </thead>
             <tbody>
@@ -233,10 +240,10 @@ export function Accounts() {
                   <td>{u.username}</td>
                   <td>
                     {u.role === "admin" ? (
-                      roleLabel.admin
+                      tr(roleLabel.admin)
                     ) : (
                       <select
-                        aria-label={`Quyền của ${u.username}`}
+                        aria-label={tr("Quyền của {0}", u.username)}
                         disabled={busy}
                         value={u.role}
                         onChange={(e) =>
@@ -253,10 +260,10 @@ export function Accounts() {
                   </td>
                   <td>
                     {u.disabled
-                      ? "Đã khóa"
+                      ? tr("Đã khóa")
                       : u.mustChangePassword
-                        ? "Cần đổi mật khẩu"
-                        : "Hoạt động"}
+                        ? tr("Cần đổi mật khẩu")
+                        : tr("Hoạt động")}
                   </td>
                   <td>
                     {u.role !== "admin" && (
@@ -272,7 +279,7 @@ export function Accounts() {
                             )
                           }
                         >
-                          {u.disabled ? "Mở khóa" : "Khóa"}
+                          {u.disabled ? tr("Mở khóa") : tr("Khóa")}
                         </button>
                         <button
                           disabled={busy}
@@ -281,7 +288,7 @@ export function Accounts() {
                             setPassword("");
                           }}
                         >
-                          Đặt lại mật khẩu
+                          {tr("Đặt lại mật khẩu")}
                         </button>
                       </>
                     )}
@@ -292,17 +299,17 @@ export function Accounts() {
           </table>
         </div>
       )}
-      <h2>Lịch sử thao tác</h2>
-      {history.error && <Notice tone="bad">{history.error.message}</Notice>}
+      <h2>{tr("Lịch sử thao tác")}</h2>
+      {history.error && <Notice tone="bad">{tr(history.error.message)}</Notice>}
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Thời gian</th>
-              <th>Người thực hiện</th>
-              <th>Thao tác</th>
-              <th>Đối tượng</th>
-              <th>Kết quả</th>
+              <th>{tr("Thời gian")}</th>
+              <th>{tr("Người thực hiện")}</th>
+              <th>{tr("Thao tác")}</th>
+              <th>{tr("Đối tượng")}</th>
+              <th>{tr("Kết quả")}</th>
             </tr>
           </thead>
           <tbody>

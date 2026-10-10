@@ -1,3 +1,5 @@
+import { LanguageToggle } from "../components/LanguageToggle";
+import { tr } from "../language";
 import { useRef, useState, type FormEvent } from "react";
 import { ArrowRight, ShieldCheck, Unplug } from "lucide-react";
 import { normalizeUrl } from "../api/client";
@@ -50,31 +52,36 @@ export function Connection() {
           LEGACY<span>LINK</span>
         </div>
         <h1>
-          Hiểu rõ thiết bị.
+          {tr("Hiểu rõ thiết bị.")}
           <br />
-          Chủ động vận hành.
+          {tr("Chủ động vận hành.")}
         </h1>
-        <p>Theo dõi số đo, xem cảnh báo và cấu hình gateway từ một nơi.</p>
+        <p>
+          {tr("Theo dõi số đo, xem cảnh báo và cấu hình gateway từ một nơi.")}
+        </p>
         <div className="connection-proof">
           <ShieldCheck size={22} />
           <span>
-            Kết nối trực tiếp API của đội.
+            {tr("Kết nối trực tiếp API của đội.")}
             <br />
-            Mỗi nhân viên có tài khoản và quyền riêng.
+            {tr("Mỗi nhân viên có tài khoản và quyền riêng.")}
           </span>
         </div>
         <small>
-          Dự án Legacy-link · DENSO Factory Hacks 2026
+          {tr("Dự án Legacy-link · DENSO Factory Hacks 2026")}
           <br />
-          Không phải phần mềm chính thức của DENSO.
+          {tr("Không phải phần mềm chính thức của DENSO.")}
         </small>
       </div>
       <div className="connection-form">
         <form onSubmit={submit}>
-          <h2>Đăng nhập</h2>
-          <p>Mở giao diện trên máy backend để dùng địa chỉ mặc định.</p>
+          <div className="connection-language">
+            <LanguageToggle />
+          </div>
+          <h2>{tr("Đăng nhập")}</h2>
+          <p>{tr("Mở giao diện trên máy backend để dùng địa chỉ mặc định.")}</p>
           <label>
-            Địa chỉ API
+            {tr("Địa chỉ API")}
             <input
               disabled={busy}
               type="url"
@@ -86,7 +93,7 @@ export function Connection() {
             />
           </label>
           <label>
-            Tên đăng nhập
+            {tr("Tên đăng nhập")}
             <input
               disabled={busy}
               type="text"
@@ -98,7 +105,7 @@ export function Connection() {
             />
           </label>
           <label>
-            Mật khẩu
+            {tr("Mật khẩu")}
             <input
               disabled={busy}
               type="password"
@@ -109,21 +116,24 @@ export function Connection() {
               spellCheck={false}
             />
           </label>
-          <p className="help">Liên hệ quản trị viên để được cấp tài khoản.</p>
+          <p className="help">
+            {tr("Liên hệ quản trị viên để được cấp tài khoản.")}
+          </p>
           {(error || sessionError) && (
-            <Notice tone="bad">{error || sessionError}</Notice>
+            <Notice tone="bad">{tr(error || sessionError || "")}</Notice>
           )}
           <button className="primary wide" disabled={busy}>
-            {busy ? "Đang kiểm tra…" : "Đăng nhập"}
+            {busy ? tr("Đang kiểm tra…") : tr("Đăng nhập")}
             <ArrowRight size={18} />
           </button>
           <details>
-            <summary>Không kết nối được?</summary>
+            <summary>{tr("Không kết nối được?")}</summary>
             <p>
-              API Docker Compose cần hoạt động; origin{" "}
-              <code>{location.origin}</code> phải có trong CORS_ORIGINS. Nếu mở
-              từ máy khác, localhost là máy đang dùng, hãy nhập IP máy backend.
-              Trang HTTPS không gọi được API HTTP.
+              {tr("API Docker Compose cần hoạt động; origin")}{" "}
+              <code>{location.origin}</code>{" "}
+              {tr(
+                " phải có trong CORS_ORIGINS. Nếu mở từ máy khác, localhost là máy đang dùng, hãy nhập IP máy backend. Trang HTTPS không gọi được API HTTP.",
+              )}
             </p>
           </details>
         </form>

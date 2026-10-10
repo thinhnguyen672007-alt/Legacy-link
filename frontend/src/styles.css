@@ -1285,3 +1285,53 @@ tbody tr:hover {
   .sidebar nav { overflow-x: auto; }
   .sidebar nav a { flex: 0 0 auto; white-space: nowrap; }
 }
+
+.language-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+}
+.language-toggle button {
+  min-height: 36px;
+  min-width: 40px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.language-toggle button[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+.language-toggle button[aria-pressed="false"]:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.connection-language {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+@media (max-width: 760px) {
+  .topbar .endpoint {
+    flex-basis: 100%;
+  }
+  .topbar .session-role {
+    margin-left: 0;
+    margin-right: auto;
+  }
+  .sidebar nav {
+    flex-wrap: wrap;
+  }
+  .topbar .language-toggle button {
+    min-width: 40px;
+    min-height: 36px;
+  }
+}
