@@ -8,15 +8,10 @@ want_seed=false
 want_bench=false
 for arg in "$@"; do
   case "$arg" in
-    --seed) want_seed=true ;;
-    --seed-bench) want_bench=true ;;
-    -h|--help)
-      # In khối header (sau shebang, tới hết dòng === thứ hai) đọc trực tiếp từ file,
-      # không hardcode số dòng để help không bị cắt khi header dài ra.
-      awk 'NR==1{next} {print} /^# =+$/{n++; if(n==2) exit}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
-      exit 0
-      ;;
-    *) echo "Unknown option: $arg" >&2; exit 2 ;;
+    --seed) want_seed=true;;
+    --seed-bench) want_bench=true;;
+    --help|-h) echo 'Usage: bash scripts/setup.sh [--seed | --seed-bench]'; exit 0;;
+    *) echo "Unknown option: $arg" >&2; exit 2;;
   esac
 done
 if [ "$want_seed" = true ] && [ "$want_bench" = true ]; then
@@ -77,37 +72,6 @@ if [ "$want_bench" = true ]; then
   docker compose exec -T postgres sh -c 'exec psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v gateway_id="$1"' sh "$BENCH_GATEWAY_ID" < ../backend/db/seed-bench.sql
 fi
 docker compose up -d --wait --wait-timeout 120
-
-# ------------------------------------------------------------------------------
-# 10. Kiểm tra broker
-# ------------------------------------------------------------------------------
-echo "[INFO] Kiem tra broker..."
-if ! ./scripts/test-mqtt.sh; then
-  echo "[WARN] Broker chua the truy cap. Xem dong ERROR o tren." >&2
-  echo "[WARN] Dung chay lai: docker compose logs mosquitto" >&2
-  exit 1
-fi
-
-# ------------------------------------------------------------------------------
-# 11. Tóm tắt
-# ------------------------------------------------------------------------------
-echo ""
-echo "[SUCCESS] Ha tang da san sang."
-echo ""
-echo "  Broker   : $MQTT_CONTAINER_NAME (port ${MQTT_PORT:-1883})"
-echo "  Database : $POSTGRES_USER@$POSTGRES_DB (port ${POSTGRES_PORT:-5432}, chi localhost)"
-echo ""
-if [[ ",$COMPOSE_PROFILES," == *,full,* ]]; then
-  # 0.0.0.0 là địa chỉ bind chứ không phải URL mở được; in localhost cho người đọc dễ bấm.
-  api_host="${HTTP_BIND_ADDRESS:-127.0.0.1}"
-  if [ "$api_host" = "0.0.0.0" ]; then api_host="127.0.0.1"; fi
-  echo "  API      : http://${api_host}:${HTTP_PORT:-3000} (bind ${HTTP_BIND_ADDRESS:-127.0.0.1})"
-  echo "  Auth     : Bearer API_READ_TOKEN (GET) va API_WRITE_TOKEN (POST), trong .env"
-fi
-echo "  Kiem tra : ./scripts/status.sh"
-echo "  Xem trang thai : docker compose ps"
-echo "  Xem log broker : docker compose logs -f mosquitto"
-echo "  Doc log Postgres: docker compose logs -f postgres"
 bash scripts/test-mqtt.sh
 if [[ ",$COMPOSE_PROFILES," == *,full,* ]]; then bash scripts/status.sh; fi
 echo '[PASS] Stack san sang. Token trong infrastructure/.env; khong gui file nay len Git.'
