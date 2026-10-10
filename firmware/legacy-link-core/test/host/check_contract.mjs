@@ -71,8 +71,8 @@ for (const message of messages) {
   }
   counts[kind]++;
 }
-assert.deepEqual(counts, { telemetry: 1, status: 2, alarm: 16 });
-assert.equal(alarms.size, 16);
+assert.deepEqual(counts, { telemetry: 1, status: 2, alarm: 20 });
+assert.equal(alarms.size, 20);
 assert.deepEqual(statuses, [true, false]);
 assert.equal(readReports, 3);
-console.log('PASS: 22 firmware messages accepted by backend validators; mismatched IDs and schema versions and incomplete/mismatched read reports rejected.');
+console.log('PASS: 26 firmware messages accepted by backend validators; mismatched IDs and schema versions and incomplete/mismatched read reports rejected.');

@@ -32,6 +32,7 @@ const CATALOG_QUERY = `
     COALESCE(o.scale,            b.scale)            AS scale,
     COALESCE(o.unit,             b.unit)             AS unit,
     COALESCE(o.alarm_high,       b.alarm_high)       AS alarm_high,
+    COALESCE(o.alarm_low,        b.alarm_low)        AS alarm_low,
     COALESCE(o.alarm_code,       b.alarm_code)       AS alarm_code,
     COALESCE(o.alarm_critical,   b.alarm_critical)   AS alarm_critical,
     COALESCE(o.alarm_hysteresis, b.alarm_hysteresis) AS alarm_hysteresis,
@@ -86,6 +87,9 @@ function toFirmwareRegister(row) {
     if (row.alarm_critical !== null) register.alarm.criticalThreshold = row.alarm_critical;
   }
 
+  // alarm_low đã có trong schema; giữ ngưỡng hiệu lực riêng của từng thiết bị.
+  if (row.alarm_low != null) register.lowAlarm = { threshold: row.alarm_low, code: 'UNDERHEAT',
+    hysteresis: row.alarm_hysteresis, severity: row.alarm_severity };
   return register;
 }
 

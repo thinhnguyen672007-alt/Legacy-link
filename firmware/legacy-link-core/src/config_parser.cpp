@@ -83,7 +83,7 @@ static bool valid_metric_key(const char *key) {
 
 static bool valid_alarm_code(const char *code) {
   return !strcmp(code, "OVERHEAT") || !strcmp(code, "OVERCURRENT") ||
-         !strcmp(code, "OVERSPEED") || !strcmp(code, "VIBRATION");
+         !strcmp(code, "OVERSPEED") || !strcmp(code, "VIBRATION") || !strcmp(code, "UNDERHEAT");
 }
 
 static bool valid_severity(const char *severity) {
@@ -204,7 +204,7 @@ bool parse_device_config(const char *json_payload, device_config_t *out) {
     if (!isfinite(reg.scale)) return false;
     const bool flat_alarms = entry.containsKey("alarm_high") || entry.containsKey("alarm_low") || entry.containsKey("alarm_critical");
     if (flat_alarms) {
-      if (entry.containsKey("alarm")) return false;
+      if (entry.containsKey("alarm") || entry.containsKey("lowAlarm")) return false;
       if (!read_endpoint_alarm(entry, "alarm_high", "alarm_code", "alarm_severity", false, reg.alarm) ||
           !read_endpoint_alarm(entry, "alarm_low", "alarm_low_code", "alarm_low_severity", true, reg.low_alarm) ||
           !read_endpoint_alarm(entry, "alarm_critical", "alarm_code", "alarm_critical_severity", false, reg.critical_alarm)) return false;
@@ -238,6 +238,30 @@ bool parse_device_config(const char *json_payload, device_config_t *out) {
         if (!isfinite(reg.critical_alarm.threshold) || reg.critical_alarm.threshold <= reg.alarm.threshold) return false;
       }
     }
+    // Dạng chuẩn dùng chung backend/FE: ngưỡng thấp là alarm riêng.
+    if (entry.containsKey("lowAlarm")) {
+      if (strcmp(reg.unit, "°C") && strcmp(reg.unit, "C") && strcmp(reg.unit, "degC") &&
+          strcmp(reg.unit, "℃") && strcmp(reg.unit, "°F") && strcmp(reg.unit, "F") && strcmp(reg.unit, "K")) return false;
+      JsonVariant low = entry["lowAlarm"];
+      if (!low.is<JsonObject>() || !low["threshold"].is<float>()) return false;
+      reg.low_alarm.threshold = low["threshold"].as<float>();
+      if (low.containsKey("hysteresis") && !low["hysteresis"].is<float>()) return false;
+      reg.low_alarm.hysteresis = low["hysteresis"] | 0.0f;
+      if (!isfinite(reg.low_alarm.threshold) || !isfinite(reg.low_alarm.hysteresis) ||
+          reg.low_alarm.hysteresis < 0 || !isfinite(reg.low_alarm.threshold + reg.low_alarm.hysteresis) ||
+          !read_string(low["code"], reg.low_alarm.code, sizeof(reg.low_alarm.code), "", true) ||
+          strcmp(reg.low_alarm.code, "UNDERHEAT") ||
+          !read_string(low["severity"], reg.low_alarm.severity, sizeof(reg.low_alarm.severity), "", true) ||
+          !valid_severity(reg.low_alarm.severity)) return false;
+      if (reg.alarm.enabled && reg.low_alarm.threshold >= reg.alarm.threshold) return false;
+      reg.low_alarm.enabled = true;
+      reg.low_alarm.below = true;
+    }
+    // Mã UNDERHEAT luôn phải là ngưỡng thấp, kể cả dùng hợp đồng phẳng cũ.
+    if (reg.alarm.enabled && !strcmp(reg.alarm.code, "UNDERHEAT")) return false;
+    if (reg.low_alarm.enabled && !strcmp(reg.low_alarm.code, "UNDERHEAT") &&
+        strcmp(reg.unit, "°C") && strcmp(reg.unit, "C") && strcmp(reg.unit, "degC") &&
+        strcmp(reg.unit, "℃") && strcmp(reg.unit, "°F") && strcmp(reg.unit, "F") && strcmp(reg.unit, "K")) return false;
     ++candidate.register_count;
   }
 

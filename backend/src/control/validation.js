@@ -43,6 +43,11 @@ export function validateConfig(value) {
       }
     }
     if (reg.expectedMin != null && reg.expectedMax != null && reg.expectedMin > reg.expectedMax) fail(`${reg.key}: minimum exceeds maximum`);
+    // Metadata giúp AI xác định nhiệt độ mà không đoán từ tên metric.
+    if (row.metricType !== undefined) {
+      if (!['temperature', 'generic'].includes(row.metricType)) fail(`${reg.key}: invalid metric type`);
+      reg.metricType = row.metricType;
+    }
     if (row.alarm != null) {
       const alarm = row.alarm;
       if (!object(alarm) || !finite(alarm.threshold) || Math.abs(alarm.threshold) > 3.4028234e38 ||
@@ -56,6 +61,17 @@ export function validateConfig(value) {
           fail(`${reg.key}: invalid critical alarm threshold`);
         reg.alarm.criticalThreshold = alarm.criticalThreshold;
       }
+    }
+    if (row.lowAlarm != null) {
+      const low = row.lowAlarm;
+      if (!['°C', 'C', 'degC', '℃', '°F', 'F', 'K'].includes(reg.unit)) fail(`${reg.key}: UNDERHEAT requires a temperature unit`);
+      if (!object(low) || !finite(low.threshold) || Math.abs(low.threshold) > 3.4028234e38 ||
+          !finite(low.hysteresis ?? 0) || (low.hysteresis ?? 0) < 0 ||
+          Math.abs(low.hysteresis ?? 0) > 3.4028234e38 ||
+          (!finite(low.threshold + (low.hysteresis ?? 0)) || Math.abs(low.threshold + (low.hysteresis ?? 0)) > 3.4028234e38) || low.code !== 'UNDERHEAT' ||
+          !['low', 'medium', 'high', 'critical'].includes(low.severity)) fail(`${reg.key}: invalid low alarm`);
+      if (reg.alarm && low.threshold >= reg.alarm.threshold) fail(`${reg.key}: low threshold must be below high threshold`);
+      reg.lowAlarm = { threshold: low.threshold, hysteresis: low.hysteresis ?? 0, code: low.code, severity: low.severity };
     }
     return reg;
   });

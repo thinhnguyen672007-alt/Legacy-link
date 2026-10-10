@@ -13,9 +13,9 @@ static bool send_ok = true;
 static bool send_alarm(const device_config_t *cfg, const alarm_config_t *alarm,
                        double value, uint64_t timestamp) {
   assert(std::string(cfg->device_id) == "CNC-01");
-  assert(std::string(alarm->code) == "OVERHEAT");
+  assert(std::string(alarm->code) == "OVERHEAT" || std::string(alarm->code) == "UNDERHEAT");
   assert(std::string(alarm->severity) == "high");
-  assert(value > alarm->threshold && timestamp > 0);
+  assert((alarm->below ? value < alarm->threshold : value > alarm->threshold) && timestamp > 0);
   ++attempts;
   return send_ok;
 }
@@ -103,5 +103,17 @@ int main() {
   assert(global_device_config.registers[15].alarm.hysteresis == 0);
   assert(apply_new_configuration(R"({"deviceId":"CNC-01","registerMap":[{"key":"x","address":0}]})"));
   assert(!global_device_config.registers[0].alarm.enabled);
+  // Ngưỡng thấp: báo <20, hồi phục >=23; lỗi đọc không được hồi phục giả.
+  assert(apply_new_configuration(R"({"deviceId":"CNC-01","registerMap":[{"key":"temperature","address":0,"unit":"C","lowAlarm":{"threshold":20,"hysteresis":3,"code":"UNDERHEAT","severity":"high"}}]})"));
+  monitor.reset(); attempts = 0;
+  reading.success = true; strcpy(reading.key, "temperature");
+  sample(20); assert(attempts == 0);
+  sample(19); assert(attempts == 1);
+  sample(21); sample(19); assert(attempts == 1);
+  reading.success = false; sample(25); reading.success = true;
+  sample(19); assert(attempts == 1);
+  sample(23); sample(19); assert(attempts == 2);
+  assert(!apply_new_configuration(R"({"deviceId":"CNC-01","registerMap":[{"key":"temperature","address":0,"unit":"C","lowAlarm":{"threshold":20,"hysteresis":-3,"code":"UNDERHEAT","severity":"high"}}]})"));
+  assert(!apply_new_configuration(R"({"deviceId":"CNC-01","registerMap":[{"key":"temperature","address":0,"unit":"C","alarm":{"threshold":20,"code":"OVERHEAT","severity":"high"},"lowAlarm":{"threshold":20,"code":"UNDERHEAT","severity":"high"}}]})"));
   std::cout << "Alarm validation, threshold, hysteresis and retry tests passed.\n";
 }

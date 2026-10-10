@@ -94,6 +94,15 @@ export const registerSchema = z.object({
   scale: finite,
   unit: z.string(),
   wordOrder: z.enum(["HIGH_FIRST", "LOW_FIRST"]),
+  metricType: z.enum(["temperature", "generic"]).optional(),
+  lowAlarm: z
+    .object({
+      threshold: finite,
+      hysteresis: finite,
+      code: z.literal("UNDERHEAT"),
+      severity: z.enum(["low", "medium", "high", "critical"]),
+    })
+    .optional(),
   expectedMin: finite.optional(),
   expectedMax: finite.optional(),
   alarm: z
