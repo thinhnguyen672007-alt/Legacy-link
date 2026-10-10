@@ -37,7 +37,7 @@ int main() {
     R"("deviceId":"1234567890123456789012345678901234")",
     R"("protocol":"OTHER")", R"("baudRate":0)", R"("baudRate":"9600")",
     R"("slaveId":257)", R"("slaveId":-1)", R"("slaveId":1.5)",
-    R"("stopBits":3)", R"("parity":"MARK")", R"("parity":2)",
+    R"("stopBits":3)", R"("parity":"MARK")", R"("parity":2)", R"("parity":"NONE\u0000EVEN")",
     R"("samplingIntervalMs":0)", R"("samplingIntervalMs":4294967296)",
     R"("registerMap":[])", R"("registerMap":[null])",
     R"("registerMap":[{"key":"x"}])",

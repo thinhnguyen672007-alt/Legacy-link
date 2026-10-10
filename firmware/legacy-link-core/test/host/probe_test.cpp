@@ -89,5 +89,13 @@ int main() {
     assert(msg.topic != std::string(probe_topic) + "/result");
   assert(!deserializeJson(rejected, config_ack));
   assert(rejected["reason"] == "stale_command");
+  // A failed local MQTT write must be observable rather than silently discarded.
+  modbus_wait_ms() = 0; mqttClient.publish_ok = false;
+  const auto drops = read_report_drops;
+  run_probe(probe);
+  assert(read_report_drops == drops + 1);
+  assert(!deserializeJson(rejected, config_ack));
+  assert(rejected["reason"] == "report_publish_failed" && rejected["requestId"] == "probe-b");
+  assert(Serial2.last_baud_rate == before.baud_rate && saved_config_blob() == flash);
   std::cout << "Probe isolation, raw signed values, read failures and boot evidence passed.\n";
 }

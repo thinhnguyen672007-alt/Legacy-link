@@ -65,6 +65,7 @@ static uint32_t last_poll_started = 0;
 static modbus_result_t poll_results[MAX_REGISTERS];
 static bool reading_seen[MAX_REGISTERS] = {};
 static uint32_t successful_reads = 0, failed_reads = 0;
+static uint32_t read_report_drops = 0;
 
 void invalidate_readings() {
   memset(reading_seen, 0, sizeof(reading_seen));
@@ -562,9 +563,9 @@ void describe_delivery(JsonObject target) {
   describe_outbox(target.createNestedObject("alarm"), alarm_queue);
 }
 
-void send_read_report(const device_config_t &cfg, modbus_result_t *results,
+bool send_read_report(const device_config_t &cfg, modbus_result_t *results,
                       const char *request_id = nullptr) {
-  if (!mqttClient.connected()) return;
+  if (!mqttClient.connected()) { ++read_report_drops; return false; }
   DynamicJsonDocument doc(8192);
   doc["schemaVersion"] = 1;
   doc["gatewayId"] = gateway_id;
@@ -581,9 +582,11 @@ void send_read_report(const device_config_t &cfg, modbus_result_t *results,
   if (request_id) snprintf(topic, sizeof(topic), "legacy-link/gateways/%s/probe/result", gateway_id);
   else snprintf(topic, sizeof(topic), "legacy-link/devices/%s/diagnostics", cfg.device_id);
   std::unique_ptr<char[]> payload(new (std::nothrow) char[REPORT_BUFFER_SIZE]);
-  if (!payload || doc.overflowed() || measureJson(doc) >= REPORT_BUFFER_SIZE) return;
+  if (!payload || doc.overflowed() || measureJson(doc) >= REPORT_BUFFER_SIZE) { ++read_report_drops; return false; }
   serializeJson(doc, payload.get(), REPORT_BUFFER_SIZE);
-  mqttClient.publish(topic, payload.get(), false);
+  const bool sent = mqttClient.publish(topic, payload.get(), false);
+  if (!sent) ++read_report_drops;
+  return sent;
 }
 
 void run_probe(const char *payload) {
@@ -629,7 +632,8 @@ void run_probe(const char *payload) {
   apply_uart_config(is_config_valid ? &global_device_config : fallback.get());
   reset_poll_cycle();
   if (expired) queue_config_ack("rejected", "stale_command", request_id);
-  else send_read_report(*candidate, results.get(), request_id);
+  else if (!send_read_report(*candidate, results.get(), request_id))
+    queue_config_ack("rejected", "report_publish_failed", request_id);
 }
 
 void poll_modbus_step() {
@@ -661,6 +665,7 @@ size_t delivery_health_json(char *output, size_t capacity) {
   doc["freeHeapBytes"] = ESP.getFreeHeap();
   doc["successfulReads"] = successful_reads;
   doc["failedReads"] = failed_reads;
+  doc["readReportDrops"] = read_report_drops;
   doc["storage"] = "RAM; cleared on reset";
   doc["mqttTransport"] = "plaintext";
   describe_outbox(doc.createNestedObject("telemetry"), telemetry_queue);

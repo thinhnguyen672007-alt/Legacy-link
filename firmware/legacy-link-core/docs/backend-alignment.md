@@ -36,10 +36,12 @@ not subtract 40001 again.
 
 ## Metric names and scaling
 
-The team-agreed metric keys are `temperature`, `speed`, `torque`, `current`,
-`rpm`, and `pressure`. Firmware copies each register key unchanged into the
-telemetry `metrics` object. Use these exact, case-sensitive names; `temp` does
-not become `temperature`. Backend validators must allow the same names.
+Common metric keys are `temperature`, `speed`, `torque`, `current`, `rpm` and
+`pressure`. Both firmware and backend require 1–19 ASCII characters, starting
+with a letter, followed by letters, digits or underscores. Reserved names
+`constructor`, `prototype` and `__proto__` are rejected. The device catalog still
+determines which well-formed keys may be ingested; grammar alone is not permission.
+Firmware copies keys unchanged: `temp` does not become `temperature`.
 
 Firmware decodes the signed/unsigned register value first, then multiplies
 by `scale` exactly once. The backend receives the engineering value and must
@@ -171,3 +173,50 @@ configuration idempotence, topic ID checks and constructed LWT payloads. The
 ESP32 build checks compilation. These checks do not prove real RS-485 word order,
 Wi-Fi delivery, broker power-loss behavior, HTTP endpoint operation, or database
 insertion. Test those with the actual board, broker and Modbus source next.
+
+## Control commands and local verification
+
+MQTT commands may include `requestId` (1–64 bytes), `expectedBootId` (1–16 bytes),
+`expectedConfigRequestId` (0–64 bytes) and `expiresAt` (integer epoch milliseconds).
+Strings with embedded NUL characters are rejected. Legacy manual configuration
+may omit these fields. A supplied deadline requires a synchronized clock and
+must still be in the future at admission and execution. Apply also rechecks the
+expected active configuration; retries bearing the active request ID remain
+idempotent under the existing control contract.
+
+While a command is pending or executing, another command receives a correlated
+`rejected`/`busy` ACK and cannot overwrite the first. During a probe, MQTT is
+serviced between Modbus waits. Expiry stops further register reads after the
+current transaction returns, restores UART settings, and reports `stale_command`.
+It does not publish an incomplete report as `completed`. A failed local report
+publish returns `report_publish_failed`; a successful QoS 0 write still does not
+prove backend receipt. The backend operation deadline remains authoritative.
+
+The firmware contract test extracts backend validators from a selected fetched
+Git revision. It now checks 22 serialized messages including successful/failed
+read reports and probe results, as well as telemetry, status and alarms. It does
+not run the database transaction or prove broker authorization. To compare a
+teammate's unpublished-to-main contract without checking out their branch:
+
+```bash
+git fetch origin
+ASAN_OPTIONS=detect_leaks=0 python3 firmware/legacy-link-core/test/host/run_contract.py --backend-ref origin/feature/backend-base
+```
+
+## Profile changes with pending delivery
+
+A valid new profile starts sampling immediately; existing telemetry/alarm IDs,
+payloads and timestamps remain unchanged in their RAM queues. No queue-drain
+condition blocks configuration. A rejected update preserves the working profile.
+The [USB inspector](usb-inspection.md) reports `unknown` until the new profile's
+first read, then reports the actual result and age.
+
+Delivery is still FIFO within each queue. A rejected old head can delay new
+samples, and a full queue refuses new samples. Firmware never discards the old
+head just to make a dashboard look current. The backend must accept/reconcile
+historical samples according to its ingestion policy. Telemetry schema 1 has no
+configuration revision field: an old and a new sample with the same metric key
+but different scale/source cannot be reliably attributed to their profiles from
+that payload alone. This change adds no new MQTT fields to solve that separately.
+Frontend freshness/Unknown/Error presentation remains frontend/backend work.
+MQTT continues to use the team's chosen plaintext LAN transport.

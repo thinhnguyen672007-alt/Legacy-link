@@ -146,8 +146,8 @@ bool parse_device_config(const char *json_payload, device_config_t *out) {
   candidate.stop_bits = number;
   if (!read_uint(doc["slaveId"], 1, 1, 247, number)) return false;
   candidate.slave_id = number;
-  const char *parity = doc["parity"].isNull() ? "NONE" : doc["parity"].as<const char *>();
-  if (!parity || (strcmp(parity, "NONE") && strcmp(parity, "EVEN") && strcmp(parity, "ODD"))) return false;
+  char parity[5];
+  if (!read_string(doc["parity"], parity, sizeof(parity), "NONE") || (strcmp(parity, "NONE") && strcmp(parity, "EVEN") && strcmp(parity, "ODD"))) return false;
   candidate.parity = parse_parity(parity);
 
   // Endpoint rows use database column names. Keep the original serial/MQTT
