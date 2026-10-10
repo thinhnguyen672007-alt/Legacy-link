@@ -14,6 +14,9 @@ test('session roles and password change are checked before business actions',asy
  const res={setHeader(){}};
  const req=(method,origin)=>({method,headers:{authorization:'Bearer test',...(origin?{origin}:{})}});
  await security(req('GET'),res,'/machines');
+ await security(req('POST'),res,'/ai/chat');
+ await security(req('POST'),res,'/ai/query');
+ await assert.rejects(()=>security(req('POST'),res,'/ai/execute'),e=>e.status===403);
  await assert.rejects(()=>security(req('POST'),res,'/config/preview'),e=>e.status===403);
  await assert.rejects(()=>security(req('GET'),res,'/admin/users'),e=>e.status===403);
  await assert.rejects(()=>security(req('POST','http://untrusted.invalid'),res,'/auth/login'),e=>e.status===403);
