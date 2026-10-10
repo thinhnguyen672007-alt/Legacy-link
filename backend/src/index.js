@@ -1,3 +1,4 @@
+import { snapshot } from './observability.js';
 import { recordConsumerHealth } from './db/health.js';
 import { createIngestionHandler } from './ingestion/handler.js';
 // index.js
@@ -20,8 +21,6 @@ import { expireStaleRequests } from './db/config-request.js';
 import { recordServiceStart, recordServiceStop } from './db/service-run.js';
 import { handleConfigAck } from './service/apply-config.js';
 
-
-
 console.log('[BACKEND] Khoi dong MQTT consumer...');
 console.log(`[BACKEND] Broker: ${config.mqtt.url}`);
 
@@ -43,11 +42,11 @@ try {
   for (const run of staleRuns) {
     console.warn(
       `[UPTIME] Lan chay truoc (bat dau ${new Date(run.started_at).toISOString()})` +
-        ` ket thuc BAT THUONG — khong ghi duoc gio dung.`,
+        ` ket thuc BAT THUONG — khong ghi duoc gio dung.`
     );
     console.warn(
       `[UPTIME] Co nguy co gian doan du lieu; can doi chieu hang doi va sequence cua firmware.` +
-        ` Dashboard se hien khoang trang nay (xem GET /uptime).`,
+        ` Dashboard se hien khoang trang nay (xem GET /uptime).`
     );
   }
 } catch (err) {
@@ -56,17 +55,16 @@ try {
   console.warn('[UPTIME] Khong ghi duoc lich su khoi dong:', err.message);
 }
 
-let stopping = false
+let stopping = false;
 
-
-function logTiming(payload){
+function logTiming(payload) {
   const receivedAt = Date.now();
 
-    if (payload.timestamp) {
-      console.log('ReceivedAt at : ' + new Date(receivedAt).toISOString())
-      console.log('Timestamp at : ' + new Date(payload.timestamp).toISOString())
-      console.log('Time Consuming:', (receivedAt - payload.timestamp) / 1000, 's');
-    }
+  if (payload.timestamp) {
+    console.log('ReceivedAt at : ' + new Date(receivedAt).toISOString());
+    console.log('Timestamp at : ' + new Date(payload.timestamp).toISOString());
+    console.log('Time Consuming:', (receivedAt - payload.timestamp) / 1000, 's');
+  }
 }
 
 function publishIngestionAck(topic, payload) {
@@ -77,7 +75,12 @@ function publishIngestionAck(topic, payload) {
 
 const client = startMqttClient({
   onDiagnostics: (deviceId, payload) => saveDiagnostics(deviceId, payload),
-  onTelemetry: createIngestionHandler({ kind: 'telemetry', validate: validateTelemetry, save: saveTelemetry, publish: publishIngestionAck }),
+  onTelemetry: createIngestionHandler({
+    kind: 'telemetry',
+    validate: validateTelemetry,
+    save: saveTelemetry,
+    publish: publishIngestionAck,
+  }),
   onStatus: async (deviceId, payload, packet) => {
     const result = validateStatus(deviceId, payload);
 
@@ -104,7 +107,12 @@ const client = startMqttClient({
 
     logTiming(status);
   },
-  onAlarm: createIngestionHandler({ kind: 'alarm', validate: validateAlarm, save: saveAlarm, publish: publishIngestionAck }),
+  onAlarm: createIngestionHandler({
+    kind: 'alarm',
+    validate: validateAlarm,
+    save: saveAlarm,
+    publish: publishIngestionAck,
+  }),
   onConfigAck: async (gatewayId, payload, packet) => {
     if (packet?.retain) return; // ACK phát lại từ broker không xác nhận lệnh mới.
     const result = validateConfigAck(gatewayId, payload);
@@ -134,7 +142,7 @@ const client = startMqttClient({
         // Truong hop thu ba la binh thuong, khong phai loi: ACK di cham hon
         // 10 giay. ESP32 van da ap dung cau hinh.
         console.warn(
-          `[CONFIG-ACK] ${ack.gatewayId}: khong khop yeu cau nao dang cho (requestId=${ack.requestId ?? 'khong co'})`,
+          `[CONFIG-ACK] ${ack.gatewayId}: khong khop yeu cau nao dang cho (requestId=${ack.requestId ?? 'khong co'})`
         );
         return;
       }
@@ -147,12 +155,12 @@ const client = startMqttClient({
 
       console.log(
         `[CONFIG-ACK] ${ack.gatewayId}: ${ack.result} / ${ack.reason ?? 'khong ro ly do'} / ${luu}` +
-          ` / requestId=${ack.requestId}`,
+          ` / requestId=${ack.requestId}`
       );
     } catch (err) {
       console.error('[CONFIG-ACK] Loi ghi database:', err.message);
     }
-  }
+  },
 });
 
 // HTTP và consumer là hai chương trình riêng nên chia sẻ trạng thái qua PostgreSQL.
@@ -161,9 +169,17 @@ let healthBusy = false;
 async function heartbeatConsumer() {
   if (healthBusy) return;
   healthBusy = true;
-  try { await recordConsumerHealth(config.mqtt.clientId, !stopping && client.connected && getStats().subscribed); }
-  catch (err) { console.warn('[HEALTH] Consumer heartbeat failed:', err.message); }
-  finally { healthBusy = false; }
+  try {
+    await recordConsumerHealth(
+      config.mqtt.clientId,
+      !stopping && client.connected && getStats().subscribed,
+      { ...snapshot(), mqtt: getStats() }
+    );
+  } catch (err) {
+    console.warn('[HEALTH] Consumer heartbeat failed:', err.message);
+  } finally {
+    healthBusy = false;
+  }
 }
 const healthTimer = setInterval(heartbeatConsumer, 5000);
 void heartbeatConsumer();
@@ -195,32 +211,41 @@ const expiryTimer = setInterval(async () => {
       console.warn(
         `[CONFIG] Yeu cau ${row.request_id} qua ${CONFIG_ACK_TIMEOUT_SECONDS}s khong co ACK` +
           ` (gateway ${row.gateway_id}, thiet bi ${row.device_id}).` +
-          ` CHUA BIET ket qua — khong phai that bai.`,
+          ` CHUA BIET ket qua — khong phai that bai.`
       );
     }
   } catch (err) {
     console.error('[CONFIG] Loi kiem tra yeu cau qua han:', err.message);
-  } finally { expiryBusy = false; }
+  } finally {
+    expiryBusy = false;
+  }
 }, 5000);
-
 
 // C12: chỉ ghi stopped_at khi đã xử lý xong việc nhận trước tín hiệu dừng.
 // Quá hạn thì thoát lỗi; firmware phải gửi lại mẫu còn thiếu ACK khi backend trở lại.
-for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, async () => {
-  if (stopping) return;
-  stopping = true;
-  clearInterval(healthTimer); clearInterval(expiryTimer);
-  client.stopIntake();
-  const deadline = setTimeout(() => { console.error('[SHUTDOWN] Quá hạn drain'); process.exit(1); }, config.ingestion.shutdownMs);
-  try {
-    await client.drain();
-    while (healthBusy || expiryBusy) await new Promise(resolve => setTimeout(resolve, 20));
-    await recordConsumerHealth(config.mqtt.clientId, false);
-    await recordServiceStop(currentRunId);
-    await client.endAsync(false);
-    await closePool();
-    clearTimeout(deadline);
-    console.log('[SHUTDOWN] Hoàn tất', JSON.stringify(getStats()));
-    process.exit(0);
-  } catch (error) { console.error('[SHUTDOWN]', error.message); process.exit(1); }
-});
+for (const signal of ['SIGINT', 'SIGTERM'])
+  process.on(signal, async () => {
+    if (stopping) return;
+    stopping = true;
+    clearInterval(healthTimer);
+    clearInterval(expiryTimer);
+    client.stopIntake();
+    const deadline = setTimeout(() => {
+      console.error('[SHUTDOWN] Quá hạn drain');
+      process.exit(1);
+    }, config.ingestion.shutdownMs);
+    try {
+      await client.drain();
+      while (healthBusy || expiryBusy) await new Promise((resolve) => setTimeout(resolve, 20));
+      await recordConsumerHealth(config.mqtt.clientId, false);
+      await recordServiceStop(currentRunId);
+      await client.endAsync(false);
+      await closePool();
+      clearTimeout(deadline);
+      console.log('[SHUTDOWN] Hoàn tất', JSON.stringify(getStats()));
+      process.exit(0);
+    } catch (error) {
+      console.error('[SHUTDOWN]', error.message);
+      process.exit(1);
+    }
+  });
