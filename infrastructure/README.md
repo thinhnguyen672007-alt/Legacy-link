@@ -61,6 +61,7 @@ Seed này dành cho BENCH-01/simulator, không tự đổi commissioning đã c�
 ## Tài liệu
 
 - [Runbook: env, health, restart, backup/restore, demo](docs/runbook.md)
+- [Nghiệm thu hạ tầng 2026-10-10](docs/acceptance-2026-10-10.md)
 - [Backend API](../docs/backend-api-c10.md)
 - [Hợp đồng gửi bù và giới hạn firmware](../docs/telemetry-delivery.md)
 
