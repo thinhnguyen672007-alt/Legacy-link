@@ -9,8 +9,13 @@ if (!['consumer', 'api'].includes(mode)) throw new Error('Expected consumer or a
 // Cùng một wrapper phục vụ consumer hoặc API, không chép/sửa mã nghiệp vụ backend.
 const child = spawn(process.execPath, [mode === 'api' ? 'src/http/server.js' : 'src/index.js'], { stdio: 'inherit' });
 let stopping = false, unhealthy = 0, interval, grace, force, probe;
+// Cho tiến trình con ít nhất thời gian drain của backend rồi mới buộc dừng.
+// Backend mặc định SHUTDOWN_TIMEOUT_MS=15000; force-kill sớm hơn sẽ cắt mất cơ hội
+// ghi nốt ACK cho các mẫu đã nhận. Đọc cùng biến để wrapper không ngắn hơn deadline.
+const drainMs = Number(process.env.SHUTDOWN_TIMEOUT_MS ?? 15000);
+const forceAfterMs = Number.isFinite(drainMs) && drainMs > 0 ? drainMs + 2000 : 17000;
 // Khi dừng, ngừng kiểm tra mới rồi gửi SIGTERM cho Node đóng MQTT/DB sạch.
-// Nếu quá 7 giây vẫn chưa thoát thì buộc dừng, tránh container treo mãi.
+// Quá hạn trên mới SIGKILL, tránh container treo mãi.
 // stopping ngăn hai yêu cầu dừng tạo hai vòng cleanup chồng nhau.
 function stop(code) {
   if (stopping) return;
@@ -19,7 +24,7 @@ function stop(code) {
   if (probe) probe.kill('SIGTERM');
   child.once('exit', () => process.exit(code));
   child.kill('SIGTERM');
-  force = setTimeout(() => { child.kill('SIGKILL'); process.exit(code); }, 7000);
+  force = setTimeout(() => { child.kill('SIGKILL'); process.exit(code); }, forceAfterMs);
 }
 child.on('error', () => { console.error('[INFRA] Cannot start backend'); process.exit(1); });
 // Nếu Node tự chết, wrapper cũng thoát để Docker nhận ra lỗi; không giữ container Up giả.
