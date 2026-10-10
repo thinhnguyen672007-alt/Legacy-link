@@ -55,6 +55,9 @@ change machine configuration, publish control commands, or expose Wi-Fi password
 `:health` produces one JSON line with gateway/boot IDs, Wi-Fi/MQTT connection flags,
 clock readiness, free heap and separate `telemetry` / `alarm` sections:
 
+`mqttTransport` reports `plaintext` for this demo build. It describes the transport,
+not broker authentication success. Site credentials are never included.
+
 | Field | Meaning |
 | --- | --- |
 | pending / capacity | Current queue occupancy / fixed limit |
@@ -70,6 +73,9 @@ backend from registry rejection or queue exhaustion. An empty queue alone does
 not prove no measurements were dropped; inspect failedEnqueues too.
 
 ## Acceptance runbook
+
+Use the [physical acceptance worksheet](firmware-physical-acceptance.md) for
+per-case evidence, registry setup, cold boot, profile switching and TLS prerequisites.
 
 1. Run backend schema/migrations from its C7–C10 docs and verify registry gateway
    matches ESP32's printed gateway ID. Keep ESP32 powered and time synchronized.

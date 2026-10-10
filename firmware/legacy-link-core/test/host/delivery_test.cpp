@@ -69,5 +69,30 @@ int main() {
   const size_t beforeWrap=mqttClient.published.size();
   test_millis=743; flush_telemetry(); assert(mqttClient.published.size()==beforeWrap);
   test_millis=744; flush_telemetry(); assert(mqttClient.published.size()==beforeWrap+1);
+  // Missing ACK: retain exact bytes throughout exponential backoff and its cap.
+  head->attempts=0; head->lastAttempt=0;
+  test_millis=10000;
+  const std::string retryPayload=head->payload;
+  flush_telemetry();
+  const unsigned delays[]={1000,2000,4000,8000,16000,32000,32000};
+  for (const unsigned delay : delays) {
+    const size_t sentBefore=mqttClient.published.size();
+    test_millis+=delay-1; flush_telemetry();
+    assert(mqttClient.published.size()==sentBefore);
+    test_millis+=1; flush_telemetry();
+    assert(mqttClient.published.size()==sentBefore+1);
+    assert(mqttClient.published.back().payload==retryPayload);
+    assert(telemetry_queue.size()==1);
+  }
+  // Invalid ACK schemas/statuses and wrong devices cannot unblock the queue.
+  const std::string id=head->id;
+  for (const std::string &invalid : std::vector<std::string>{
+    "{",
+    "{\"schemaVersion\":2,\"deviceId\":\"BENCH-01\",\"kind\":\"telemetry\",\"messageId\":\""+id+"\",\"status\":\"committed\"}",
+    "{\"schemaVersion\":1,\"deviceId\":\"OTHER\",\"kind\":\"telemetry\",\"messageId\":\""+id+"\",\"status\":\"committed\"}",
+    "{\"schemaVersion\":1,\"deviceId\":\"BENCH-01\",\"kind\":\"telemetry\",\"messageId\":\""+id+"\",\"status\":\"received\"}"}) {
+    mqttClient.receive("legacy-link/gateways/123456789ABC/ingestion/ack",invalid);
+    assert(telemetry_queue.size()==1);
+  }
   std::cout << "Offline queue, retry and exact ACK tests passed.\n";
 }

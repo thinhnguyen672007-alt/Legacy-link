@@ -260,6 +260,8 @@ services:
         condition: service_healthy
     environment:
       MQTT_URL: mqtt://mosquitto:1883
+      # Explicit private-LAN demo choice; backend production otherwise requires TLS.
+      MQTT_ALLOW_PLAINTEXT: "true"
       MQTT_USERNAME: ${MQTT_DEV_USER:-legacy_admin}
       MQTT_PASSWORD: ${MQTT_DEV_PASS:-legacy_secret_2026}
       MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-legacy-link-backend}
@@ -285,6 +287,8 @@ services:
         condition: service_healthy
     environment:
       MQTT_URL: mqtt://mosquitto:1883
+      # Match the ESP32 plaintext demo transport; do not expose this broker publicly.
+      MQTT_ALLOW_PLAINTEXT: "true"
       MQTT_USERNAME: ${MQTT_DEV_USER:-legacy_admin}
       MQTT_PASSWORD: ${MQTT_DEV_PASS:-legacy_secret_2026}
       MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-legacy-link-backend}

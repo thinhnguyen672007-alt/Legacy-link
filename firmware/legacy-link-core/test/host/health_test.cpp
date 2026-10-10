@@ -13,6 +13,7 @@ int main() {
   assert(delivery_health_json(output,sizeof(output)));
   StaticJsonDocument<2048> doc;
   assert(!deserializeJson(doc,output));
+  assert(doc["mqttTransport"]=="plaintext");
   assert(doc["telemetry"]["pending"]==1);
   assert(doc["telemetry"]["headId"]=="boot-1");
   assert(doc["telemetry"]["rejection"]=="unknown_device");

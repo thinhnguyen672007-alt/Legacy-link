@@ -3,6 +3,8 @@
 #define LEGACYLINK_WIFI_SSID "YOUR_WIFI_SSID"
 #define LEGACYLINK_WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
 #define LEGACYLINK_MQTT_HOST "192.168.1.100"
+// Plain MQTT over the agreed private demo LAN. Host is an IP/DNS name,
+// not a mqtt:// URL. Port 8883 alone does not enable TLS in this firmware.
 #define LEGACYLINK_MQTT_PORT 1883
 // Shared hackathon account provisioned by the infrastructure team.
 #define LEGACYLINK_MQTT_USER "legacy_admin"
