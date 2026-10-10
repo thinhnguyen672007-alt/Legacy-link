@@ -37,12 +37,12 @@ it("lỗi xác thực giữ lại form và không mở session", async () => {
  expect(connect).not.toHaveBeenCalled();
  expect(screen.getByRole("button", { name: "Đăng nhập" })).toBeEnabled();
 });
-it("giảm chuyển động vẫn đăng nhập được; chuyển VI/EN đổi label", async () => {
+it("giảm chuyển động vẫn đăng nhập được; chuyển ngôn ngữ đổi label và placeholder", async () => {
  vi.mocked(login).mockResolvedValue(result);
  vi.stubGlobal("matchMedia", () => ({ matches: true }));
  render(<Connection />); const u = userEvent.setup();
  await u.click(screen.getByRole("button", { name: "English" }));
- expect(screen.getByLabelText("Username")).toBeInTheDocument();
+ expect(screen.getByLabelText("Username")).toHaveAttribute("placeholder", "Enter your username");
  await u.click(screen.getByRole("button", { name: "Tiếng Việt" }));
  await submit(); expect(connect).toHaveBeenCalledTimes(1);
 });
