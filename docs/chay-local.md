@@ -1,6 +1,7 @@
-# Chạy Legacy Link trên máy của Thịnh
+# Chạy Legacy Link trên máy local
 
-Thư mục: `/home/nguyenvuducthinh/Legacy-link`. Nhánh: `feature/backend-base`.
+Thư mục: thư mục gốc đã clone, dưới đây ký hiệu `/path/to/Legacy-link`. Thay bằng
+đường dẫn thật của bạn. Trạng thái code đúng nhất nằm ở `main` sau khi `git pull`.
 
 ## Hiểu trước khi chạy
 
@@ -16,7 +17,7 @@ Consumer và HTTP là **hai chương trình**, cần hai terminal riêng. Chỉ 
 ## 1. Kiểm tra hạ tầng
 
 ```bash
-cd /home/nguyenvuducthinh/Legacy-link
+cd /path/to/Legacy-link
 docker ps
 ```
 
@@ -62,7 +63,7 @@ Không dùng `docker compose down -v` để thử khắc phục lỗi: `-v` xóa
 Máy hiện đã có `backend/.env`; giữ file đó. Chỉ tạo từ mẫu nếu chưa có:
 
 ```bash
-cd /home/nguyenvuducthinh/Legacy-link/backend
+cd /path/to/Legacy-link/backend
 # Chỉ chạy nếu chưa có .env:
 # cp .env.example .env
 npm ci
@@ -70,19 +71,26 @@ npm ci
 
 `.env` phải có MQTT_URL, MQTT_USERNAME, MQTT_PASSWORD, MQTT_CLIENT_ID, MQTT_QOS, DATABASE_URL. Với backend chạy trên máy này, địa chỉ broker và database là localhost; khi chạy trong Docker chúng phải là tên service (mosquitto, postgres). Tài khoản/mật khẩu phải khớp hạ tầng Huy cấu hình. Không commit `.env`.
 
-Cấu hình HTTP mặc định đã là 0.0.0.0:3000. Có thể thêm vào `.env`:
+Cần thêm hai token, mỗi token một giá trị ngẫu nhiên khác nhau:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
 ```dotenv
-HTTP_HOST=0.0.0.0
-HTTP_PORT=3000
+API_READ_TOKEN=<token-thu-nhat>
+API_WRITE_TOKEN=<token-thu-hai>
+CORS_ORIGINS=http://localhost:5173
 ```
+
+HTTP mặc định là 0.0.0.0:3000. Xác thực bật sẵn; `API_AUTH_DISABLED=true` chỉ dùng được khi `HTTP_HOST=127.0.0.1` và `NODE_ENV` không phải `production`.
 
 ## 4. Chạy hai terminal
 
 Terminal 1 — nhận dữ liệu MQTT, giữ terminal mở:
 
 ```bash
-cd /home/nguyenvuducthinh/Legacy-link/backend
+cd /path/to/Legacy-link/backend
 npm start
 ```
 
@@ -91,7 +99,7 @@ npm start
 Terminal 2 — mở HTTP API, cũng giữ terminal mở:
 
 ```bash
-cd /home/nguyenvuducthinh/Legacy-link/backend
+cd /path/to/Legacy-link/backend
 npm run start:http
 ```
 
@@ -102,8 +110,12 @@ Log `[HTTP] Listening port=3000` nghĩa là HTTP đã mở cổng. Lỗi EADDRIN
 ```bash
 curl http://localhost:3000/health/live
 curl http://localhost:3000/health/ready
-curl http://localhost:3000/machines
+# Endpoint dữ liệu cần Bearer token
+curl -H "Authorization: Bearer $API_READ_TOKEN" http://localhost:3000/machines
+# Token đọc gọi POST sẽ bị từ chối 403; cần API_WRITE_TOKEN
 ```
+
+Lấy token từ `.env` của backend, đừng ghi thẳng giá trị vào tài liệu hoặc lịch sử shell.
 
 Có thể mở các URL này trong trình duyệt. /health/live trả `{ "status": "alive" }`. Sau khoảng 5–10 giây /health/ready nên có `ready:true`; consumer cập nhật tín hiệu định kỳ nên có thể chưa ready ngay lúc khởi động.
 
@@ -117,7 +129,7 @@ docker exec -i legacy-link-postgres psql -v ON_ERROR_STOP=1 -U legacy_admin -d l
 
 Thay ID ví dụ bằng ID ESP32 bạn đang dùng. Seed chỉ đăng ký máy và catalog, không tự áp dụng cấu hình xuống ESP32. Register 1/2/3 trong fixture phải được kiểm tra bằng probe trước khi demo.
 
-Frontend trên cùng máy đặt API base URL là `http://localhost:3000`. Frontend/ESP32 ở máy khác dùng IP LAN của máy chạy backend và bảo đảm kết nối mạng tới đúng cổng. Bản API phục vụ demo chưa có đăng nhập/phân quyền.
+Frontend trên cùng máy đặt API base URL là `http://localhost:3000`. Frontend/ESP32 ở máy khác dùng IP LAN của máy chạy backend và bảo đảm kết nối mạng tới đúng cổng. Bản API phân hai vai trò bằng Bearer token đọc và ghi; đây là cơ chế demo, chưa phải hệ thống tài khoản cá nhân.
 
 ## Đọc code có chú thích tiếng Việt
 
