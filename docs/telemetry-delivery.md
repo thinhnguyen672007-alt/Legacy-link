@@ -55,6 +55,9 @@ change machine configuration, publish control commands, or expose Wi-Fi password
 `:health` produces one JSON line with gateway/boot IDs, Wi-Fi/MQTT connection flags,
 clock readiness, free heap and separate `telemetry` / `alarm` sections:
 
+`mqttTransport` reports `plaintext` for this demo build. It describes the transport,
+not broker authentication success. Site credentials are never included.
+
 | Field | Meaning |
 | --- | --- |
 | pending / capacity | Current queue occupancy / fixed limit |

@@ -593,6 +593,7 @@ size_t delivery_health_json(char *output, size_t capacity) {
   doc["clockReady"] = current_epoch_ms() != 0;
   doc["freeHeapBytes"] = ESP.getFreeHeap();
   doc["storage"] = "RAM; cleared on reset";
+  doc["mqttTransport"] = "plaintext";
   describe_outbox(doc.createNestedObject("telemetry"), telemetry_queue);
   describe_outbox(doc.createNestedObject("alarm"), alarm_queue);
   if (doc.overflowed() || measureJson(doc) >= capacity) return 0;
