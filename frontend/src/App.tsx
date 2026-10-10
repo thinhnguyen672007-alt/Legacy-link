@@ -2,7 +2,7 @@ import { tr, useLanguage } from "./language";
 import { LanguageToggle } from "./components/LanguageToggle";
 import { Accounts, PasswordChange } from "./pages/Accounts";
 import { roleLabel } from "./api/accounts";
-import { Component, Suspense, lazy, useEffect, type ReactNode } from "react";
+import { Component, Suspense, lazy, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
   Bell,
@@ -16,6 +16,9 @@ import {
   KeyRound,
 } from "lucide-react";
 import { useSession } from "./session";
+import { AnimatedLoginBackground } from "./components/AnimatedLoginBackground";
+import { DashboardTransition } from "./components/DashboardTransition";
+import { SlidingSidebarIndicator } from "./components/SlidingSidebarIndicator";
 import { Connection } from "./pages/Connection";
 import { Overview } from "./pages/Overview";
 import { Machines } from "./pages/Machines";
@@ -54,21 +57,23 @@ export function App() {
   useLanguage();
   const { session, disconnect } = useSession();
   const location = useLocation();
+  const nav = useRef<HTMLElement>(null);
+  const [collapsing, setCollapsing] = useState(false);
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
-  if (!session) return <Connection />;
+  const wallpaper = <div className={`ll-login ll-morph-surface${session || collapsing ? " collapsed" : ""}`} aria-hidden="true"><AnimatedLoginBackground /></div>;
+  if (!session) return <>{wallpaper}<Connection onEntering={() => setCollapsing(true)} onAbort={() => setCollapsing(false)} /></>;
   return (
-    <div className="app-shell">
+    <>{wallpaper}<div className="app-shell">
       <a className="skip-link" href="#content">
         {tr("Đến nội dung chính")}
       </a>
       <aside className="sidebar">
         <Link className="brand dashboard-brand" to="/machines">
-          <strong>DENSO</strong>
-          <span>Legacy Link</span>
+          <span className="dashboard-logo" aria-hidden="true"><svg viewBox="0 0 32 40" fill="none"><path d="M4 4h21v9H13v9h12v10H4V4Z" stroke="currentColor" strokeWidth="4"/><path d="m13 13 13-9M13 23l13-9M4 35l21-10" stroke="#5772ff" strokeWidth="3"/></svg></span><span className="dashboard-wordmark"><strong>LEGACY LINK</strong><small>/ DENSO</small></span>
         </Link>
-        <nav aria-label={tr("Điều hướng chính")}>
+        <nav ref={nav} aria-label={tr("Điều hướng chính")}><SlidingSidebarIndicator nav={nav} />
           <NavLink to="/overview">
             <Home size={18} />
             {tr("Tổng quan")}
@@ -112,7 +117,7 @@ export function App() {
       </aside>
       <Copilot />
       <div className="workspace">
-        <header className="topbar">
+        <header className="topbar"><div className="dashboard-breadcrumb"><Home size={18} /><span>/</span><span>{tr(location.pathname.startsWith("/machines") ? "Thiết bị" : location.pathname === "/overview" ? "Tổng quan" : location.pathname === "/alarms" ? "Cảnh báo" : location.pathname === "/commissioning" ? "Cấu hình" : location.pathname === "/accounts" ? "Nhân viên" : "Đổi mật khẩu")}</span></div>
           <span
             className="session-role"
             title={session.user ? tr(roleLabel[session.user.role]) : tr("Phiên chỉ đọc")}
@@ -127,12 +132,12 @@ export function App() {
             className="quiet dashboard-logout"
             aria-label={tr("Đăng xuất")}
             title={tr("Đăng xuất")}
-            onClick={disconnect}
+            onClick={() => { setCollapsing(false); disconnect(); }}
           >
             <LogOut size={16} />
           </button>
         </header>
-        <main id="content" tabIndex={-1}>
+        <main id="content" tabIndex={-1}><DashboardTransition pathname={location.pathname}>
           {session.user?.mustChangePassword ? (
             <PasswordChange />
           ) : (
@@ -187,13 +192,13 @@ export function App() {
               )}
             </>
           )}
-        </main>
+        </DashboardTransition></main>
         <footer>
           {tr(
             "Legacy-link · Số đo thật cần được đối chiếu với nguồn thiết bị · GMT+7",
           )}
         </footer>
       </div>
-    </div>
+    </div></>
   );
 }

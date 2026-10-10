@@ -3,7 +3,6 @@ import { ArrowUpRight, Unplug } from "lucide-react";
 import { normalizeUrl } from "../api/client";
 import { useSession } from "../session";
 import { login } from "../api/accounts";
-import { AnimatedLoginBackground } from "../components/AnimatedLoginBackground";
 import { LanguageToggle } from "../components/LanguageToggle";
 import { tr, useLanguage } from "../language";
 import "../login.css";
@@ -13,7 +12,7 @@ const copy = {
   en: { first: "Know your machines.", active: "Take control.", last: "Operate smarter.", description: "An intelligent monitoring platform connecting data, people and AI in one unified experience.", welcome: "Welcome back.", intro: "Sign in to access your control center.", username: "Username", password: "Password", userPlaceholder: "Enter your username", passwordPlaceholder: "Enter your password", note: "Accounts are managed by your administrator.", cta: "Sign in & explore", busy: "Checking access…", entering: "Entering the control center", secure: "SECURE SESSION · Administrator-issued accounts", advanced: "Connection settings", api: "API address", hint: "On another computer, enter the backend IP. The backend must allow this origin in CORS. HTTPS pages require an HTTPS API.", error: "Unable to sign in. Please try again." },
 };
 
-export function Connection() {
+export function Connection({ onEntering, onAbort }: { onEntering?: () => void; onAbort?: () => void } = {}) {
   const { connect } = useSession();
   const [base, setBase] = useState(import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? `${location.origin}/api` : "http://localhost:3000"));
   const [username, setUsername] = useState("");
@@ -42,7 +41,7 @@ export function Connection() {
       const url = normalizeUrl(base);
       const result = await login(url, username.trim(), password);
       if (!alive.current) return;
-      setPassword(""); setEntering(true);
+      setPassword(""); setEntering(true); onEntering?.();
       const element = card.current;
       const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
       // Chờ card tới điểm cuối rồi mới đưa session vào ứng dụng, tránh redirect đột ngột.
@@ -65,14 +64,13 @@ export function Connection() {
     } catch (e) {
       if (!alive.current) return;
       animations.current.forEach(a => a.cancel()); animations.current = [];
-      setEntering(false);
+      setEntering(false); onAbort?.();
       setError(e instanceof Error ? e.message : c.error);
     } finally {
       if (alive.current) { locked.current = false; setBusy(false); }
     }
   }
   return <div className={`ll-login${entering ? " entering" : ""}`} lang={language}>
-    <AnimatedLoginBackground />
     <main className="login-scene">
       <div className="hero" ref={hero}>
         <div className="brand"><Unplug aria-hidden="true" /><span>LEGACY LINK</span><small>/ DENSO</small></div>
