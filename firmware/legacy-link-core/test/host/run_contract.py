@@ -22,9 +22,13 @@ def main():
     host = Path(__file__).resolve().parent
     project = host.parent.parent
     repo = project.parent.parent
-    revision = subprocess.check_output(
+    working_tree = args.backend_ref == 'working-tree'
+    revision = 'working-tree' if working_tree else subprocess.check_output(
         ['git', 'rev-parse', '--verify', '--end-of-options', f'{args.backend_ref}^{{commit}}'],
         cwd=repo, text=True).strip()
+    def source_file(relative):
+        return (repo / relative).read_bytes() if working_tree else subprocess.check_output(
+            ['git', 'show', f'{revision}:{relative}'], cwd=repo)
     print(f'Checking backend validators at {revision}', flush=True)
     include = project / '.pio/libdeps/esp32dev/ArduinoJson/src'
     if not (include / 'ArduinoJson.h').is_file():
@@ -34,16 +38,22 @@ def main():
         work = Path(temp)
         (work / 'package.json').write_text(json.dumps({'type': 'module'}), encoding='utf8')
         for name in ['shared', 'telemetry', 'status', 'alarm']:
-            source = subprocess.check_output(
-                ['git', 'show', f'{revision}:backend/src/validation/{name}.js'], cwd=repo)
+            source = source_file(f'backend/src/validation/{name}.js')
             (work / 'validation').mkdir(exist_ok=True)
             (work / 'validation' / f'{name}.js').write_bytes(source)
+        diagnostics_path = 'backend/src/validation/diagnostics.js'
+        has_diagnostics = (repo / diagnostics_path).is_file() if working_tree else subprocess.run(
+            ['git', 'cat-file', '-e', f'{revision}:{diagnostics_path}'], cwd=repo,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        if has_diagnostics:
+            (work / 'validation' / 'diagnostics.js').write_bytes(source_file(diagnostics_path))
+        else:
+            print('This backend revision has no delivery diagnostics validator; checking read reports only.', flush=True)
         (work / 'ingestion').mkdir()
-        identity = subprocess.check_output(['git', 'show', f'{revision}:backend/src/ingestion/identity.js'], cwd=repo)
+        identity = source_file('backend/src/ingestion/identity.js')
         (work / 'ingestion' / 'identity.js').write_bytes(identity)
         (work / 'control').mkdir()
-        control = subprocess.check_output(['git', 'show', f'{revision}:backend/src/control/validation.js'], cwd=repo)
-        (work / 'control' / 'validation.js').write_bytes(control)
+        (work / 'control' / 'validation.js').write_bytes(source_file('backend/src/control/validation.js'))
         binary = work / 'messages'
         subprocess.run([
             os.environ.get('CXX', 'c++'), '-std=c++11', '-Wall', '-Wextra', '-Werror',

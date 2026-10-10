@@ -75,6 +75,13 @@ int main() {
   assert(doc["readings"].size() == MAX_REGISTERS && doc["requestId"] == request);
   const auto reportBytes = mqttClient.published.back().payload.size();
   assert(reportBytes < 4096);
+  // Diagnostics đầy đủ vẫn phải gửi được khi thêm bộ đếm delivery.
+  mqttClient.published.clear();
+  send_read_report(global_device_config, results);
+  assert(mqttClient.published.size() == 1);
+  assert(!deserializeJson(doc, mqttClient.published.back().payload));
+  assert(doc["readings"].size() == MAX_REGISTERS && doc["delivery"]["storage"] == "RAM");
+  assert(mqttClient.published.back().payload.size() < REPORT_BUFFER_SIZE);
   mqttClient.buffer_size = 256;
   assert(!mqttClient.publish("legacy-link/test/oversized", std::string(256, 'x').c_str()));
   std::cout << "Largest tested 16-register report: " << reportBytes << " bytes.\n";

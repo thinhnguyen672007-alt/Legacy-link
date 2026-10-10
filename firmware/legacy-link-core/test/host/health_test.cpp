@@ -27,6 +27,12 @@ int main() {
   assert(!outbox_entry_json(telemetry_queue, "telemetry", 1, output, sizeof(output)));
   assert(!outbox_entry_json(telemetry_queue, "telemetry", 0, output, 4));
   assert(handle_serial_diagnostic(":outbox"));
+  StaticJsonDocument<2048> delivery;
+  describe_delivery(delivery.to<JsonObject>());
+  assert(delivery["storage"]=="RAM");
+  assert(delivery["telemetry"]["pending"]==1);
+  assert(delivery["telemetry"]["rejection"]=="unknown_device");
+  assert(delivery["alarm"]["capacity"]==8);
   const auto before=global_device_config;
   assert(handle_serial_diagnostic(":health"));
   assert(handle_serial_diagnostic(":help"));
