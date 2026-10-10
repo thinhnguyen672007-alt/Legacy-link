@@ -24,6 +24,8 @@ export function createGemini(env = process.env) {
         tools: [{ functionDeclarations: declarations }],
       },
     });
-    return { calls: response.functionCalls ?? [], text: response.text ?? "" };
+    // Không đọc getter text khi response chứa functionCall: SDK sẽ ghi cảnh báo thừa.
+    const calls = response.functionCalls ?? [];
+    return { calls, text: calls.length ? "" : (response.text ?? "") };
   };
 }
