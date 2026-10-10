@@ -1,0 +1,532 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-10T08:35:11.411755+00:00",
+  "title": "Design System: Legacy-link — Sổ vận hành",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Chàm thao tác",
+        "tonalRamp": [
+          "oklch(15.00% 0.15808 270.60)",
+          "oklch(26.43% 0.15808 270.60)",
+          "oklch(37.86% 0.15808 270.60)",
+          "oklch(49.29% 0.15808 270.60)",
+          "oklch(60.71% 0.15808 270.60)",
+          "oklch(72.14% 0.15808 270.60)",
+          "oklch(83.57% 0.15808 270.60)",
+          "oklch(95.00% 0.15808 270.60)"
+        ]
+      },
+      "nav": {
+        "role": "primary",
+        "displayName": "Chàm điều hướng",
+        "tonalRamp": [
+          "oklch(15.00% 0.13072 269.82)",
+          "oklch(26.43% 0.13072 269.82)",
+          "oklch(37.86% 0.13072 269.82)",
+          "oklch(49.29% 0.13072 269.82)",
+          "oklch(60.71% 0.13072 269.82)",
+          "oklch(72.14% 0.13072 269.82)",
+          "oklch(83.57% 0.13072 269.82)",
+          "oklch(95.00% 0.13072 269.82)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Mực",
+        "tonalRamp": [
+          "oklch(15.00% 0.03877 264.35)",
+          "oklch(26.43% 0.03877 264.35)",
+          "oklch(37.86% 0.03877 264.35)",
+          "oklch(49.29% 0.03877 264.35)",
+          "oklch(60.71% 0.03877 264.35)",
+          "oklch(72.14% 0.03877 264.35)",
+          "oklch(83.57% 0.03877 264.35)",
+          "oklch(95.00% 0.03877 264.35)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Chữ phụ",
+        "tonalRamp": [
+          "oklch(15.00% 0.03666 257.28)",
+          "oklch(26.43% 0.03666 257.28)",
+          "oklch(37.86% 0.03666 257.28)",
+          "oklch(49.29% 0.03666 257.28)",
+          "oklch(60.71% 0.03666 257.28)",
+          "oklch(72.14% 0.03666 257.28)",
+          "oklch(83.57% 0.03666 257.28)",
+          "oklch(95.00% 0.03666 257.28)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Đường phân chia",
+        "tonalRamp": [
+          "oklch(15.00% 0.01446 254.61)",
+          "oklch(26.43% 0.01446 254.61)",
+          "oklch(37.86% 0.01446 254.61)",
+          "oklch(49.29% 0.01446 254.61)",
+          "oklch(60.71% 0.01446 254.61)",
+          "oklch(72.14% 0.01446 254.61)",
+          "oklch(83.57% 0.01446 254.61)",
+          "oklch(95.00% 0.01446 254.61)"
+        ]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Nền trang",
+        "tonalRamp": [
+          "oklch(15.00% 0.00287 264.54)",
+          "oklch(26.43% 0.00287 264.54)",
+          "oklch(37.86% 0.00287 264.54)",
+          "oklch(49.29% 0.00287 264.54)",
+          "oklch(60.71% 0.00287 264.54)",
+          "oklch(72.14% 0.00287 264.54)",
+          "oklch(83.57% 0.00287 264.54)",
+          "oklch(95.00% 0.00287 264.54)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Bề mặt trắng",
+        "tonalRamp": [
+          "oklch(15.00% 0.00000 89.88)",
+          "oklch(26.43% 0.00000 89.88)",
+          "oklch(37.86% 0.00000 89.88)",
+          "oklch(49.29% 0.00000 89.88)",
+          "oklch(60.71% 0.00000 89.88)",
+          "oklch(72.14% 0.00000 89.88)",
+          "oklch(83.57% 0.00000 89.88)",
+          "oklch(95.00% 0.00000 89.88)"
+        ]
+      },
+      "ok": {
+        "role": "secondary",
+        "displayName": "Xanh xác nhận",
+        "tonalRamp": [
+          "oklch(15.00% 0.09766 171.49)",
+          "oklch(26.43% 0.09766 171.49)",
+          "oklch(37.86% 0.09766 171.49)",
+          "oklch(49.29% 0.09766 171.49)",
+          "oklch(60.71% 0.09766 171.49)",
+          "oklch(72.14% 0.09766 171.49)",
+          "oklch(83.57% 0.09766 171.49)",
+          "oklch(95.00% 0.09766 171.49)"
+        ]
+      },
+      "warn": {
+        "role": "secondary",
+        "displayName": "Hổ phách",
+        "tonalRamp": [
+          "oklch(15.00% 0.11691 75.01)",
+          "oklch(26.43% 0.11691 75.01)",
+          "oklch(37.86% 0.11691 75.01)",
+          "oklch(49.29% 0.11691 75.01)",
+          "oklch(60.71% 0.11691 75.01)",
+          "oklch(72.14% 0.11691 75.01)",
+          "oklch(83.57% 0.11691 75.01)",
+          "oklch(95.00% 0.11691 75.01)"
+        ]
+      },
+      "bad": {
+        "role": "secondary",
+        "displayName": "Đỏ lỗi",
+        "tonalRamp": [
+          "oklch(15.00% 0.18205 29.51)",
+          "oklch(26.43% 0.18205 29.51)",
+          "oklch(37.86% 0.18205 29.51)",
+          "oklch(49.29% 0.18205 29.51)",
+          "oklch(60.71% 0.18205 29.51)",
+          "oklch(72.14% 0.18205 29.51)",
+          "oklch(83.57% 0.18205 29.51)",
+          "oklch(95.00% 0.18205 29.51)"
+        ]
+      },
+      "brand-mark": {
+        "role": "secondary",
+        "displayName": "Xanh nhận diện",
+        "tonalRamp": [
+          "oklch(15.00% 0.11278 146.31)",
+          "oklch(26.43% 0.11278 146.31)",
+          "oklch(37.86% 0.11278 146.31)",
+          "oklch(49.29% 0.11278 146.31)",
+          "oklch(60.71% 0.11278 146.31)",
+          "oklch(72.14% 0.11278 146.31)",
+          "oklch(83.57% 0.11278 146.31)",
+          "oklch(95.00% 0.11278 146.31)"
+        ]
+      },
+      "field-border": {
+        "role": "neutral",
+        "displayName": "Viền trường",
+        "tonalRamp": [
+          "oklch(15.00% 0.02254 256.74)",
+          "oklch(26.43% 0.02254 256.74)",
+          "oklch(37.86% 0.02254 256.74)",
+          "oklch(49.29% 0.02254 256.74)",
+          "oklch(60.71% 0.02254 256.74)",
+          "oklch(72.14% 0.02254 256.74)",
+          "oklch(83.57% 0.02254 256.74)",
+          "oklch(95.00% 0.02254 256.74)"
+        ]
+      },
+      "hover": {
+        "role": "neutral",
+        "displayName": "Nền hover",
+        "tonalRamp": [
+          "oklch(15.00% 0.00992 267.36)",
+          "oklch(26.43% 0.00992 267.36)",
+          "oklch(37.86% 0.00992 267.36)",
+          "oklch(49.29% 0.00992 267.36)",
+          "oklch(60.71% 0.00992 267.36)",
+          "oklch(72.14% 0.00992 267.36)",
+          "oklch(83.57% 0.00992 267.36)",
+          "oklch(95.00% 0.00992 267.36)"
+        ]
+      },
+      "table-background": {
+        "role": "neutral",
+        "displayName": "Nền đầu bảng",
+        "tonalRamp": [
+          "oklch(15.00% 0.00170 247.84)",
+          "oklch(26.43% 0.00170 247.84)",
+          "oklch(37.86% 0.00170 247.84)",
+          "oklch(49.29% 0.00170 247.84)",
+          "oklch(60.71% 0.00170 247.84)",
+          "oklch(72.14% 0.00170 247.84)",
+          "oklch(83.57% 0.00170 247.84)",
+          "oklch(95.00% 0.00170 247.84)"
+        ]
+      },
+      "disabled-text": {
+        "role": "neutral",
+        "displayName": "Chữ vô hiệu",
+        "tonalRamp": [
+          "oklch(15.00% 0.03456 260.64)",
+          "oklch(26.43% 0.03456 260.64)",
+          "oklch(37.86% 0.03456 260.64)",
+          "oklch(49.29% 0.03456 260.64)",
+          "oklch(60.71% 0.03456 260.64)",
+          "oklch(72.14% 0.03456 260.64)",
+          "oklch(83.57% 0.03456 260.64)",
+          "oklch(95.00% 0.03456 260.64)"
+        ]
+      },
+      "disabled-background": {
+        "role": "neutral",
+        "displayName": "Nền vô hiệu",
+        "tonalRamp": [
+          "oklch(15.00% 0.00626 255.48)",
+          "oklch(26.43% 0.00626 255.48)",
+          "oklch(37.86% 0.00626 255.48)",
+          "oklch(49.29% 0.00626 255.48)",
+          "oklch(60.71% 0.00626 255.48)",
+          "oklch(72.14% 0.00626 255.48)",
+          "oklch(83.57% 0.00626 255.48)",
+          "oklch(95.00% 0.00626 255.48)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "display",
+        "purpose": "Giới thiệu kết nối"
+      },
+      "headline": {
+        "displayName": "headline",
+        "purpose": "Tiêu đề trang"
+      },
+      "title": {
+        "displayName": "title",
+        "purpose": "Tiêu đề khối"
+      },
+      "body": {
+        "displayName": "body",
+        "purpose": "Nội dung mặc định"
+      },
+      "label": {
+        "displayName": "label",
+        "purpose": "Nhãn lưới biểu mẫu"
+      },
+      "badge": {
+        "displayName": "badge",
+        "purpose": "Chữ trạng thái"
+      },
+      "mono": {
+        "displayName": "mono",
+        "purpose": "Mã và định danh"
+      }
+    },
+    "shadows": [
+      {
+        "name": "dialog",
+        "value": "0 16px 64px #10182e33",
+        "purpose": "Bóng khuếch tán của hộp thoại xác nhận."
+      },
+      {
+        "name": "active-tab",
+        "value": "0 2px 0 var(--accent)",
+        "purpose": "Vạch chọn tab, không biểu thị độ cao."
+      }
+    ],
+    "motion": [
+      {
+        "name": "interaction-color",
+        "value": "background-color 0.15s, color 0.15s",
+        "purpose": "Chỉ áp dụng cho button và a trong prefers-reduced-motion: no-preference; easing mặc định CSS là ease."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide",
+        "value": "1600px",
+        "condition": "min-width"
+      },
+      {
+        "name": "compact",
+        "value": "1200px",
+        "condition": "max-width"
+      },
+      {
+        "name": "mobile",
+        "value": "760px",
+        "condition": "max-width"
+      }
+    ],
+    "sources": {
+      "colors": {
+        "accent": {
+          "file": "src/styles.css",
+          "selector": ":root --accent"
+        },
+        "nav": {
+          "file": "src/styles.css",
+          "selector": ":root --nav"
+        },
+        "ink": {
+          "file": "src/styles.css",
+          "selector": ":root --ink"
+        },
+        "muted": {
+          "file": "src/styles.css",
+          "selector": ":root --muted"
+        },
+        "line": {
+          "file": "src/styles.css",
+          "selector": ":root --line"
+        },
+        "ok": {
+          "file": "src/styles.css",
+          "selector": ":root --ok"
+        },
+        "warn": {
+          "file": "src/styles.css",
+          "selector": ":root --warn"
+        },
+        "bad": {
+          "file": "src/styles.css",
+          "selector": ":root --bad"
+        },
+        "canvas": {
+          "file": "src/styles.css",
+          "selector": ":root background"
+        },
+        "surface": {
+          "file": "src/styles.css",
+          "selector": ".surface background: white"
+        },
+        "brand-mark": {
+          "file": "src/styles.css",
+          "selector": ".brand-mark color"
+        },
+        "field-border": {
+          "file": "src/styles.css",
+          "selector": "input, select border"
+        },
+        "hover": {
+          "file": "src/styles.css",
+          "selector": "button:hover, .button:hover background"
+        },
+        "table-background": {
+          "file": "src/styles.css",
+          "selector": ".table-meta, th background"
+        },
+        "disabled-text": {
+          "file": "src/styles.css",
+          "selector": "button:disabled, input::placeholder color"
+        },
+        "disabled-background": {
+          "file": "src/styles.css",
+          "selector": "button:disabled background"
+        }
+      },
+      "typography": {
+        "file": "src/styles.css",
+        "selectors": [
+          ":root",
+          "body",
+          "h1",
+          "h2",
+          ".connection-intro h1",
+          ".filters label, .form-grid label",
+          ".badge",
+          "code, .mono"
+        ],
+        "fontImports": "src/main.tsx"
+      },
+      "components": [
+        {
+          "file": "src/components/ui.tsx",
+          "exports": [
+            "Badge",
+            "Notice",
+            "Empty",
+            "QueryState",
+            "ApiState",
+            "PageHead"
+          ]
+        },
+        {
+          "file": "src/App.tsx",
+          "selectors": [
+            ".sidebar",
+            ".topbar"
+          ]
+        },
+        {
+          "file": "src/pages/Machines.tsx",
+          "selectors": [
+            ".machine-table",
+            ".toolbar"
+          ]
+        },
+        {
+          "file": "src/pages/Commissioning.tsx",
+          "component": "Radix Dialog"
+        },
+        {
+          "file": "src/styles.css",
+          "selectors": [
+            "button, .button",
+            "input, select",
+            ".surface",
+            ".notice",
+            ".sidebar nav a",
+            ".dialog-content",
+            "@media"
+          ]
+        }
+      ],
+      "direction": "docs/surface-brief.md",
+      "product": "PRODUCT.md"
+    },
+    "rampProvenance": "Các tonalRamp được tổng hợp từ màu thực sang OKLCH với tám mốc độ sáng, chỉ phục vụ dải màu preview. Không phải tokens dùng trong giao diện, không cấp quyền áp dụng các sắc độ mới.",
+    "notCanonized": []
+  },
+  "components": [
+    {
+      "name": "Nút chính",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Mẫu nút phẳng dùng trong các thao tác vận hành.",
+      "html": "<button class=\"ds-button-primary\">Đọc thử</button>",
+      "css": ".ds-button-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 14px;border:1px solid var(--line, #d7dee7);border-radius:7px;background:#fff;color:var(--ink, #172033);font:500 14px/1.4 \"Be Vietnam Pro\",sans-serif;cursor:pointer;text-decoration:none;background:var(--accent, #3446a8);color:#fff;border-color:var(--accent, #3446a8);}.ds-button-primary:hover{background:#edf0f7;border-color:#a5afc5;}.ds-button-primary:hover{background:#253582;color:#fff;}.ds-button-primary:disabled{cursor:not-allowed;color:#647084;background:#edf0f4;opacity:.75;}.ds-button-primary:focus-visible{outline:3px solid #7389ed;outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-button-primary{transition:background-color .15s,color .15s;}}"
+    },
+    {
+      "name": "Nút phụ",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Mẫu nút phẳng dùng trong các thao tác vận hành.",
+      "html": "<button class=\"ds-button-secondary\">Quay lại</button>",
+      "css": ".ds-button-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 14px;border:1px solid var(--line, #d7dee7);border-radius:7px;background:#fff;color:var(--ink, #172033);font:500 14px/1.4 \"Be Vietnam Pro\",sans-serif;cursor:pointer;text-decoration:none;}.ds-button-secondary:hover{background:#edf0f7;border-color:#a5afc5;}.ds-button-secondary:disabled{cursor:not-allowed;color:#647084;background:#edf0f4;opacity:.75;}.ds-button-secondary:focus-visible{outline:3px solid #7389ed;outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-button-secondary{transition:background-color .15s,color .15s;}}"
+    },
+    {
+      "name": "Nút nhẹ",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Mẫu nút phẳng dùng trong các thao tác vận hành.",
+      "html": "<button class=\"ds-button-quiet\">Cập nhật</button>",
+      "css": ".ds-button-quiet{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 14px;border:1px solid var(--line, #d7dee7);border-radius:7px;background:#fff;color:var(--ink, #172033);font:500 14px/1.4 \"Be Vietnam Pro\",sans-serif;cursor:pointer;text-decoration:none;background:transparent;border-color:transparent;}.ds-button-quiet:hover{background:#edf0f7;border-color:#a5afc5;}.ds-button-quiet:disabled{cursor:not-allowed;color:#647084;background:#edf0f4;opacity:.75;}.ds-button-quiet:focus-visible{outline:3px solid #7389ed;outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-button-quiet{transition:background-color .15s,color .15s;}}"
+    },
+    {
+      "name": "Trường nhập",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Nhãn luôn hiển thị và trường có focus bàn phím.",
+      "html": "<label class=\"ds-label\" for=\"ds-device\">Tên thiết bị<input class=\"ds-field\" id=\"ds-device\" placeholder=\"Tên thiết bị\"></label>",
+      "css": ".ds-label{display:block;font:500 12px/1.65 \"Be Vietnam Pro\",sans-serif;color:var(--ink,#172033)}.ds-field{display:block;margin-top:6px;width:100%;min-height:43px;padding:9px 11px;color:var(--ink,#172033);background:#fff;border:1px solid #bbc5d3;border-radius:6px;caret-color:var(--accent,#3446a8);font:inherit}.ds-field::placeholder{color:#647084}.ds-field:focus-visible{outline:3px solid #7389ed;outline-offset:3px}"
+    },
+    {
+      "name": "Trạng thái tích cực",
+      "kind": "chip",
+      "refersTo": "status-ok",
+      "description": "Nhãn trạng thái không tương tác; không có hover hoặc focus.",
+      "html": "<span class=\"ds-badge\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m9 12 2 2 4-4\"/></svg>Liên lạc được</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;gap:6px;color:var(--ok,#147d64);font:500 11px/1.5 \"Be Vietnam Pro\",sans-serif;white-space:nowrap}"
+    },
+    {
+      "name": "Điều hướng",
+      "kind": "nav",
+      "refersTo": "navigation-item",
+      "description": "Mục chọn nền trắng; dải ngang trên màn hình nhỏ.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Điều hướng mẫu\"><a class=\"ds-nav-item\" href=\"#devices\" aria-current=\"page\">Thiết bị</a><a class=\"ds-nav-item\" href=\"#alarms\">Cảnh báo</a><a class=\"ds-nav-item\" href=\"#config\">Cấu hình</a></nav>",
+      "css": ".ds-nav{display:grid;gap:6px;background:var(--nav,#253582);padding:18px;font:400 14px/1.65 \"Be Vietnam Pro\",sans-serif}.ds-nav-item{display:flex;align-items:center;gap:12px;padding:12px 15px;min-height:48px;color:#e0e6ff;text-decoration:none;border-radius:7px}.ds-nav-item[aria-current]{background:#fff;color:var(--nav,#253582);font-weight:600}.ds-nav-item:not([aria-current]):hover{background:#34479b}.ds-nav-item:focus-visible{outline:3px solid #7389ed;outline-offset:3px}@media(max-width:760px){.ds-nav{display:flex;gap:8px}.ds-nav-item{padding:10px 12px;font-size:12px;gap:6px;min-height:42px}}@media(prefers-reduced-motion:no-preference){.ds-nav-item{transition:background-color .15s,color .15s}}"
+    },
+    {
+      "name": "Bề mặt nội dung",
+      "kind": "card",
+      "refersTo": "surface",
+      "description": "Khối nội dung trắng, chia vùng bằng viền; không nâng lên khi hover.",
+      "html": "<section class=\"ds-surface\"><div class=\"ds-section\"><h2 class=\"ds-title\">Kết quả đọc</h2><p class=\"ds-copy\">Xem số đo và thời điểm cập nhật của thiết bị.</p></div></section>",
+      "css": ".ds-surface{background:#fff;border:1px solid var(--line,#d7dee7);border-radius:var(--radius,12px);overflow:hidden;color:var(--ink,#172033);font:400 14px/1.65 \"Be Vietnam Pro\",sans-serif}.ds-section{padding:24px}.ds-title{font-size:19px;line-height:1.45;font-weight:600;margin:0 0 12px}.ds-copy{margin-top:0;max-width:75ch}@media(max-width:760px){.ds-section{padding:18px}}"
+    },
+    {
+      "name": "Thông báo",
+      "kind": "custom",
+      "description": "Thông tin bổ sung tại vị trí thao tác; không tương tác.",
+      "html": "<div class=\"ds-notice\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 8v4\"/><path d=\"M12 16h.01\"/></svg><div>Đối chiếu kết quả đọc trước khi áp dụng cấu hình.</div></div>",
+      "css": ".ds-notice{display:flex;align-items:flex-start;gap:9px;background:#eef2fb;color:#34436c;border:1px solid #d5dff5;border-radius:7px;padding:13px 15px;font:400 12px/1.65 \"Be Vietnam Pro\",sans-serif;margin:14px 0;overflow-wrap:anywhere}.ds-notice>svg{flex-shrink:0;margin-top:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Sổ vận hành",
+    "overview": "Sổ vận hành là một giao diện sáng, gọn và có mật độ phù hợp để đọc dữ liệu thiết bị. Chàm tạo vùng định hướng; nền trắng, đường kẻ mảnh và chữ tối giúp đọc liên tục giữa danh sách, chi tiết và biểu mẫu.\n\nTiếng Việt là ngôn ngữ chính. Dữ liệu, thời điểm cập nhật và kết quả thao tác được đặt trong cùng ngữ cảnh; trạng thái dùng chữ và biểu tượng SVG. Giao diện dùng CSS và SVG, không có raster thuộc bản phát hành.",
+    "keyCharacteristics": [
+      "Nền sáng trung tính, vùng điều hướng chàm, bề mặt trắng có viền mảnh.",
+      "Be Vietnam Pro cho nội dung; IBM Plex Mono cho mã và định danh.",
+      "Trạng thái có chữ và biểu tượng; số liệu trong bảng dùng chữ số có độ rộng bằng nhau.",
+      "Bố cục thu gọn theo chiều rộng; ưu tiên đường kẻ và màu nền để chia vùng."
+    ],
+    "rules": [
+      {
+        "name": "The Trạng thái có chữ Rule",
+        "body": "Màu trạng thái đi cùng nhãn tiếng Việt và biểu tượng; màu xanh không tự chứng minh kết quả của một thao tác.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mã có kiểu chữ riêng Rule",
+        "body": "Dùng IBM Plex Mono cho mã và định danh; giữ nội dung hướng dẫn ở Be Vietnam Pro.",
+        "section": "typography"
+      },
+      {
+        "name": "The Phẳng khi nghỉ Rule",
+        "body": "Bề mặt nội dung dựa vào viền và nền; bóng khuếch tán dành cho hộp thoại, vạch tab biểu thị mục đang chọn.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do giữ trạng thái có chữ kèm SVG và giải thích dữ liệu cũ ngay cạnh dữ liệu đang hiển thị.",
+      "Do giữ nhãn trường, vòng focus khi dùng bàn phím và tên truy cập cho nút chỉ có biểu tượng.",
+      "Do dùng các giá trị thực trong frontmatter; đối chiếu nguồn CSS trước khi thêm biến thể.",
+      "Do giữ nhãn dữ liệu khi bảng thiết bị chuyển thành từng hàng trên điện thoại."
+    ],
+    "donts": [
+      "Don't dùng riêng màu để diễn đạt trạng thái.",
+      "Don't dùng biểu tượng ký tự thay cho SVG hiện có.",
+      "Don't đưa bóng hộp thoại vào mọi bảng và khối nội dung.",
+      "Don't biến bảng dữ liệu vận hành thành tường KPI trang trí."
+    ]
+  }
+}
