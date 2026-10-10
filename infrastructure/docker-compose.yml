@@ -34,6 +34,14 @@
 #   - View broker logs:      docker compose logs -f mosquitto
 #   - Load DB schema:        docker compose exec -T postgres psql -U legacy_admin -d legacy_link < ../backend/db/schema.sql
 # ==============================================================================
+# Giới hạn log Docker để stack chạy lâu không làm đầy đĩa. Dùng chung cho mọi
+# service qua YAML anchor; xoay 3 file 10 MB mỗi container.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # One-shot preparation: derive UID/GID from the image, not the host user.
   # Profile: both "broker" and "full", so the database never sees a request
@@ -42,6 +50,7 @@ services:
   mosquitto-init:
     image: eclipse-mosquitto:2
     profiles: ["broker", "full"]
+    logging: *default-logging
     user: "0:0"
     network_mode: none
     entrypoint: ["/bin/sh", "/init-mosquitto.sh"]
@@ -54,6 +63,7 @@ services:
   mosquitto:
     image: eclipse-mosquitto:2
     profiles: ["broker", "full"]
+    logging: *default-logging
     depends_on:
       mosquitto-init:
         condition: service_completed_successfully
@@ -129,6 +139,7 @@ services:
   postgres:
     image: postgres:16-alpine
     profiles: ["broker", "full"]
+    logging: *default-logging
     # Tên container này KHÔNG tùy ý đặt. `backend/scripts/test-messages.sh`
     # (nhánh feature/backend-base) hardcode biến `POSTGRES=legacy-link-postgres`
     # và dùng nó để `docker ps | grep`, đồng thời `backend/db/schema.sql` ghi
@@ -239,6 +250,7 @@ services:
     # drain của backend (15s) cộng biên, nếu không Docker SIGKILL sẽ cắt drain.
     init: true
     stop_grace_period: 25s
+    logging: *default-logging
     volumes:
       - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z
       - type: bind
@@ -283,6 +295,7 @@ services:
     restart: unless-stopped
     init: true
     stop_grace_period: 25s
+    logging: *default-logging
     command: ["node", "/app/infra-run.cjs", "api"]
     volumes:
       - ./scripts/run-backend.cjs:/app/infra-run.cjs:ro,z
@@ -324,6 +337,7 @@ services:
     container_name: ${GATEWAY_CONTAINER_NAME:-legacy-link-gateway}
     profiles: ["full"]
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       backend-api:
         condition: service_started
