@@ -122,8 +122,9 @@ by the PlatformIO build. If LeakSanitizer cannot run under a ptrace sandbox, pre
 the Python command with `ASAN_OPTIONS=detect_leaks=0`.
 
 The command reports the exact backend commit tested. It checks telemetry, both
-status values, all 16 alarm code/severity combinations, and rejection of mismatched
-device IDs and schema versions. It reads backend files into a temporary directory
+status values, all 16 alarm code/severity combinations, successful/failed read
+reports and probe results (22 messages). It rejects mismatched device IDs, schema
+versions and incomplete or mismatched register reports. It reads backend files into a temporary directory
 without switching branches or modifying them. No npm dependencies are needed.
 
 The host Modbus stub returns raw 0xFFFF, so this automated test deliberately checks
