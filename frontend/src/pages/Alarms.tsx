@@ -153,7 +153,7 @@ export function Alarms() {
         )}
         {!session?.writeToken && (
           <Notice>
-            Phiên chỉ đọc. Kết nối lại với token thao tác để xác nhận cảnh báo.
+            Phiên chỉ đọc. Cần quyền Technician để xác nhận cảnh báo.
           </Notice>
         )}
         {q.data?.items.length ? (

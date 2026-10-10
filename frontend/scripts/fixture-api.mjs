@@ -56,11 +56,20 @@ http
     const url = new URL(req.url, "http://fixture");
     const path = url.pathname;
     const token = req.headers.authorization;
+    if (path === "/auth/login" && req.method === "POST") {
+      let raw = "";
+      for await (const chunk of req) { raw += chunk; if (raw.length > 4096) return send({error:"Body too large"},413); }
+      let credentials; try { credentials=JSON.parse(raw); } catch { return send({error:"Invalid JSON"},400); }
+      if (!["viewer","technician"].includes(credentials.username) || credentials.password !== "fixture-password") return send({error:"Invalid fixture credentials"},401);
+      return send({token:credentials.username === "viewer" ? "fixture-read" : "fixture-write",user:{id:"fixture-user",username:credentials.username,role:credentials.username,disabled:false,mustChangePassword:false}});
+    }
+    if (path === "/auth/logout" && req.method === "POST") return send({ok:true});
     const writer = token === "Bearer fixture-write";
     if (token !== "Bearer fixture-read" && !writer)
       return send({ error: "Fixture token invalid" }, 401);
     if (req.method === "POST" && !writer)
       return send({ error: "Write permission required" }, 403);
+    if (path === "/auth/me") return send({id:"fixture-user",username:writer?"technician":"viewer",role:writer?"technician":"viewer",disabled:false,mustChangePassword:false});
     let body = {};
     try {
       let raw = "";

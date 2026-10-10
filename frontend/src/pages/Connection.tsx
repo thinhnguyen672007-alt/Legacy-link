@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { ArrowRight, ShieldCheck, Unplug } from "lucide-react";
-import { createApi, normalizeUrl } from "../api/client";
+import { normalizeUrl } from "../api/client";
 import { useSession } from "../session";
 import { Notice } from "../components/ui";
+import { login } from "../api/accounts";
 export function Connection() {
   const { connect } = useSession();
   const [base, setBase] = useState(
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
+    import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? `${location.origin}/api` : "http://localhost:3000"),
   );
   const [read, setRead] = useState("");
   const [write, setWrite] = useState("");
@@ -17,12 +18,14 @@ export function Connection() {
     setError("");
     setBusy(true);
     try {
+      const url = normalizeUrl(base);
+      const result = await login(url, read.trim(), write);
       const s = {
-        base: normalizeUrl(base),
-        readToken: read.trim(),
-        writeToken: write.trim(),
+        base: url,
+        readToken: result.token,
+        writeToken: result.user.role === "viewer" ? "" : result.token,
+        user: result.user,
       };
-      await createApi(s).machines();
       connect(s);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể kết nối.");
@@ -50,7 +53,7 @@ export function Connection() {
           <span>
             Kết nối trực tiếp API của đội.
             <br />
-            Token chỉ được giữ trong phiên đang mở.
+            Mỗi nhân viên có tài khoản và quyền riêng.
           </span>
         </div>
         <small>
@@ -61,7 +64,7 @@ export function Connection() {
       </div>
       <div className="connection-form">
         <form onSubmit={submit}>
-          <h2>Kết nối hệ thống</h2>
+          <h2>Đăng nhập</h2>
           <p>Mở giao diện trên máy backend để dùng địa chỉ mặc định.</p>
           <label>
             Địa chỉ API
@@ -75,33 +78,31 @@ export function Connection() {
             />
           </label>
           <label>
-            Token đọc
+            Tên đăng nhập
             <input
-              type="password"
-              required={!write.trim()}
+              type="text"
+              required
               value={read}
               onChange={(e) => setRead(e.target.value)}
-              autoComplete="off"
+              autoComplete="username"
               spellCheck={false}
             />
           </label>
           <label>
-            Token thao tác <span className="muted">· tùy chọn</span>
+            Mật khẩu
             <input
               type="password"
+              required
               value={write}
               onChange={(e) => setWrite(e.target.value)}
-              autoComplete="off"
+              autoComplete="current-password"
               spellCheck={false}
             />
           </label>
-          <p className="help">
-            Cần token thao tác để xác nhận cảnh báo và cấu hình. Đóng hoặc tải
-            lại trang sẽ xóa token.
-          </p>
+          <p className="help">Liên hệ quản trị viên để được cấp tài khoản.</p>
           {error && <Notice tone="bad">{error}</Notice>}
           <button className="primary wide" disabled={busy}>
-            {busy ? "Đang kiểm tra…" : "Kết nối API"}
+            {busy ? "Đang kiểm tra…" : "Đăng nhập"}
             <ArrowRight size={18} />
           </button>
           <details>

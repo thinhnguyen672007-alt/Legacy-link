@@ -22,6 +22,7 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npm test
+      - run: npm run test:accounts
       - run: npm run test:integration
       - run: npm run test:security
       - run: npm run test:proxy

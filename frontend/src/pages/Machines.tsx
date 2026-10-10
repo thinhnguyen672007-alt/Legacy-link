@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ArrowRight, Plus, RefreshCw, Search } from "lucide-react";
-import { useApi, polling } from "../session";
+import { useApi, polling, useSession } from "../session";
 import {
   ApiState,
   Badge,
@@ -13,6 +13,7 @@ import {
 } from "../components/ui";
 export function Machines() {
   const api = useApi();
+  const { session } = useSession();
   const [search, setSearch] = useState("");
   const [attention, setAttention] = useState(false);
   const q = useQuery({
@@ -37,7 +38,7 @@ export function Machines() {
       <PageHead
         title="Thiết bị"
         description="Một góc nhìn rõ ràng về liên lạc, phép đo và dữ liệu đã gửi."
-        action={
+        action={session?.writeToken &&
           <Link className="button primary" to="/commissioning">
             <Plus size={17} />
             Cấu hình thiết bị

@@ -1,3 +1,6 @@
+import { pool } from '../db/pool.js';
+import { createAccounts } from '../auth/accounts.js';
+import { accountSecurity } from '../auth/security.js';
 // Khởi động HTTP API. File này nối các hàm vào handler; không tự viết thêm một bộ endpoint khác.
 import http from 'node:http';
 import { createRateLimit } from './rate-limit.js';
@@ -17,9 +20,10 @@ import { listServiceRuns } from '../db/service-run.js';
 import { applyConfig } from '../service/apply-config.js';
 import { startPublisher } from '../mqtt/publisher.js';
 
-import { createSecurity, securitySettings } from './security.js';
+import { securitySettings } from './security.js';
 const settings = httpSettings();
-const security = createSecurity(securitySettings());
+const accounts = createAccounts(pool);
+const security = accountSecurity(securitySettings(), accounts);
 const rateLimit = createRateLimit();
 const controls = startControlService();
 const publisher = startPublisher();
@@ -54,6 +58,7 @@ async function readiness() {
 const server = http.createServer(
   createHttpHandler({
     security,
+    accounts,
     rateLimit,
     systemMetrics,
     listProfiles,
