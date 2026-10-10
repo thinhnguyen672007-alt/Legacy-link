@@ -7,21 +7,24 @@ import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
   Bell,
   BookOpen,
+  Home,
+  UserRound,
   LayoutList,
   LogOut,
   Settings2,
   Users,
   KeyRound,
-  Unplug,
 } from "lucide-react";
 import { useSession } from "./session";
 import { Connection } from "./pages/Connection";
+import { Overview } from "./pages/Overview";
 import { Machines } from "./pages/Machines";
 const MachineDetail = lazy(() =>
   import("./pages/MachineDetail").then((m) => ({ default: m.MachineDetail })),
 );
 import { Copilot } from "./components/Copilot";
 import { Alarms } from "./pages/Alarms";
+import "./dashboard.css";
 import { Commissioning } from "./pages/Commissioning";
 export class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -61,14 +64,15 @@ export function App() {
         {tr("Đến nội dung chính")}
       </a>
       <aside className="sidebar">
-        <Link className="brand" to="/machines">
-          <span className="brand-mark">
-            <Unplug size={20} />
-          </span>
-          LEGACY<span>LINK</span>
+        <Link className="brand dashboard-brand" to="/machines">
+          <strong>DENSO</strong>
+          <span>Legacy Link</span>
         </Link>
-        <p className="sidebar-caption">{tr("Sổ vận hành")}</p>
         <nav aria-label={tr("Điều hướng chính")}>
+          <NavLink to="/overview">
+            <Home size={18} />
+            {tr("Tổng quan")}
+          </NavLink>
           <NavLink to="/machines">
             <LayoutList size={18} />
             {tr("Thiết bị")}
@@ -109,17 +113,23 @@ export function App() {
       <Copilot />
       <div className="workspace">
         <header className="topbar">
-          <span className="session-role">
-            {session.user
-              ? `${session.user.username} · ${tr(roleLabel[session.user.role])}`
-              : session.writeToken
-                ? tr("Có quyền thao tác")
-                : tr("Phiên chỉ đọc")}
+          <span
+            className="session-role"
+            title={session.user ? tr(roleLabel[session.user.role]) : tr("Phiên chỉ đọc")}
+          >
+            <span className="user-avatar">
+              <UserRound size={17} />
+            </span>
+            {session.user?.username || tr("Chỉ đọc")}
           </span>
           <LanguageToggle />
-          <button className="quiet" onClick={disconnect}>
+          <button
+            className="quiet dashboard-logout"
+            aria-label={tr("Đăng xuất")}
+            title={tr("Đăng xuất")}
+            onClick={disconnect}
+          >
             <LogOut size={16} />
-            {tr("Đăng xuất")}
           </button>
         </header>
         <main id="content" tabIndex={-1}>
@@ -143,6 +153,7 @@ export function App() {
                   />
                   <Route path="/password" element={<PasswordChange />} />
                   <Route path="/" element={<Machines />} />
+                  <Route path="/overview" element={<Overview />} />
                   <Route path="/machines" element={<Machines />} />
                   <Route path="/machines/:id" element={<MachineDetail />} />
                   <Route path="/alarms" element={<Alarms />} />

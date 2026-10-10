@@ -1,6 +1,6 @@
 import { tr, useLanguage } from "../language";
 import { lazy, Suspense } from "react";
-import { Expand, Minimize2, RotateCcw } from "lucide-react";
+import { Bot, ChevronUp, Expand, Minimize2, RotateCcw } from "lucide-react";
 const InvestigationView = lazy(() =>
   import("./InvestigationView").then((m) => ({ default: m.InvestigationView })),
 );
@@ -100,8 +100,15 @@ export function Copilot() {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <button className="copilot-launch">
-          {tr("AI DENSO · Hỏi về máy")}
+        <button className="copilot-launch" aria-label={tr("AI DENSO · Hỏi về máy")}>
+          <span className="ai-orb">
+            <Bot size={25} />
+          </span>
+          <span>
+            <strong>AI DENSO</strong>
+            <small>{tr("Hỏi về máy...")}</small>
+          </span>
+          <ChevronUp size={15} />
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>

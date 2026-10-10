@@ -39,16 +39,8 @@ export function Machines() {
       <PageHead
         title={tr("Thiết bị")}
         description={tr(
-          "Một góc nhìn rõ ràng về liên lạc, phép đo và dữ liệu đã gửi.",
+          "Quản lý và theo dõi trạng thái kết nối các thiết bị DENSO",
         )}
-        action={
-          session?.writeToken && (
-            <Link className="button primary" to="/commissioning">
-              <Plus size={17} />
-              {tr("Cấu hình thiết bị")}
-            </Link>
-          )
-        }
       />
       <div className="surface">
         <div className="toolbar">
@@ -77,6 +69,7 @@ export function Machines() {
             <RefreshCw size={16} />
             {tr("Cập nhật")}
           </button>
+          {session?.writeToken && <Link className="button primary configure-device" to="/commissioning"><Plus size={17} />Cấu hình thiết bị</Link>}
         </div>
         <div className="table-meta">
           <span>
@@ -102,7 +95,7 @@ export function Machines() {
                   <th>{tr("Đọc thiết bị")}</th>
                   <th>{tr("Gửi dữ liệu")}</th>
                   <th>
-                    <span className="sr-only">{tr("Chi tiết")}</span>
+                    {tr("Thao tác")}
                   </th>
                 </tr>
               </thead>
@@ -174,14 +167,15 @@ export function Machines() {
           {q.dataUpdatedAt ? stamp(q.dataUpdatedAt) : tr("Chưa có")} · GMT+7
         </div>
       </div>
-      <div className="explanation">
+      <details className="explanation">
+        <summary>{tr("Hiểu trạng thái thiết bị")}</summary>
         <h2>{tr("Liên lạc được chưa có nghĩa là đang đo tốt.")}</h2>
         <p>
           {tr(
             "Xem riêng độ mới của số đo, kết quả đọc và tình trạng gửi dữ liệu. Khi mất kết nối API, dữ liệu gần nhất được giữ lại và có thông báo rõ.",
           )}
         </p>
-      </div>
+      </details>
     </>
   );
 }
