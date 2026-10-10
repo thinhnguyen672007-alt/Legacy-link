@@ -1,0 +1,38 @@
+name: Infrastructure
+
+on:
+  push:
+    paths: ['infrastructure/**', '.github/workflows/infra.yml']
+  pull_request:
+    paths: ['infrastructure/**', '.github/workflows/infra.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Compose interpolation with the sample defaults; catches a broken service,
+      # profile or variable reference before someone runs setup.sh on a machine.
+      - name: Validate the Compose file
+        working-directory: infrastructure
+        run: COMPOSE_PROFILES=full docker compose config --quiet
+
+      - name: Check shell script syntax
+        run: |
+          for script in infrastructure/scripts/*.sh infrastructure/nginx/*.sh; do
+            bash -n "$script"
+          done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check Node script syntax
+        run: |
+          for script in infrastructure/scripts/*.cjs; do
+            node --check "$script"
+          done
