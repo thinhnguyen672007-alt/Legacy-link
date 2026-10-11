@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const SERVER = 'https://vineyard-fifteen-elusive.ngrok-free.dev';
 async function launch(platform) {
   const windows = [], handlers = {}, menus = [], requests = [];
-  let poller, headerHook, headerFilter;
+  let poller, headerHook, headerFilter, tray;
   const app = Object.assign(new EventEmitter(), {
     name: 'Legacy Link', isPackaged: true,
     requestSingleInstanceLock: () => true, whenReady: () => Promise.resolve(),
@@ -23,7 +23,7 @@ async function launch(platform) {
     }
     isDestroyed() {return Boolean(this.destroyed);}
     destroy() {this.destroyed = true;}
-    loadURL(url) {this.loads.push(url); this.webContents.mainFrame.url = url; return Promise.resolve();}
+    loadURL(url) {this.loads.push(url); this.webContents.emit('did-start-navigation', {}, url, false, true); this.webContents.mainFrame.url = url; return Promise.resolve();}
     setMenu() {} show() {} restore() {} focus() {} hide() {this.hidden = true;}
   }
   class Poller {
@@ -31,7 +31,7 @@ async function launch(platform) {
     stop() {this.token = '';}
     start(token) {this.token = token;}
   }
-  class Tray extends EventEmitter {setToolTip() {} setContextMenu() {}}
+  class Tray extends EventEmitter {constructor() {super(); tray = this;} setToolTip(text) {this.tooltip = text;} setContextMenu() {}}
   const electron = {
     app, BrowserWindow: Window, Tray,
     Menu: {buildFromTemplate: value => {menus.push(value); return value;}, setApplicationMenu() {}},
@@ -50,7 +50,7 @@ async function launch(platform) {
   });
   await new Promise(resolve => setImmediate(resolve));
   const event = (win = windows.at(-1)) => ({sender: win.webContents, senderFrame: win.webContents.mainFrame});
-  return {windows, handlers, menus, requests, poller, headerHook, headerFilter, event};
+  return {windows, handlers, menus, requests, poller, headerHook, headerFilter, event, tooltip: () => tray.tooltip};
 }
 for (const platform of ['win32', 'darwin']) {
   test(`${platform}: opens fixed server without setup or saved URL`, async () => {
@@ -75,6 +75,7 @@ for (const platform of ['win32', 'darwin']) {
       else win.webContents.emit('did-navigate', {}, SERVER, 404, 'Not found');
       assert.ok(win.loads.at(-1).endsWith('/connection-error.html'));
       assert.equal(h.poller.token, '');
+      assert.ok(h.tooltip().includes('Mất kết nối'));
       h.handlers['retry-connection'](h.event());
       assert.equal(h.windows.at(-1).loads[0], SERVER);
       assert.throws(() => h.handlers['retry-connection'](h.event()), /Forbidden/);

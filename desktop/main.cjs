@@ -75,7 +75,7 @@ function openDashboard() {
   if (process.platform !== 'darwin') win.setMenu(applicationMenu());
   secureWindow(win, url => {try {return url === errorURL || new URL(url).origin === server;} catch {return false;}});
   win.webContents.on('did-start-navigation', (_e, _url, inPlace, isMainFrame) => {
-    if (isMainFrame && !inPlace) {poller.stop(); pending = undefined; setStatus('Cần đăng nhập');}
+    if (isMainFrame && !inPlace) {poller.stop(); pending = undefined; setStatus(_url === errorURL ? 'Mất kết nối' : 'Cần đăng nhập');}
   });
   win.webContents.on('render-process-gone', () => {poller.stop(); setStatus('Cần đăng nhập'); openDashboard();});
   win.webContents.on('did-fail-load', (_e, code, _description, _url, isMainFrame) => {if (isMainFrame && code !== -3) {showConnectionError();}});
