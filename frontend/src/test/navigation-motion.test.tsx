@@ -28,3 +28,17 @@ it("reduced motion không tạo trang cũ hoặc animation",()=>{
  r.rerender(<DashboardTransition pathname="/alarms"><h1>Cảnh báo</h1></DashboardTransition>);
  expect(animate).not.toHaveBeenCalled();expect(r.container.querySelector('.dashboard-page-outgoing')).toBeNull();
 });
+it("unmount cancels in-flight animations, removes clone and resets viewport height", () => {
+ vi.stubGlobal('matchMedia',()=>({matches:false}));
+ const cancel = vi.fn();
+ Object.defineProperty(Element.prototype,'animate',{configurable:true,value:()=>({finished:new Promise<void>(()=>{}),cancel})});
+ const r=render(<DashboardTransition pathname="/machines"><h1>Thiết bị</h1></DashboardTransition>);
+ r.rerender(<DashboardTransition pathname="/alarms"><h1>Cảnh báo</h1></DashboardTransition>);
+ const viewport=r.container.querySelector<HTMLElement>('.dashboard-transition-viewport')!;
+ const clone=r.container.querySelector('.dashboard-page-outgoing')!;
+ expect(viewport.style.minHeight).not.toBe('');
+ r.unmount();
+ expect(cancel).toHaveBeenCalledTimes(2);
+ expect(clone.parentNode).toBeNull();
+ expect(viewport.style.minHeight).toBe('');
+});
