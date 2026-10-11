@@ -543,12 +543,6 @@ export function InvestigationView({
               </ul>
             </section>
           )}
-          {report.followUp && (
-            <p className="investigation-follow-up">
-              <strong>{copy("Có thể hỏi tiếp:", "Follow up:")}</strong>{" "}
-              {report.followUp}
-            </p>
-          )}
           <details className="investigation-trace">
             <summary>
               {copy(
