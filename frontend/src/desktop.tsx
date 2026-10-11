@@ -41,7 +41,7 @@ export function DesktopControls() {
   }, [desktop, token, expire, navigate]);
   if (!desktop) return null;
   return <div style={{display:'flex', gap:12, alignItems:'center', padding:'8px 20px', flexWrap:'wrap'}}>
-    <span role="status">Windows · {status}</span>
+    <span role="status">Desktop · {status}</span>
     <button onClick={() => void desktop.testNotification()}>Thử thông báo</button>
     <button onClick={() => void desktop.configure()}>Đổi máy chủ</button>
   </div>;
