@@ -1,3 +1,4 @@
+import { basicMonitoringAction, monitoringBrief } from "./brief.js";
 import { randomUUID, createHash } from "node:crypto";
 import { validateTool } from "./tools.js";
 import { validateAnalysis, validateResult, compactEvidence } from "./report.js";
@@ -71,6 +72,7 @@ export function createCopilot({
     const conversationId = previous ? body.conversationId : randomUUID();
     if (busyConversations.has(conversationId))
       fail("Hội thoại đang xử lý câu hỏi khác. Vui lòng chờ.", 409);
+    const directAction = body.action ?? (body.question ? basicMonitoringAction(body.question) : null);
     const en = body.language === "en";
     const say = (vi, english) => (en ? english : vi);
     const results = [],
@@ -81,7 +83,7 @@ export function createCopilot({
       notice = null,
       text = "",
       followUp = "",
-      mode = body.action ? "rules" : "gemini";
+      mode = directAction ? "rules" : "gemini";
     const deadline = Date.now() + requestTimeoutMs;
     const contents = [
       {
@@ -201,9 +203,9 @@ export function createCopilot({
       }
     }
     try {
-      if (body.action)
+      if (directAction)
         await execute(
-          { name: quick[body.action][0], args: quick[body.action][1] },
+          { name: quick[directAction][0], args: quick[directAction][1] },
           0,
         );
       else if (!model) {
@@ -303,6 +305,7 @@ export function createCopilot({
       if (counted) inFlight--;
       busyConversations.delete(conversationId);
     }
+    if (!text && directAction) text = monitoringBrief(directAction, results, body.language);
     if (!text)
       text = results.length
         ? say(
@@ -357,7 +360,7 @@ export function createCopilot({
           ? "workspace"
           : (analysis?.view ?? (results.length > 1 ? "workspace" : "brief")),
         findings: analysis?.findings ?? [],
-        followUp: analysis?.followUp ?? followUp,
+        followUp: results.length ? "" : followUp,
         limitations: [...new Set(limitations)],
         evidence,
         trace,
