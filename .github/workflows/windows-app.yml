@@ -1,0 +1,44 @@
+name: Windows app
+on:
+  push:
+    branches: [feat/windows-app]
+    paths: ['desktop/**', 'frontend/**', '.github/workflows/windows-app.yml']
+  pull_request:
+    paths: ['desktop/**', 'frontend/**', '.github/workflows/windows-app.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Record source and checksum
+        shell: pwsh
+        run: |
+          $sourceCommit = git rev-parse HEAD
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          @{ version = $version; commit = $sourceCommit; architecture = 'x64' } | ConvertTo-Json | Set-Content dist/manifest.json
+          Get-ChildItem dist/*.exe | ForEach-Object { $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash; "$hash  $($_.Name)" } | Set-Content dist/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Legacy-Link-Windows-${{ github.sha }}
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/SHA256SUMS.txt
+            desktop/dist/manifest.json
+          retention-days: 30
