@@ -8,7 +8,7 @@ Electron client for the existing Legacy Link web/backend server. Download the Wi
 2. Enter the **web URL**, such as an HTTPS ngrok address or `http://192.168.1.13:8080`, without `/api`. `localhost` means the computer running the app, not the backend laptop.
 3. Sign in with an account from that server. The server must have the frontend desktop bridge deployed and allow the web origin.
 
-Closing the window hides it and keeps alarm monitoring active in the tray/menu bar. Open Dashboard restores it. On macOS, the Dock icon restores the app and Command-Q quits; native Edit shortcuts allow pasting the URL/password. Choose Quit to stop monitoring. The app stores only the server URL; session tokens remain in RAM, and restarting/reloading requires login.
+Closing the window hides it and keeps alarm monitoring active in the tray/menu bar. Open Dashboard restores it. On macOS, the Dock icon restores the app and Command-Q quits; native Edit shortcuts allow pasting the URL/password. Choose Quit to stop monitoring. The native app stores only the server URL. The web frontend stores the account token in sessionStorage to survive reload, validates it with the server before restoring the dashboard, and clears it on logout/expiry. Quitting and restarting the app still requires login.
 
 Alarm polling covers the most recent 24 hours, normally every five seconds, with backoff on network errors. The first pass establishes a baseline without notifying historical alarms. Clicking a notification opens the alarm view but does not ACK it. More than three alarms per pass produce one summary notification. Test notifications are explicitly labeled and do not prove ESP32 connectivity.
 
