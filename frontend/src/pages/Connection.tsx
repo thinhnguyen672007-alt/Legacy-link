@@ -18,7 +18,6 @@ export function Connection({ onEntering, onAbort }: { onEntering?: () => void; o
   const base = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? `${location.origin}/api` : "http://localhost:3000");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  // Chỉ đổi cách hiển thị; giá trị mật khẩu gửi tới API vẫn giữ nguyên.
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [entering, setEntering] = useState(false);
@@ -40,7 +39,6 @@ export function Connection({ onEntering, onAbort }: { onEntering?: () => void; o
     locked.current = true;
     setBusy(true); setError("");
     try {
-      // Chỉ API thật được xác nhận tài khoản; animation không thay thế xác thực.
       const url = normalizeUrl(base);
       const result = await login(url, username.trim(), password);
       if (!alive.current) return;
