@@ -31,3 +31,14 @@ Use Node 22+ and run `npm ci` and `npm test` in `desktop`.
 The Mac build generates its ICNS icon with macOS `sips`/`iconutil`. Dependencies are pinned in the lockfile. The **Desktop app** workflow builds Windows x64 and both Mac architectures, verifies Mac binary architecture/signature and launches the native Apple Silicon bundle. Each artifact includes SHA-256 checksums and a source manifest. Pushing `desktop-v<package version>` publishes all successful builds to GitHub Releases; no release is published if any build fails. Branch/PR runs only upload build artifacts.
 
 Prior Windows 0.1.3 VM acceptance is recorded in [Windows validation](../docs/WINDOWS-APP-VALIDATION.md). Version 0.1.4 introduces macOS support; see [release notes](RELEASE-NOTES.md) for verification limits.
+
+
+## Shared logo
+
+The canonical green Unplug mark from the supplied login reference is `frontend/public/legacy-link.svg` (#00ed77, transparent background). Login/sidebar/favicons/README use that SVG. Desktop window/tray/toasts/offline page use `assets/icon.png`; Windows installer/shortcuts use `assets/icon.ico`; the Mac build makes ICNS from the same PNG. Keep these derivatives together when changing the mark:
+
+```sh
+# From repository root, with librsvg and ImageMagick installed:
+rsvg-convert -w 1024 -h 1024 frontend/public/legacy-link.svg -o desktop/assets/icon.png
+magick desktop/assets/icon.png -define icon:auto-resize=256,128,64,48,32,16 desktop/assets/icon.ico
+```

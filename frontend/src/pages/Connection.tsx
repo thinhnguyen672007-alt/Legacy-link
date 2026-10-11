@@ -1,5 +1,6 @@
+import { BrandLogo } from "../components/BrandLogo";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowUpRight, Eye, EyeOff, Unplug } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff } from "lucide-react";
 import { normalizeUrl } from "../api/client";
 import { useSession } from "../session";
 import { login } from "../api/accounts";
@@ -75,7 +76,7 @@ export function Connection({ onEntering, onAbort }: { onEntering?: () => void; o
   return <div className={`ll-login${entering ? " entering" : ""}`} lang={language}>
     <main className="login-scene">
       <div className="hero" ref={hero}>
-        <div className="brand"><Unplug aria-hidden="true" /><span>LEGACY LINK</span><small>/ DENSO</small></div>
+        <div className="brand"><BrandLogo /><span>LEGACY LINK</span><small>/ DENSO</small></div>
         <div className="hero-copy"><p className="eyebrow">DENSO FACTORY HACKS 2026</p><h1>{c.first}<br /><em>{c.active}</em><br />{c.last}</h1><p className="description">{c.description}</p><div className="features"><span><i className="live-dot" />Real-time monitoring</span><span><b aria-hidden="true">+</b>AI-powered insights</span></div></div>
         <footer>LEGACY LINK × DENSO FACTORY HACKS</footer>
       </div>

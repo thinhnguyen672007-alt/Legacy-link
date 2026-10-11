@@ -98,3 +98,8 @@ Kiểm tra: desktop `npm test` 18/18 (bao gồm test main với Electron API mô
 Lúc kiểm tra endpoint, `/`, `/health`, `/api/health/ready` đều trả HTTP 404 `ERR_NGROK_3200`; tunnel đang offline. Chưa khẳng định đăng nhập hoặc cảnh báo thật qua domain này hoạt động. Cần Hoàng Anh bật tunnel và deploy frontend của PR trước nghiệm thu online.
 
 Electron 43 có giao diện trên Linux (không thay cho native Windows/Mac và Electron 44 đóng gói): với server.json cũ trỏ sang domain khác, app bỏ qua URL cũ, gặp HTTP404 thật và hiện trang lỗi không có input; bấm Thử lại request đúng ngrok rồi về trang lỗi. [JSON runtime](evidence/fixed-desktop-server/result.json), [ảnh offline](evidence/fixed-desktop-server/offline.png).
+
+
+Cập nhật sau khi Hoàng Anh bật lại tunnel: `/health` và `/api/health/ready` trả 200. Electron 43 có giao diện mở domain thật tới form login, không submit mật khẩu; lỗi HTTP404 được tạo có kiểm soát để test nút Thử lại phục hồi form login. JSON runtime đã cập nhật, không coi lượt này là xác nhận đăng nhập/telemetry thật. Logo phích cắm xanh từ ảnh người dùng thống nhất ở login/sidebar/favicon/README, icon app/tray/toast, Windows ICO và nguồn ICNS Mac; PNG/ICO được render từ một SVG gốc. Cài đặt Windows/Mac thật và phát hành 0.1.5 vẫn chờ CI/release/nghiệm thu.
+
+Logo đã kiểm bằng Chromium có giao diện với build frontend local: login/sidebar/favicon cùng tải `/legacy-link.svg`; không còn input API. [Login](evidence/fixed-desktop-server/logo-login.png), [sidebar](evidence/fixed-desktop-server/logo-sidebar.png). Sidebar dùng fixture UI chỉ để kiểm logo, không bơm DB và không coi là dữ liệu thật. Người dùng xác nhận backend ngrok nằm ở máy khác, chưa pull code mới; việc deploy máy đó do nhóm thực hiện khi được yêu cầu.

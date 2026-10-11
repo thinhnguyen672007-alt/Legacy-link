@@ -1,5 +1,7 @@
 # Legacy-link
 
+<img src="frontend/public/legacy-link.svg" width="48" height="48" alt="Legacy Link logo">
+
 ## Tải ứng dụng
 
 [**Tải Legacy Link cho Windows hoặc Mac — GitHub Releases**](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/latest)
