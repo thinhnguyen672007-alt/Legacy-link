@@ -48,9 +48,11 @@ jobs:
         run: |
           bundle=$(find dist -maxdepth 2 -name '*.app' -type d -print -quit)
           test -n "$bundle"
-          lipo -verify_arch ${{ matrix.arch }} "$bundle/Contents/MacOS/Legacy Link"
+          binary_arch=${{ matrix.arch }}
+          if [ "$binary_arch" = x64 ]; then binary_arch=x86_64; fi
+          lipo -verify_arch "$binary_arch" "$bundle/Contents/MacOS/Legacy Link"
           codesign --verify --deep --strict "$bundle"
-          if [ "${{ matrix.arch }}" = "$(uname -m)" ]; then
+          if [ "$binary_arch" = "$(uname -m)" ]; then
             node scripts/smoke.cjs "$bundle/Contents/MacOS/Legacy Link"
           fi
       - name: Record source and checksums
