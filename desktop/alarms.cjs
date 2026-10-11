@@ -1,9 +1,4 @@
 const DAY = 86400000;
-function normalizeServer(input) {
-  const u = new URL(String(input).trim());
-  if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password || u.search || u.hash || u.pathname !== '/') throw new Error('Nhập URL web HTTP/HTTPS, chỉ gồm địa chỉ máy chủ và cổng.');
-  return u.origin;
-}
 function validatePage(p, from, to) {
   if (!p || !Array.isArray(p.items) || p.items.length > 500 || !(p.nextCursor === null || typeof p.nextCursor === 'string' && /^[\w-]{1,160}$/.test(p.nextCursor))) throw new Error('Dữ liệu cảnh báo không hợp lệ');
   for (const a of p.items) {
@@ -58,4 +53,4 @@ class AlarmPoller {
     if (generation === this.generation && this.token) this.timer = setTimeout(() => void this.tick(generation), delay);
   }
 }
-module.exports = {AlarmPoller, normalizeServer, validatePage};
+module.exports = {AlarmPoller, validatePage};

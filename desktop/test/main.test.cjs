@@ -1,0 +1,100 @@
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const {EventEmitter} = require('node:events');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const SERVER = 'https://vineyard-fifteen-elusive.ngrok-free.dev';
+async function launch(platform) {
+  const windows = [], handlers = {}, menus = [], requests = [];
+  let poller, headerHook, headerFilter;
+  const app = Object.assign(new EventEmitter(), {
+    name: 'Legacy Link', isPackaged: true,
+    requestSingleInstanceLock: () => true, whenReady: () => Promise.resolve(),
+    getPath: () => {throw new Error('Must not read old server.json');},
+    setAppUserModelId() {}, setAsDefaultProtocolClient: () => true,
+    quit: () => assert.fail('Unexpected quit'),
+  });
+  class Window extends EventEmitter {
+    constructor() {
+      super(); this.webContents = Object.assign(new EventEmitter(), {
+        mainFrame: {url: ''}, send() {}, setWindowOpenHandler() {},
+      }); this.loads = []; windows.push(this);
+    }
+    isDestroyed() {return Boolean(this.destroyed);}
+    destroy() {this.destroyed = true;}
+    loadURL(url) {this.loads.push(url); this.webContents.mainFrame.url = url; return Promise.resolve();}
+    setMenu() {} show() {} restore() {} focus() {} hide() {this.hidden = true;}
+  }
+  class Poller {
+    constructor(options) {this.options = options; poller = this; this.generation = 1;}
+    stop() {this.token = '';}
+    start(token) {this.token = token;}
+  }
+  class Tray extends EventEmitter {setToolTip() {} setContextMenu() {}}
+  const electron = {
+    app, BrowserWindow: Window, Tray,
+    Menu: {buildFromTemplate: value => {menus.push(value); return value;}, setApplicationMenu() {}},
+    ipcMain: {handle: (name, callback) => {handlers[name] = callback;}},
+    session: {defaultSession: {
+      setPermissionRequestHandler() {}, setPermissionCheckHandler() {},
+      webRequest: {onBeforeSendHeaders: (filter, hook) => {headerFilter = filter; headerHook = hook;}},
+    }},
+    nativeImage: {createFromPath: () => ({resize: () => ({})})},
+    dialog: {showErrorBox: () => assert.fail('Unexpected startup error')},
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../main.cjs'), 'utf8'), {
+    __dirname: path.join(__dirname, '..'), process: {platform}, URL, URLSearchParams, AbortSignal,
+    fetch: async (url, options) => {requests.push({url, options}); return new Response(JSON.stringify({items: [], nextCursor: null}));},
+    require: name => name === 'electron' ? electron : name === './alarms.cjs' ? {AlarmPoller: Poller} : name === './notifications.cjs' ? {createNotifications: () => () => {}} : require(name),
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  const event = (win = windows.at(-1)) => ({sender: win.webContents, senderFrame: win.webContents.mainFrame});
+  return {windows, handlers, menus, requests, poller, headerHook, headerFilter, event};
+}
+for (const platform of ['win32', 'darwin']) {
+  test(`${platform}: opens fixed server without setup or saved URL`, async () => {
+    const h = await launch(platform);
+    assert.equal(h.windows.length, 1);
+    assert.deepEqual(h.windows[0].loads, [SERVER]);
+    assert.ok(!JSON.stringify(h.menus).includes('Đổi máy chủ'));
+    assert.equal(h.handlers.configure, undefined);
+    assert.equal(h.handlers['connect-server'], undefined);
+    assert.equal(JSON.stringify(h.headerFilter), JSON.stringify({urls: [`${SERVER}/*`]}));
+    h.headerHook({requestHeaders: {Authorization: 'Bearer fixture'}}, result => {
+      assert.equal(result.requestHeaders['ngrok-skip-browser-warning'], '1');
+      assert.equal(result.requestHeaders.Authorization, 'Bearer fixture');
+    });
+  });
+  test(`${platform}: network/HTTP errors show local retry; retries fixed server`, async () => {
+    const h = await launch(platform);
+    for (const failure of ['network', 'HTTP']) {
+      const win = h.windows.at(-1);
+      h.poller.start('fixture-token-123456');
+      if (failure === 'network') win.webContents.emit('did-fail-load', {}, -105, 'offline', SERVER, true);
+      else win.webContents.emit('did-navigate', {}, SERVER, 404, 'Not found');
+      assert.ok(win.loads.at(-1).endsWith('/connection-error.html'));
+      assert.equal(h.poller.token, '');
+      h.handlers['retry-connection'](h.event());
+      assert.equal(h.windows.at(-1).loads[0], SERVER);
+      assert.throws(() => h.handlers['retry-connection'](h.event()), /Forbidden/);
+    }
+    let prevented = false;
+    h.windows.at(-1).emit('close', {preventDefault() {prevented = true;}});
+    assert.ok(prevented && h.windows.at(-1).hidden);
+  });
+  test(`${platform}: rejects external navigation/IPC and polls only fixed API`, async () => {
+    const h = await launch(platform), win = h.windows[0];
+    for (const name of ['will-navigate', 'will-redirect']) {
+      let blocked = false;
+      win.webContents.emit(name, {preventDefault() {blocked = true;}}, 'https://other.example/');
+      assert.ok(blocked);
+    }
+    assert.throws(() => h.handlers.session({...h.event(), senderFrame: {url: SERVER}}, 'fixture-token-123456'), /Invalid session/);
+    h.handlers.session(h.event(), 'fixture-token-123456');
+    await h.poller.options.fetchPage({from: 1, to: 2, token: h.poller.token, signal: new AbortController().signal});
+    assert.ok(h.requests[0].url.startsWith(`${SERVER}/api/alarms?`));
+    assert.equal(h.requests[0].options.headers.Authorization, 'Bearer fixture-token-123456');
+    assert.equal(h.requests[0].options.redirect, 'error');
+  });
+}

@@ -10,7 +10,6 @@ declare global {
       ready(): Promise<void>;
       onStatus(callback: (value: DesktopStatus) => void): () => void;
       onAlarm(callback: (value: AlarmTarget) => void): () => void;
-      configure(): Promise<void>;
       testNotification(): Promise<void>;
     };
   }
@@ -43,6 +42,5 @@ export function DesktopControls() {
   return <div style={{display:'flex', gap:12, alignItems:'center', padding:'8px 20px', flexWrap:'wrap'}}>
     <span role="status">Desktop · {status}</span>
     <button onClick={() => void desktop.testNotification()}>Thử thông báo</button>
-    <button onClick={() => void desktop.configure()}>Đổi máy chủ</button>
   </div>;
 }

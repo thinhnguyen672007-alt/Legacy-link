@@ -1,5 +1,16 @@
 # Legacy-link
 
+## Tải ứng dụng
+
+[**Tải Legacy Link cho Windows hoặc Mac — GitHub Releases**](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/latest)
+
+- **Windows 10/11 x64:** tải file `.exe` và chạy để cài.
+- **Mac chip M:** tải file `macOS-arm64.dmg`; **Mac Intel:** tải `macOS-x64.dmg`. Mở DMG, kéo Legacy Link vào Applications.
+- **Web:** [mở Legacy Link](https://vineyard-fifteen-elusive.ngrok-free.dev).
+
+Từ desktop **0.1.5**, mở app là đăng nhập, không cần nhập máy chủ. Bản mới có ở Releases sau khi nhóm phát hành; trước đó bộ cài thử nằm trong artifact của workflow **Desktop app**.
+
+
 A configuration-driven ESP32 gateway for collecting data from legacy equipment.
 Built for DENSO D1: low-cost connectivity for equipment without an industrial PC.
 Machine register maps and alarm thresholds can change through JSON configuration

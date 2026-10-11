@@ -4,11 +4,13 @@ Electron client for the existing Legacy Link web/backend server. Download the Wi
 
 ## Connect and use
 
-1. Install the Windows EXE, or open the Mac DMG and drag Legacy Link to Applications.
-2. Enter the **web URL**, such as an HTTPS ngrok address or `http://192.168.1.13:8080`, without `/api`. `localhost` means the computer running the app, not the backend laptop.
-3. Sign in with an account from that server. The server must have the frontend desktop bridge deployed and allow the web origin.
+1. Windows: run the EXE; it installs for the current user without choosing a folder. Mac: open the DMG and drag Legacy Link to Applications.
+2. Open the app and sign in with your team's account. Windows and Mac always load **https://vineyard-fifteen-elusive.ngrok-free.dev**; API and alarm polling use that origin's `/api`.
+3. If Internet/the tunnel/server is unavailable (including HTTP errors), the app shows a local error page with **Thử lại**. Retry always uses the same fixed domain. No server-address form or change-server menu exists.
 
-Closing the window hides it and keeps alarm monitoring active in the tray/menu bar. Open Dashboard restores it. On macOS, the Dock icon restores the app and Command-Q quits; native Edit shortcuts allow pasting the URL/password. Choose Quit to stop monitoring. The native app stores only the server URL. The web frontend stores the account token in sessionStorage to survive reload, validates it with the server before restoring the dashboard, and clears it on logout/expiry. Quitting and restarting the app still requires login.
+Version 0.1.5 ignores the old `server.json`; it does not read, migrate or overwrite user passwords/server configuration. The hosted frontend must deploy this PR too to remove its old advanced connection control. Browser production uses its own origin's `/api`: ngrok web uses ngrok, localhost continues using the local server; dev Vite retains `VITE_API_BASE_URL` for local/test development.
+
+Closing the window keeps alarm monitoring active in the tray/menu bar. Choose Quit to stop it. The main process keeps tokens only in memory; the hosted web frontend uses sessionStorage for reload, validates with the server, and clears on logout/expiry. Quit/restart requires login. A new domain requires a new desktop build. Desktop requests to the fixed domain include ngrok's documented `ngrok-skip-browser-warning` header so first launch goes straight to the web login rather than the free tunnel interstitial.
 
 Alarm polling covers the most recent 24 hours, normally every five seconds, with backoff on network errors. The first pass establishes a baseline without notifying historical alarms. Clicking a notification opens the alarm view but does not ACK it. More than three alarms per pass produce one summary notification. Test notifications are explicitly labeled and do not prove ESP32 connectivity.
 

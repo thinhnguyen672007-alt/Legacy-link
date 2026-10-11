@@ -85,3 +85,16 @@ Nhánh `feat/windows-app` từ main `2ecc859` (PR #80). Có Electron shell/NSIS,
 ## 2026-10-11 — Reload/session và login sau đổi mật khẩu
 
 Nhánh `feature/frontend` từ main 5b9ceb7 (đã gồm PR #84 sửa reload). Tái hiện bằng UI admin → tạo tài khoản mới → đăng nhập employee → đổi mật khẩu trên backend/PostgreSQL test riêng. Root cause là cờ `collapsing` trong App còn true, nền chỉ 228px và lộ nền trắng; không phải clone DashboardTransition hoặc logout 401. Sửa cờ ở chỗ dùng chung cho mọi đường logout, giữ CSS/thời lượng. Giữ nguyên cơ chế khôi phục phiên mới của main; bỏ phần session sửa trùng. Frontend 99 tests/typecheck/lint/build và backend test:accounts PASS; Chromium thực 13 kiểm DOM/CSS desktop/mobile/reduced motion PASS. Ảnh/bằng chứng tại [AUTH-TRANSITION-FIX.md](AUTH-TRANSITION-FIX.md). Chưa deploy ngrok/live; tạo PR vào main, không tự merge.
+
+
+## 2026-10-11 — Domain cố định và cài app gọn hơn
+
+Theo quyết định mới của nhóm, Windows/Mac 0.1.5 luôn mở `https://vineyard-fifteen-elusive.ngrok-free.dev`; API/alarm qua `/api` cùng domain. Bỏ setup URL, đọc `server.json` và IPC/menu đổi máy chủ; offline/HTTP lỗi có trang local + Thử lại đúng domain cố định. Chặn redirect/IPC ngoài domain như trước. Desktop thêm header ngrok để không hiện interstitial lần đầu theo cơ chế chính thức: [ngrok free-plan limits](https://github.com/ngrok/ngrok-docs/blob/main/pricing-limits/free-plan-limits.mdx).
+
+Bỏ advanced API và nút đổi máy chủ trên frontend. Theo xác nhận người dùng, localhost giữ backend local để phát triển; web ngrok tự dùng `/api` ngrok. Không sửa backend/env, không triển khai live/ngrok. Windows NSIS oneClick per-user; Mac kéo vào Applications. README có mục tải đầu trang, Releases vẫn là nơi tải công khai; bộ cài mới chỉ có sau khi nhóm publish tag `desktop-v0.1.5`, artifact PR không phải release.
+
+Kiểm tra: desktop `npm test` 18/18 (bao gồm test main với Electron API mô phỏng cho win32/darwin); frontend `npm test` 104/104, typecheck/lint/build PASS; build còn warning chunk >500kB đã có. Chưa nghiệm thu bộ cài mới trên Windows/Mac thật.
+
+Lúc kiểm tra endpoint, `/`, `/health`, `/api/health/ready` đều trả HTTP 404 `ERR_NGROK_3200`; tunnel đang offline. Chưa khẳng định đăng nhập hoặc cảnh báo thật qua domain này hoạt động. Cần Hoàng Anh bật tunnel và deploy frontend của PR trước nghiệm thu online.
+
+Electron 43 có giao diện trên Linux (không thay cho native Windows/Mac và Electron 44 đóng gói): với server.json cũ trỏ sang domain khác, app bỏ qua URL cũ, gặp HTTP404 thật và hiện trang lỗi không có input; bấm Thử lại request đúng ngrok rồi về trang lỗi. [JSON runtime](evidence/fixed-desktop-server/result.json), [ảnh offline](evidence/fixed-desktop-server/offline.png).

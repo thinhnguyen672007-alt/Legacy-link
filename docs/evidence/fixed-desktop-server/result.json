@@ -1,0 +1,11 @@
+{
+  "runtime": "Electron 43 Linux headed",
+  "actualTunnel": "HTTP404 ERR_NGROK_3200",
+  "noServerInput": true,
+  "retryFixedServer": true,
+  "oldServerIgnored": true,
+  "navigationAttempts": [
+    "https://vineyard-fifteen-elusive.ngrok-free.dev/",
+    "file:///home/james/Projects/Hackathon%20DENSON/Legacy-link-/desktop/connection-error.html"
+  ]
+}

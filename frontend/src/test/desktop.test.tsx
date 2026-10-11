@@ -16,8 +16,9 @@ it('session sync, two notification targets and matching expiry',async()=>{
  let alarm: (v:{device:string|null;eventId:string})=>void=()=>{};
  let status: (v:{text:string;expiredToken?:string})=>void=()=>{};
  const remove=vi.fn(), sync=vi.fn().mockResolvedValue({text:'Đang theo dõi'});
- window.legacyDesktop={syncSession:sync,ready:vi.fn().mockResolvedValue(undefined),onAlarm:cb=>{alarm=cb;return remove;},onStatus:cb=>{status=cb;return remove;},configure:vi.fn(),testNotification:vi.fn()};
+ window.legacyDesktop={syncSession:sync,ready:vi.fn().mockResolvedValue(undefined),onAlarm:cb=>{alarm=cb;return remove;},onStatus:cb=>{status=cb;return remove;},testNotification:vi.fn()};
  const r=render(<MemoryRouter><SessionProvider><Harness/></SessionProvider></MemoryRouter>);
+ expect(screen.queryByRole('button',{name:'Đổi máy chủ'})).not.toBeInTheDocument();
  fireEvent.click(screen.getByText('Login'));
  await waitFor(()=>expect(sync).toHaveBeenCalledWith('session-token-123456'));
  act(()=>alarm({device:'BENCH-01',eventId:'1'}));expect(screen.getByTestId('route')).toHaveTextContent('device=BENCH-01');
@@ -36,4 +37,12 @@ it('alarm filter follows repeated notification navigation on the same page',asyn
  fireEvent.click(screen.getByText('Next target'));
  await waitFor(()=>expect(screen.getByLabelText('Mã thiết bị')).toHaveValue('BENCH-02'));
  vi.unstubAllGlobals();
+});
+
+it('web login has no server connection settings', async () => {
+ const {Connection} = await import('../pages/Connection');
+ render(<MemoryRouter><SessionProvider><Connection/></SessionProvider></MemoryRouter>);
+ expect(screen.getByLabelText('Tên đăng nhập')).toBeInTheDocument();
+ expect(screen.queryByText('Thiết lập kết nối')).not.toBeInTheDocument();
+ expect(screen.queryByLabelText('Địa chỉ API')).not.toBeInTheDocument();
 });
