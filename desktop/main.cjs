@@ -1,28 +1,27 @@
 const {app, BrowserWindow, Tray, Menu, Notification, ipcMain, session, dialog, nativeImage} = require('electron');
-const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
-const {AlarmPoller, normalizeServer} = require('./alarms.cjs');
+const {AlarmPoller} = require('./alarms.cjs');
 const {createNotifications} = require('./notifications.cjs');
 const APP_ID = 'vn.legacylink.desktop';
-let win, setup, tray, server = '', quitting = false, hiddenHint = false, pending, state = 'Cần đăng nhập';
-const setupURL = pathToFileURL(path.join(__dirname, 'setup.html')).href;
+const server = 'https://vineyard-fifteen-elusive.ngrok-free.dev';
+let win, tray, quitting = false, hiddenHint = false, pending, state = 'Cần đăng nhập';
+const errorURL = pathToFileURL(path.join(__dirname, 'connection-error.html')).href;
 const icon = path.join(__dirname, 'assets/icon.png');
 let toast;
 const preferences = {preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true};
-const configPath = () => path.join(app.getPath('userData'), 'server.json');
 function trusted(event, local = false) {
-  const target = local ? setup : win;
+  const target = win;
   if (!target || target.isDestroyed() || event.sender !== target.webContents || event.senderFrame !== event.sender.mainFrame) return false;
-  try {return local ? event.senderFrame.url === setupURL : new URL(event.senderFrame.url).origin === server;} catch {return false;}
+  try {return local ? event.senderFrame.url === errorURL : new URL(event.senderFrame.url).origin === server;} catch {return false;}
 }
 function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
-function focus() {if (win && !win.isDestroyed()) {win.show(); win.restore(); win.focus();} else openSetup();}
+function focus() {if (win && !win.isDestroyed()) {win.show(); win.restore(); win.focus();} else openDashboard();}
 function testToast() {toast('Legacy Link · THÔNG BÁO THỬ', 'Đây là thông báo thử desktop, không phải cảnh báo ESP32.', focus);}
 function applicationMenu() {
-  const actions = [{label: 'Đổi máy chủ', click: openSetup}, {label: 'Thử thông báo', click: testToast}];
+  const actions = [{label: 'Thử kết nối lại', click: openDashboard}, {label: 'Thử thông báo', click: testToast}];
   return Menu.buildFromTemplate(process.platform === 'darwin' ? [
     {label: app.name, submenu: [{role: 'about'}, {type: 'separator'}, ...actions, {type: 'separator'}, {role: 'hide'}, {role: 'hideOthers'}, {role: 'unhide'}, {type: 'separator'}, {role: 'quit'}]},
     {role: 'editMenu'}, {role: 'windowMenu'}
@@ -35,7 +34,7 @@ const poller = new AlarmPoller({
   fetchPage: async ({from, to, cursor, token, signal}) => {
     const query = new URLSearchParams({from: String(from), to: String(to), limit: '500'});
     if (cursor) query.set('cursor', cursor);
-    const r = await fetch(`${server}/api/alarms?${query}`, {headers: {Authorization: `Bearer ${token}`}, redirect: 'error', signal: AbortSignal.any([signal, AbortSignal.timeout(12000)])});
+    const r = await fetch(`${server}/api/alarms?${query}`, {headers: {Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': '1'}, redirect: 'error', signal: AbortSignal.any([signal, AbortSignal.timeout(12000)])});
     if (!r.ok) {
       const error = new Error(`HTTP ${r.status}`); error.status = r.status;
       const retry = r.headers.get('retry-after');
@@ -60,7 +59,7 @@ function refreshTray() {
   tray.setToolTip(`Legacy Link · ${state}`);
   tray.setContextMenu(Menu.buildFromTemplate([
     {label: 'Mở dashboard', click: focus}, {label: state, enabled: false}, {type: 'separator'},
-    {label: 'Thử thông báo', click: testToast}, {label: 'Đổi máy chủ', click: openSetup},
+    {label: 'Thử thông báo', click: testToast}, {label: 'Thử kết nối lại', click: openDashboard},
     {type: 'separator'}, {label: 'Thoát', click: () => app.quit()}
   ]));
 }
@@ -70,15 +69,17 @@ function secureWindow(w, allowed) {
   w.webContents.on('will-redirect', (e, url) => {if (!allowed(url)) e.preventDefault();});
 }
 function openDashboard() {
+  poller.stop(); pending = undefined; setStatus('Cần đăng nhập');
   if (win && !win.isDestroyed()) win.destroy();
   win = new BrowserWindow({width: 1320, height: 900, minWidth: 900, minHeight: 640, title: 'Legacy Link', icon, webPreferences: preferences});
   if (process.platform !== 'darwin') win.setMenu(applicationMenu());
-  secureWindow(win, url => {try {return new URL(url).origin === server;} catch {return false;}});
+  secureWindow(win, url => {try {return url === errorURL || new URL(url).origin === server;} catch {return false;}});
   win.webContents.on('did-start-navigation', (_e, _url, inPlace, isMainFrame) => {
-    if (isMainFrame && !inPlace) {poller.stop(); pending = undefined; setStatus('Cần đăng nhập');}
+    if (isMainFrame && !inPlace) {poller.stop(); pending = undefined; setStatus(_url === errorURL ? 'Mất kết nối' : 'Cần đăng nhập');}
   });
-  win.webContents.on('render-process-gone', () => {poller.stop(); setStatus('Cần đăng nhập'); openSetup();});
-  win.webContents.on('did-fail-load', (_e, code, _description, _url, isMainFrame) => {if (isMainFrame && code !== -3) {setStatus('Mất kết nối'); openSetup();}});
+  win.webContents.on('render-process-gone', () => {poller.stop(); setStatus('Cần đăng nhập'); openDashboard();});
+  win.webContents.on('did-fail-load', (_e, code, _description, _url, isMainFrame) => {if (isMainFrame && code !== -3) {showConnectionError();}});
+  win.webContents.on('did-navigate', (_e, _url, httpResponseCode) => {if (httpResponseCode >= 400) showConnectionError();});
   win.on('close', e => {
     if (quitting) return;
     e.preventDefault(); win.hide();
@@ -86,31 +87,14 @@ function openDashboard() {
   });
   void win.loadURL(server).catch(() => {});
 }
-function openSetup() {
-  if (setup && !setup.isDestroyed()) {setup.show(); setup.focus(); return;}
-  setup = new BrowserWindow({width: 620, height: 640, resizable: false, title: 'Kết nối Legacy Link', icon, webPreferences: preferences});
-  if (process.platform !== 'darwin') setup.removeMenu();
-  secureWindow(setup, url => url === setupURL);
-  setup.on('closed', () => {setup = undefined;});
-  void setup.loadURL(setupURL);
+function showConnectionError() {
+  poller.stop(); pending = undefined; setStatus('Mất kết nối');
+  if (win && !win.isDestroyed()) void win.loadURL(errorURL).catch(() => {});
 }
 function registerIPC() {
-  ipcMain.handle('get-server', e => {if (!trusted(e, true)) throw new Error('Forbidden'); return server;});
-  ipcMain.handle('connect-server', async (e, input) => {
+  ipcMain.handle('retry-connection', e => {
     if (!trusted(e, true)) throw new Error('Forbidden');
-    try {
-      if (typeof input !== 'string' || input.length > 2048) throw new Error('Địa chỉ không hợp lệ');
-      const next = normalizeServer(input);
-      for (const endpoint of ['/health', '/api/health/ready']) {
-        const r = await fetch(next + endpoint, {redirect: 'error', signal: AbortSignal.timeout(8000)});
-        await r.body?.cancel(); if (!r.ok) throw new Error('Máy chủ chưa sẵn sàng');
-      }
-      if (!trusted(e, true)) return {error: 'Cửa sổ cấu hình đã thay đổi'};
-      fs.mkdirSync(app.getPath('userData'), {recursive: true});
-      fs.writeFileSync(configPath(), JSON.stringify({server: next}));
-      poller.stop(); pending = undefined; server = next; setStatus('Cần đăng nhập');
-      openDashboard(); setup.close(); return {ok: true};
-    } catch {return {error: 'Không thể kết nối. Kiểm tra URL web, Wi-Fi và máy chủ Linux rồi thử lại.'};}
+    openDashboard();
   });
   ipcMain.handle('session', (e, token) => {
     if (!trusted(e) || typeof token !== 'string' || token.length > 512 || token && !/^[\w.-]{16,512}$/.test(token)) throw new Error('Invalid session');
@@ -118,7 +102,6 @@ function registerIPC() {
     poller.start(token); return {text: state};
   });
   ipcMain.handle('ready', e => {if (!trusted(e)) throw new Error('Forbidden'); send('status', {text: state}); if (pending && poller.token) {send('alarm', pending); pending = undefined;} });
-  ipcMain.handle('configure', e => {if (!trusted(e)) throw new Error('Forbidden'); openSetup();});
   ipcMain.handle('test-notification', e => {if (!trusted(e)) throw new Error('Forbidden'); testToast();});
 }
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -137,10 +120,12 @@ else {
     toast = createNotifications(Notification, {icon, iconURL: pathToFileURL(icon).href, failed: () => setStatus('Không gửi được thông báo desktop')});
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, cb) => cb(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
-    try {server = normalizeServer(JSON.parse(fs.readFileSync(configPath(), 'utf8')).server);} catch {}
+    session.defaultSession.webRequest.onBeforeSendHeaders({urls: [`${server}/*`]}, (details, callback) => {
+      callback({requestHeaders: {...details.requestHeaders, 'ngrok-skip-browser-warning': '1'}});
+    });
     registerIPC();
     const trayIcon = process.platform === 'darwin' ? nativeImage.createFromPath(icon).resize({width: 18, height: 18}) : icon;
     tray = new Tray(trayIcon); tray.on('double-click', focus); refreshTray();
-    if (server) openDashboard(); else openSetup();
+    openDashboard();
   }).catch(() => {dialog.showErrorBox('Legacy Link', 'Không thể khởi động app.'); app.quit();});
 }

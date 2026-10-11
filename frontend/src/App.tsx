@@ -1,3 +1,4 @@
+import { BrandLogo } from "./components/BrandLogo";
 import { DesktopControls } from "./desktop";
 import { tr, useLanguage } from "./language";
 import { LanguageToggle } from "./components/LanguageToggle";
@@ -76,7 +77,7 @@ export function App() {
       </a>
       <aside className="sidebar">
         <Link className="brand dashboard-brand" to="/machines">
-          <span className="dashboard-logo" aria-hidden="true"><svg viewBox="0 0 32 40" fill="none"><path d="M4 4h21v9H13v9h12v10H4V4Z" stroke="currentColor" strokeWidth="4"/><path d="m13 13 13-9M13 23l13-9M4 35l21-10" stroke="#5772ff" strokeWidth="3"/></svg></span><span className="dashboard-wordmark"><strong>LEGACY LINK</strong><small>/ DENSO</small></span>
+          <span className="dashboard-logo" aria-hidden="true"><BrandLogo /></span><span className="dashboard-wordmark"><strong>LEGACY LINK</strong><small>/ DENSO</small></span>
         </Link>
         <nav ref={nav} aria-label={tr("Điều hướng chính")}><SlidingSidebarIndicator nav={nav} />
           <NavLink to="/overview">

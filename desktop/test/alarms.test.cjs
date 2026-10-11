@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {AlarmPoller, normalizeServer, validatePage} = require('../alarms.cjs');
+const {AlarmPoller, validatePage} = require('../alarms.cjs');
 const a = (id, timestamp = 100000000) => ({id, timestamp, deviceId:'BENCH-01', severity:'high', code:'OVERHEAT', value:95});
 const page = (items, nextCursor = null) => ({items, nextCursor});
 const flush = () => new Promise(r => setImmediate(r));
@@ -10,10 +10,6 @@ function create(fetchPage) {
  return {p,events,states};
 }
 async function tick(p) {clearTimeout(p.timer);await p.tick(p.generation);clearTimeout(p.timer);}
-test('only server origins accepted',()=>{
- assert.equal(normalizeServer(' http://192.168.1.13:8080/ '),'http://192.168.1.13:8080');
- for (const url of ['file:///etc/passwd','http://user:pass@host','http://host/api','http://host/?token=x','http://host/#x']) assert.throws(()=>normalizeServer(url));
-});
 test('baseline silent, repeated IDs silent, late and large IDs notify',async()=>{
  let rows=[a('1')];const {p,events}=create(async()=>page(rows));p.start('token');await flush();
  assert.equal(events.length,0);rows=[a('9007199254740993',99999999),a('1')];await tick(p);

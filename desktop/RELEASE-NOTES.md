@@ -2,11 +2,11 @@
 
 | Your computer | Installer |
 |---|---|
-| Windows 10/11 · 64-bit | [Download for Windows](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.4/Legacy-Link-Setup-0.1.4-x64.exe) |
-| Mac · Apple Silicon (M-series) | [Download for Apple Silicon](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.4/Legacy-Link-0.1.4-macOS-arm64.dmg) |
-| Mac · Intel | [Download for Intel Mac](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.4/Legacy-Link-0.1.4-macOS-x64.dmg) |
+| Windows 10/11 · 64-bit | [Download for Windows](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.5/Legacy-Link-Setup-0.1.5-x64.exe) |
+| Mac · Apple Silicon (M-series) | [Download for Apple Silicon](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.5/Legacy-Link-0.1.5-macOS-arm64.dmg) |
+| Mac · Intel | [Download for Intel Mac](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.5/Legacy-Link-0.1.5-macOS-x64.dmg) |
 
-**Install:** Windows: run the installer. Mac: open the DMG and drag Legacy Link to Applications. Sign in with your team's account; use the server connection settings if your deployment requires another URL.
+**Install:** Windows: run the installer. Mac: open the DMG and drag Legacy Link to Applications. Open the app and sign in with your team's account. Windows and Mac automatically connect to https://vineyard-fifteen-elusive.ngrok-free.dev; no server setup is required. Windows installs for the current user in one step. If the server is unavailable, use **Thử lại**.
 
 These demo installers are unsigned / not Apple-notarized. On Mac, you may need **System Settings → Privacy & Security → Open Anyway**. Keep Gatekeeper enabled.
 

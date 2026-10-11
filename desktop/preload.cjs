@@ -9,10 +9,8 @@ contextBridge.exposeInMainWorld('legacyDesktop', {
   ready: () => ipcRenderer.invoke('ready'),
   onStatus: callback => listen('status', callback),
   onAlarm: callback => listen('alarm', callback),
-  configure: () => ipcRenderer.invoke('configure'),
   testNotification: () => ipcRenderer.invoke('test-notification')
 });
-contextBridge.exposeInMainWorld('legacySetup', {
-  getServer: () => ipcRenderer.invoke('get-server'),
-  connect: url => ipcRenderer.invoke('connect-server', url)
+contextBridge.exposeInMainWorld('legacyConnection', {
+  retry: () => ipcRenderer.invoke('retry-connection')
 });

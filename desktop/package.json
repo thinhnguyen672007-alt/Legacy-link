@@ -1,6 +1,6 @@
 {
   "name": "legacy-link-desktop",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "Legacy-link Windows and macOS desktop",
   "author": "Legacy-link team",
@@ -24,8 +24,8 @@
     },
     "files": [
       "*.cjs",
-      "setup.html",
-      "setup.js",
+      "connection-error.html",
+      "connection-error.js",
       "assets/**"
     ],
     "mac": {
@@ -44,9 +44,8 @@
       "artifactName": "Legacy-Link-Setup-${version}-${arch}.${ext}"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     }
