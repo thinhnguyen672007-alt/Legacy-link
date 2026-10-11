@@ -1,0 +1,17 @@
+{
+  "sameNode": false,
+  "intermediate": 0,
+  "widthTransition": false,
+  "first": {
+    "ms": 5.200000002980232,
+    "width": 228,
+    "same": true,
+    "transition": false
+  },
+  "last": {
+    "ms": 1703.6000000014901,
+    "width": 1440,
+    "same": false,
+    "transition": false
+  }
+}

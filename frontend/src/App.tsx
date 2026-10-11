@@ -67,7 +67,8 @@ export function App() {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
   const wallpaper = <LoginBackdrop collapsed={Boolean(session) || collapsing} />;
-  if (!session) return <><DesktopControls />{wallpaper}<Connection onEntering={() => setCollapsing(true)} onAbort={() => setCollapsing(false)} /></>;
+  // Nền luôn ở vị trí đầu: giữ DOM/timeline để CSS chạy ngược khi logout.
+  if (!session) return <>{wallpaper}<DesktopControls /><Connection onEntering={() => setCollapsing(true)} onAbort={() => setCollapsing(false)} /></>;
   return (
     <>{wallpaper}<div className="app-shell">
       <a className="skip-link" href="#content">

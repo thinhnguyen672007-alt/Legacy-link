@@ -35,3 +35,22 @@ Sau sửa:
 ![Login sạch sau đổi mật khẩu](evidence/auth-transitions/after-password-logout.png)
 
 Chưa deploy lên ngrok Hoàng Anh hoặc cập nhật stack live. Bằng chứng browser ở môi trường local test riêng; không khẳng định ngrok đã cập nhật.
+
+
+## Khôi phục motion logout (sau main 53a4b64)
+
+Kiểm tra trước đây chỉ chứng minh trạng thái cuối sạch; chưa chứng minh có chuyển động. Đọc lịch sử thấy commit `63d7c48` chèn `DesktopControls` trước nền ở nhánh login, còn nhánh dashboard đặt nền đầu tiên. React thay DOM nền khi chuyển nhánh, nên CSS không có phần tử cũ để chạy từ 228px về toàn màn hình. PR #86 sửa cờ collapsed nhưng chưa sửa identity này. Chromium trước sửa đo `sameNode=false`, không có width transition, 0 khung hình trung gian.
+
+Sửa nhỏ ở `App.tsx`: đặt nền đầu tiên ở cả hai nhánh để giữ nguyên DOM và SVG; giữ cơ chế reset chung của PR #86. Không thêm thư viện hoặc sửa auth/backend. Trên mobile còn lỗi CSS: transition height chỉ khai báo trên `.collapsed`, bị mất lúc bỏ class. Chuyển khai báo transition sang selector nền trong media mobile; giữ thời lượng/easing 1100ms như cũ.
+
+Test `auth-motion.test.tsx` kiểm tra cùng node/SVG qua disconnect, expire và đăng nhập lại (hai test fail trước sửa, pass sau sửa). `accounts.test.tsx` kiểm tra cùng node sau đổi mật khẩu bắt buộc. Browser regression đo CSS transition và hình học ở từng khung hình, đồng thời giữ các kiểm tra không còn clone, minHeight, animation dashboard, form mờ hoặc token sau logout; reload vẫn giữ phiên hợp lệ.
+
+Kết quả: `npm test` frontend 103/103; `npm run typecheck`, `npm run lint`, `npm run build` PASS. Backend `npm run test:accounts` PASS. Build còn cảnh báo chunk >500kB có sẵn.
+
+Chromium có giao diện, API tài khoản/PostgreSQL test riêng: 13/13 lượt PASS. Bảy đường thoát có motion đo được 113–126 khung hình trung gian: logout, đổi mật khẩu bắt buộc trên desktop/mobile; đổi mật khẩu thường và thu hồi phiên trên desktop; logout khi chuyển trang trên mobile. Ba lượt reduced motion giữ cùng DOM nhưng không chạy transition (đúng tùy chọn người dùng). Ba lượt reload ở trạng thái logout không cần motion; tất cả form cuối đều sạch. Số lượt motion/reduced trùng trong 13 lượt kiểm form cuối, không cộng thành số test riêng.
+
+[Đo trước sửa](evidence/logout-motion/before-motion.json), [13 kết quả DOM và motion](evidence/logout-motion/dom-results.json).
+
+![Form sạch sau đổi mật khẩu, có motion trước khi ổn định](evidence/logout-motion/after-password-logout.png)
+
+Kiểm thử ở local test riêng; chưa triển khai lên stack live/ngrok hoặc cập nhật installer Windows.
