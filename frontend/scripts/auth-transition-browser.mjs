@@ -30,11 +30,85 @@ async function change(page, current, password) {
   await page.getByLabel("Mật khẩu hiện tại").fill(current);
   await page.getByLabel("Mật khẩu mới", { exact: true }).fill(password);
   await page.getByLabel("Nhập lại mật khẩu mới").fill(password);
+  await watchExit(page);
   await page.getByRole("button", { name: "Lưu và đăng nhập lại" }).click();
+}
+async function watchExit(page) {
+  // Collapse must finish before measuring the reverse transition.
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => {
+    const { document, requestAnimationFrame } = globalThis;
+    const surface = document.querySelector(".ll-morph-surface");
+    const start = surface.getBoundingClientRect();
+    const probe = {
+      surface,
+      width: start.width,
+      height: start.height,
+      frames: [],
+      active: true,
+    };
+    globalThis.authMotionProbe = probe;
+    function frame() {
+      if (!probe.active) return;
+      const current = document.querySelector(".ll-morph-surface");
+      const rect = current?.getBoundingClientRect();
+      probe.frames.push({
+        same: current === surface,
+        width: rect?.width,
+        height: rect?.height,
+        transition: document
+          .getAnimations()
+          .some(
+            (a) =>
+              a.effect?.target === current &&
+              ["width", "height"].includes(a.transitionProperty),
+          ),
+      });
+      if (probe.frames.length > 3000) probe.frames.shift();
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  });
 }
 async function cleanLogin(page, label) {
   await page.getByRole("heading", { name: "Đăng nhập", exact: true }).waitFor();
   await page.waitForTimeout(1400);
+  const motion = await page.evaluate(() => {
+    const probe = globalThis.authMotionProbe;
+    if (!probe) return null;
+    probe.active = false;
+    const surface = globalThis.document.querySelector(".ll-morph-surface");
+    const end = surface.getBoundingClientRect();
+    const result = {
+      sameNode: probe.frames.every((f) => f.same),
+      transition: probe.frames.some((f) => f.transition),
+      intermediate: probe.frames.filter(
+        (f) =>
+          (f.width > probe.width + 1 && f.width < end.width - 1) ||
+          (f.height > probe.height + 1 && f.height < end.height - 1),
+      ).length,
+      startWidth: probe.width,
+      endWidth: end.width,
+      startHeight: probe.height,
+      endHeight: end.height,
+    };
+    delete globalThis.authMotionProbe;
+    return result;
+  });
+  if (motion) {
+    assert.equal(motion.sameNode, true, `${label}: backdrop was remounted`);
+    if (!label.startsWith("reduced")) {
+      assert.equal(
+        motion.transition,
+        true,
+        `${label}: no width/height transition`,
+      );
+      assert.ok(
+        motion.intermediate > 0,
+        `${label}: no intermediate animation frames`,
+      );
+    } else assert.equal(motion.transition, false, `${label}: reduced motion`);
+  }
   const dom = await page.evaluate(() => {
     const { document, getComputedStyle, sessionStorage } = globalThis;
     const surface = document.querySelector(".ll-morph-surface");
@@ -57,7 +131,8 @@ async function cleanLogin(page, label) {
       heroOpacity: getComputedStyle(document.querySelector(".hero")).opacity,
       cardOpacity: getComputedStyle(document.querySelector(".login-card"))
         .opacity,
-      sessionStored: sessionStorage.getItem("legacy-link.account-session.v1") !== null,
+      sessionStored:
+        sessionStorage.getItem("legacy-link.account-session.v1") !== null,
     };
   });
   assert.equal(dom.collapsed, false, label);
@@ -82,7 +157,7 @@ async function cleanLogin(page, label) {
     "",
   );
   await page.screenshot({ path: resolve(output, `${label}.png`) });
-  results.push({ label, ...dom });
+  results.push({ label, ...dom, motion });
 }
 try {
   for (const [label, width, height, reducedMotion] of [
@@ -108,6 +183,7 @@ try {
       .getByRole("button", { name: "Tạo tài khoản", exact: true })
       .click();
     await page.getByText("Đã tạo tài khoản.", { exact: false }).waitFor();
+    await watchExit(page);
     await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
     await cleanLogin(page, `${label}-normal`);
     await login(page, employee, temporary);
@@ -169,6 +245,7 @@ try {
       ).json();
       const account = users.find((u) => u.username === employee);
       assert.ok(account);
+      await watchExit(page);
       const revoke = await globalThis.fetch(
         api + "/admin/users/" + account.id,
         { method: "POST", headers, body: JSON.stringify({ disabled: true }) },
@@ -179,6 +256,7 @@ try {
         .waitFor({ timeout: 35000 });
       await cleanLogin(page, "desktop-expired");
     } else {
+      await watchExit(page);
       await page.getByRole("link", { name: "Cảnh báo", exact: true }).click();
       await page
         .getByRole("button", { name: "Đăng xuất", exact: true })
