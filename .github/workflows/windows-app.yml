@@ -50,7 +50,7 @@ jobs:
           test -n "$bundle"
           binary_arch=${{ matrix.arch }}
           if [ "$binary_arch" = x64 ]; then binary_arch=x86_64; fi
-          lipo -verify_arch "$binary_arch" "$bundle/Contents/MacOS/Legacy Link"
+          lipo "$bundle/Contents/MacOS/Legacy Link" -verify_arch "$binary_arch"
           codesign --verify --deep --strict "$bundle"
           if [ "$binary_arch" = "$(uname -m)" ]; then
             node scripts/smoke.cjs "$bundle/Contents/MacOS/Legacy Link"

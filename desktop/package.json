@@ -33,6 +33,8 @@
       "category": "public.app-category.business",
       "icon": "assets/icon.icns",
       "identity": "-",
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
       "notarize": false,
       "artifactName": "Legacy-Link-${version}-macOS-${arch}.${ext}"
     },
