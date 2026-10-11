@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowUpRight, Unplug } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff, Unplug } from "lucide-react";
 import { normalizeUrl } from "../api/client";
 import { useSession } from "../session";
 import { login } from "../api/accounts";
@@ -17,6 +17,8 @@ export function Connection({ onEntering, onAbort }: { onEntering?: () => void; o
   const [base, setBase] = useState(import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? `${location.origin}/api` : "http://localhost:3000"));
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  // Chỉ đổi cách hiển thị; giá trị mật khẩu gửi tới API vẫn giữ nguyên.
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [entering, setEntering] = useState(false);
   const [error, setError] = useState("");
@@ -41,7 +43,7 @@ export function Connection({ onEntering, onAbort }: { onEntering?: () => void; o
       const url = normalizeUrl(base);
       const result = await login(url, username.trim(), password);
       if (!alive.current) return;
-      setPassword(""); setEntering(true); onEntering?.();
+      setPassword(""); setShowPassword(false); setEntering(true); onEntering?.();
       const element = card.current;
       const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
       // Chờ card tới điểm cuối rồi mới đưa session vào ứng dụng, tránh redirect đột ngột.
@@ -82,7 +84,7 @@ export function Connection({ onEntering, onAbort }: { onEntering?: () => void; o
         <h2 id="login-title">{tr("Đăng nhập")}</h2><p className="card-description">{tr("Đăng nhập để truy cập trung tâm điều hành.")}</p>
         <form onSubmit={submit}>
           <div className="field"><label htmlFor="login-username">{tr("Tên đăng nhập")}</label><input id="login-username" name="username" required autoComplete="username" spellCheck={false} value={username} disabled={busy} onChange={e => setUsername(e.target.value)} placeholder={c.userPlaceholder} /></div>
-          <div className="field"><label htmlFor="login-password">{tr("Mật khẩu")}</label><input id="login-password" name="password" type="password" required autoComplete="current-password" spellCheck={false} value={password} disabled={busy} onChange={e => setPassword(e.target.value)} placeholder={c.passwordPlaceholder} /></div>
+          <div className="field"><label htmlFor="login-password">{tr("Mật khẩu")}</label><div className="password-input-wrap"><input id="login-password" name="password" type={showPassword ? "text" : "password"} required autoComplete="current-password" spellCheck={false} value={password} disabled={busy} onChange={e => setPassword(e.target.value)} placeholder={c.passwordPlaceholder} /><button type="button" className="password-visibility" aria-label={language === "vi" ? (showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu") : (showPassword ? "Hide password" : "Show password")} aria-pressed={showPassword} aria-controls="login-password" disabled={busy} onClick={() => setShowPassword(value => !value)}>{showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}</button></div></div>
           <p className="account-note">{c.note}</p>
           {error && <p className="error" role="alert">{error}</p>}
           <button className="cta" aria-label={tr("Đăng nhập")} disabled={busy} type="submit"><span>{entering ? c.entering : busy ? c.busy : c.cta}</span><ArrowUpRight className="cta-arrow" aria-hidden="true" /><span className="spinner" aria-hidden="true" /></button>
