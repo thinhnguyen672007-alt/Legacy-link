@@ -1,0 +1,423 @@
+/* Lịch sử mỗi lượt hỏi–đáp, bảng màu đồng bộ dashboard. */
+.copilot-panel.ai-chat {
+  top: auto;
+  bottom: 104px;
+  right: 26px;
+  width: min(480px, calc(100vw - 32px));
+  height: min(610px, calc(100dvh - 130px));
+  padding: 0;
+  gap: 0;
+  border: 1px solid #e0e6f2;
+  border-radius: 14px;
+  background: #fff;
+  color: #192750;
+  box-shadow: 0 14px 40px #25358226;
+  transform-origin: bottom right;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.ai-chat[data-state="open"] {
+  animation: ai-chat-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ai-chat[data-state="closed"] {
+  animation: ai-chat-out 0.18s ease-in;
+}
+@keyframes ai-chat-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ai-chat-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+.ai-chat > header {
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf0f7;
+  flex-shrink: 0;
+}
+.ai-chat-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.ai-chat-brand > svg {
+  color: #4256ff;
+  flex-shrink: 0;
+}
+.ai-chat-brand h2 {
+  font-size: 15px !important;
+  margin: 0 !important;
+}
+.ai-chat-brand p {
+  font-size: 10px;
+  color: #52627e !important;
+  margin: 0 !important;
+}
+.ai-chat .investigation-controls {
+  gap: 3px;
+}
+.ai-chat .investigation-controls button {
+  padding: 5px;
+  background: transparent;
+  color: #52627e;
+  border: 0;
+  min-height: 30px;
+}
+.ai-chat-body {
+  display: grid;
+  grid-template-columns: 145px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.ai-chat-history {
+  padding: 13px 7px;
+  background: #f8f9fd;
+  border-right: 1px solid #edf0f7;
+  overflow: auto;
+  min-width: 0;
+}
+.ai-chat-history > strong {
+  display: block;
+  font-size: 11px;
+  padding: 0 5px 8px;
+}
+.ai-history-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #dde4f0;
+  border-radius: 6px;
+  padding: 4px;
+  margin: 0 3px 9px;
+  color: #52627e;
+}
+.ai-history-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #192750;
+  padding: 0;
+  font-size: 10px;
+  min-height: 22px;
+}
+.ai-chat-history nav {
+  display: grid;
+  gap: 4px;
+}
+.ai-chat-history nav button {
+  display: flex;
+  text-align: left;
+  align-items: flex-start;
+  gap: 7px;
+  width: 100%;
+  padding: 10px 5px;
+  border: 0;
+  background: transparent;
+  color: #273854;
+  font-size: 11px;
+  line-height: 1.5;
+  border-radius: 7px;
+}
+.ai-chat-history nav button svg {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.ai-chat-history nav button span {
+  overflow-wrap: anywhere;
+}
+.ai-chat-history nav button small {
+  display: block;
+  font-size: 9px;
+  color: #52627e;
+  margin-top: 5px;
+}
+.ai-chat-history nav button[aria-current="true"] {
+  background: #e6ecff;
+  color: #293daf;
+}
+.ai-chat-history nav button:hover {
+  background: #edf1fa;
+}
+.ai-chat-conversation {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  padding: 10px 12px;
+}
+.ai-chat .copilot-messages {
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cdd6e8 transparent;
+}
+.ai-chat .copilot-messages article {
+  border: 0;
+  padding: 0 0 20px;
+  scroll-margin-top: 5px;
+}
+.ai-chat .ai-user-message {
+  font-size: 12px;
+  font-weight: 500;
+  background: #eaf0ff;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+.ai-chat .ai-turn.selected .ai-user-message {
+  background: #dfe8ff;
+}
+.ai-chat .copilot-messages article > p:not(.ai-answer-text) {
+  font-size: 10px;
+  color: #52627e;
+  margin: 5px 0;
+}
+.ai-chat .ai-answer-text {
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-line;
+  margin: 8px 0 !important;
+}
+.ai-answer-time {
+  display: block;
+  color: #52627e;
+  font-size: 9px;
+  margin-bottom: 6px;
+}
+.ai-chat a {
+  color: #3446a8;
+}
+.ai-answer-details > summary {
+  font-size: 10px;
+  color: #3446a8;
+  cursor: pointer;
+  padding: 6px 0;
+}
+.ai-chat .copilot-quick {
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.ai-chat .copilot-quick button {
+  font-size: 10px;
+  background: #eef2fb;
+  color: #3446a8;
+  padding: 6px;
+  border: 0;
+}
+.ai-chat .copilot-note {
+  font-size: 10px;
+  color: #52627e;
+}
+.ai-chat .ai-concise {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-top: 1px solid #edf0f7;
+  font-size: 11px;
+}
+.ai-concise input {
+  accent-color: #4256ff;
+  width: 27px;
+  height: 15px;
+  margin: 0;
+}
+.ai-chat form {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px 12px;
+}
+.ai-chat textarea {
+  resize: none;
+  background: white;
+  color: #192750;
+  border: 1px solid #dbe3f0;
+  border-radius: 7px;
+  min-height: 36px;
+  height: 36px;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+.ai-chat form button {
+  background: #3446a8;
+  color: #fff;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px;
+  min-height: 36px;
+}
+.ai-chat button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.ai-chat :focus-visible {
+  outline: 2px solid #4256ff;
+  outline-offset: 2px;
+}
+.ai-chat input::placeholder,
+.ai-chat textarea::placeholder {
+  color: #52627e;
+}
+.ai-chat .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.copilot-panel.ai-chat.investigation-expanded {
+  left: auto;
+  right: 26px;
+  width: min(940px, calc(100vw - 52px));
+  max-width: none;
+  margin: 0;
+  height: min(760px, calc(100dvh - 130px));
+}
+.ai-chat.investigation-expanded .ai-chat-body {
+  grid-template-columns: 190px minmax(0, 1fr);
+}
+.ai-chat .investigation-view {
+  color: #192750;
+}
+.ai-chat .investigation-view a {
+  color: #3446a8;
+}
+.ai-chat .investigation-meta,
+.ai-chat .investigation-view h5 {
+  color: #52627e;
+}
+.ai-chat .investigation-result,
+.ai-chat .investigation-device,
+.ai-chat .investigation-findings > div,
+.ai-chat .investigation-conclusion {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+}
+.ai-chat .investigation-warning {
+  background: #fff7e5;
+  color: #805600;
+  border: 0;
+  padding: 7px;
+}
+.ai-chat .investigation-counts {
+  gap: 7px;
+}
+.ai-chat .investigation-counts > div {
+  background: #f2f5fb;
+}
+.ai-chat .investigation-reading {
+  background: #f8f9fc;
+}
+.ai-chat .investigation-source {
+  display: block;
+}
+.ai-chat .investigation-source span {
+  font-size: 10px;
+  color: #52627e;
+}
+@media (max-width: 600px) {
+  .copilot-panel.ai-chat,
+  .copilot-panel.ai-chat.investigation-expanded {
+    left: 8px;
+    right: 8px;
+    bottom: 88px;
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 104px);
+    border-radius: 12px;
+  }
+  .ai-chat-body,
+  .ai-chat.investigation-expanded .ai-chat-body {
+    grid-template-columns: 125px minmax(0, 1fr);
+  }
+  .ai-chat-brand p {
+    max-width: 160px;
+  }
+  .ai-chat > header {
+    padding: 11px;
+  }
+  .ai-chat-conversation {
+    padding: 9px;
+  }
+  .ai-chat-history nav button {
+    font-size: 10px;
+  }
+  .ai-chat .investigation-controls {
+    gap: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-chat[data-state] {
+    animation: none;
+  }
+}
+
+/* Bảng tải lazy cần tương phản đúng trên panel nền sáng. */
+.ai-chat .investigation-view th,
+.ai-chat .investigation-view td {
+  color: #192750;
+  border-color: #dde4f0;
+}
+.ai-chat .investigation-view caption,
+.ai-chat .investigation-view .investigation-meta,
+.ai-chat .investigation-counts dt,
+.ai-chat .investigation-metrics dd,
+.ai-chat .investigation-chart figcaption span,
+.ai-chat .investigation-trace {
+  color: #52627e;
+}
+.ai-chat .investigation-trace summary {
+  color: #3446a8;
+}
+.ai-chat .investigation-priority.high {
+  color: #b42318;
+}
+.ai-chat .investigation-priority.medium {
+  color: #805600;
+}
+.ai-chat .investigation-priority.low {
+  color: #52627e;
+}
+.ai-chat .investigation-view .badge {
+  background: #eef2f8;
+  color: #52627e;
+}
+.ai-chat .investigation-view .badge.ok {
+  color: #147d64;
+}
+.ai-chat .investigation-view .badge.bad {
+  color: #b42318;
+}
+.ai-chat .investigation-view .badge.warn {
+  color: #805600;
+}
+.ai-chat .investigation-empty {
+  background: #f2f5fb;
+  color: #52627e;
+}
+.ai-chat .investigation-table-scroll {
+  scrollbar-color: #cdd6e8 #f8f9fd;
+}
+.ai-chat .investigation-reading + .investigation-reading,
+.ai-chat .investigation-metrics div,
+.ai-chat .investigation-trace {
+  border-color: #dde4f0;
+}
+.ai-chat .ai-partial {
+  color: #805600 !important;
+  background: #fff7e5;
+  padding: 7px;
+}
