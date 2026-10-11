@@ -1,13 +1,22 @@
-Windows and macOS desktop clients for the existing Legacy Link web/backend server.
+## Download
 
-- Windows x64: download `Legacy-Link-Setup-0.1.4-x64.exe`.
-- Apple Silicon (M-series): download the `macOS-arm64.dmg` file.
-- Intel Mac: download the `macOS-x64.dmg` file.
-- Open the DMG and drag Legacy Link to Applications. ZIP bundles are also provided.
-- Enter the web server URL (HTTPS ngrok or LAN); do not append `/api`. Sign in with an account from that server.
-- Closing the window keeps alarm monitoring active in the tray/menu bar. Choose Quit to stop. On macOS, clicking the Dock icon restores the window; Command-Q quits.
-- macOS has native Edit shortcuts, notifications and window menus. Notification clicks open the alarm view without acknowledging it.
+| Your computer | Installer |
+|---|---|
+| Windows 10/11 · 64-bit | [Download for Windows](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.4/Legacy-Link-Setup-0.1.4-x64.exe) |
+| Mac · Apple Silicon (M-series) | [Download for Apple Silicon](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.4/Legacy-Link-0.1.4-macOS-arm64.dmg) |
+| Mac · Intel | [Download for Intel Mac](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.4/Legacy-Link-0.1.4-macOS-x64.dmg) |
 
-These demo builds have no trusted publisher certificate. macOS uses an ad-hoc signature and is not Apple-notarized; Windows is unsigned. After checking the source/checksums, macOS may require System Settings → Privacy & Security → Open Anyway. Do not disable Gatekeeper globally. Allow notifications for Legacy Link in macOS settings if needed.
+**Install:** Windows: run the installer. Mac: open the DMG and drag Legacy Link to Applications. Sign in with your team's account; use the server connection settings if your deployment requires another URL.
 
-Each platform includes SHA-256 checksums and a manifest with the exact source commit. CI verifies the Mac bundle architecture/signature and starts the native Apple Silicon bundle. Real Mac notification permission, Dock/tray interaction and end-to-end alarm delivery still need user acceptance; CI startup is not that proof. No automatic updates or launch-at-login are configured.
+These demo installers are unsigned / not Apple-notarized. On Mac, you may need **System Settings → Privacy & Security → Open Anyway**. Keep Gatekeeper enabled.
+
+Closing the window keeps alarm monitoring in the tray/menu bar. Choose **Quit** to stop it. The app loads the server's current web interface, so web improvements do not require reinstalling the desktop client.
+
+<details>
+<summary>Technical files and verification</summary>
+
+ZIP files are alternative Mac app bundles. Platform SHA256SUMS files verify downloads; manifests identify the exact installer source commit. These files are optional for normal installation.
+
+CI checks Mac architecture/signature and native Apple Silicon startup. Real-device notification permissions and alarm delivery require acceptance testing. Automatic updates and launch-at-login are not configured.
+
+</details>
