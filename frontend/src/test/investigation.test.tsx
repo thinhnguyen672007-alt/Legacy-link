@@ -144,8 +144,8 @@ it("shows backend facts, partial retrieval and next checks without turning offli
   ).toBeVisible();
   expect(screen.getByText(/Kết quả giới hạn/)).toBeVisible();
   expect(
-    screen.getByText(/Xem lịch sử cảnh báo của gateway này/),
-  ).toBeVisible();
+    screen.queryByText(/Xem lịch sử cảnh báo của gateway này/),
+  ).not.toBeInTheDocument();
   const inspected = screen.getByText("Đã kiểm tra").parentElement!;
   expect(within(inspected).getByText("2")).toBeVisible();
   const offline = screen.getByText("Mất kết nối").parentElement!;
