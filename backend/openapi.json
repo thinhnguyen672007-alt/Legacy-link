@@ -3,7 +3,7 @@
   "info": {
     "title": "Legacy Link Backend API",
     "version": "0.6.0",
-    "description": "API Legacy Link: token đọc cho GET, token ghi cho POST; timestamp đo là epoch milliseconds, ID DB là chuỗi. C16 bổ sung profile version, preview, lịch sử thao tác PostgreSQL, metrics, freshness. Xem deploy/README.md và docs/SO-TAY-HIEU-DU-AN-LEGACY-LINK.md. Rate limit mỗi socket IP/process: 300 GET và 30 thao tác/phút; 429 kèm Retry-After. Thêm deliveryHealth và diagnostics.delivery để quan sát queue ESP32; không cần endpoint riêng. AI: POST /ai/chat và /ai/query chỉ đọc, chấp nhận token đọc; Gemini phối hợp công cụ đọc và giải thích bằng chứng. UNDERHEAT dùng lowAlarm riêng, yêu cầu đơn vị nhiệt độ."
+    "description": "API Legacy Link: token đọc cho GET, token ghi cho POST; timestamp đo là epoch milliseconds, ID DB là chuỗi. C16 bổ sung profile version, preview, lịch sử thao tác PostgreSQL, metrics, freshness. Xem deploy/README.md. Rate limit mỗi socket IP/process: 300 GET và 30 thao tác/phút; 429 kèm Retry-After. Thêm deliveryHealth và diagnostics.delivery để quan sát queue ESP32; không cần endpoint riêng. AI: POST /ai/chat và /ai/query chỉ đọc, chấp nhận token đọc; Gemini phối hợp công cụ đọc và giải thích bằng chứng. UNDERHEAT dùng lowAlarm riêng, yêu cầu đơn vị nhiệt độ."
   },
   "servers": [
     {
