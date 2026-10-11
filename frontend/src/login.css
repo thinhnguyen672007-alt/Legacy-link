@@ -8,3 +8,12 @@
 @keyframes waves{from{transform:translate(-10px,10px) scale(1.02)}to{transform:translate(13px,-16px) scale(1.055)}}@keyframes streams{from{transform:translate(-8px,8px)}to{transform:translate(8px,-10px)}}@keyframes particles{from{opacity:.45;transform:translateY(8px)}to{opacity:1;transform:translateY(-12px)}}@keyframes aurora{to{transform:translate(-3%,4%) scale(1.06)}}@keyframes spin{to{transform:rotate(360deg)}}
 
 .ll-login .login-scene{max-width:1800px;margin:0 auto;width:100%;line-height:normal}.ll-login h1{font-weight:800}.ll-login .login-card h2{font-weight:750}.ll-login .advanced{margin-top:12px}.ll-login .brand{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}.ll-login .login-scene> .hero>footer{border:0;background:none}
+
+/* Nút con mắt nằm trong ô mật khẩu, không làm thay đổi kích thước form. */
+.ll-login .password-input-wrap{position:relative}
+.ll-login .password-input-wrap input{padding-right:54px}
+.ll-login .password-visibility{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:40px;height:40px;padding:0;border:0;border-radius:8px;background:transparent;color:#c4d7f4;transition:color .18s,background .18s}
+.ll-login .password-visibility:hover{color:#fff;background:#ffffff12}
+.ll-login .password-visibility:focus-visible{outline:2px solid #9effd5;outline-offset:0}
+.ll-login .password-visibility:disabled{cursor:default;opacity:.5}
+.ll-login .password-visibility svg{width:20px;height:20px}
