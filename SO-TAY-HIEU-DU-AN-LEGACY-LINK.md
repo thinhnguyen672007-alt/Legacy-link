@@ -2414,3 +2414,49 @@ Không gán phần trăm 100% chỉ từ test pass. Mốc đạt được là ph
 11. Tại sao không sửa client ID thành random để hai consumer cùng chạy? Có thể phá mô hình phiên bền và chạy trùng ingestion; trước tiên phải xác định có thực sự cần nhiều consumer và thiết kế phân phối rõ ràng.
 12. Đã test phần mềm sao vẫn phải test ESP32? Test phần mềm không chứng minh nguồn điện, Wi-Fi, RS-485 và flash thực tế đều hoạt động.
 13. Có nên nói với giám khảo dự án hoàn thành 100%? Nên nói chính xác phạm vi đã chứng minh và trình diễn bằng dữ liệu thực; không dùng một con số thay cho bằng chứng.
+
+## 40. AI DENSO: tìm lại đúng câu hỏi, trả lời trực tiếp (11/10/2026)
+
+### 40.1. Vấn đề cốt lõi
+
+Chat cũ xếp mọi câu trả lời trong một vùng cuộn và chỉ giữ 10 lượt gần nhất. Khi hỏi nhiều, người dùng phải tự tìm lại câu trả lời. Mỗi lượt còn có thể hiện rất nhiều thống kê, nguồn, gợi ý xử lý dù câu hỏi chỉ là “thiết bị nào offline?”. Người quản lý cần đọc đáp án ngay; kỹ thuật viên vẫn cần mở nguồn kiểm chứng.
+
+### 40.2. Cách giải quyết và file đã sửa
+
+- `frontend/src/components/Copilot.tsx`: thêm lịch sử từng lượt hỏi–đáp với ID riêng; tìm kiếm theo nội dung; chọn lịch sử cuộn đúng lượt. Không đổi conversation ID khi xem câu cũ. Không tự xóa lượt thứ nhất sau câu hỏi thứ 11. Lịch sử chỉ trong bộ nhớ phiên frontend, không lưu browser hay database. Đóng/mở panel còn giữ lịch sử; tải lại trang hoặc đăng xuất sẽ mất lịch sử.
+- `frontend/src/components/copilot.css`: panel trắng/chàm theo dashboard, cột lịch sử bên trái, hội thoại bên phải, composer ở dưới. Mở 300ms/đóng 180ms bằng CSS transform và opacity; tôn trọng reduced motion. Không thêm GSAP vì chuyển động này không cần thư viện mới.
+- Câu trả lời trực tiếp hiện trước. Nút “Trả lời ngắn gọn” thu gọn phần nguồn và số liệu chi tiết, không cắt mất bằng chứng. Thông báo lỗi nhà cung cấp và dữ liệu không đầy đủ luôn hiện. Đây là lựa chọn hiển thị, không phải giảm giới hạn token hay thay đổi quyền AI.
+- `frontend/src/components/InvestigationView.tsx`: bỏ gợi ý hỏi tiếp tự động. Báo cáo, bảng, biểu đồ và liên kết thiết bị vẫn tồn tại khi mở nguồn.
+- `backend/src/ai/brief.js`: nhận diện vài mẫu câu giám sát tiếng Việt độc lập bằng quy tắc chặt và tạo đáp án từ kết quả tool. Không phân loại bằng cách chỉ thấy một từ “offline”. Câu có ID máy, thời gian lịch sử, đại từ hoặc yêu cầu chèn thêm không khớp quy tắc.
+- `backend/src/ai/service.js`: câu giám sát đơn giản dùng cùng tool thật và cùng validation/quyền hiện có, không cần Gemini. Giữ context khi hỏi tiếp. Câu phức tạp vẫn gọi Gemini. Không gửi lại gợi ý hỏi tiếp khi đã có dữ liệu; câu hỏi làm rõ lúc thiếu dữ liệu vẫn được phép.
+- `backend/src/ai/gemini.js`: chỉ dẫn trả lời thẳng, chọn ít tool đủ cho câu hỏi; chỉ truy lịch sử/cảnh báo khi phù hợp. Không tự thêm “Bạn có muốn…”. Ngưỡng, độ mới, quyền chỉ đọc và giới hạn bằng chứng vẫn do backend kiểm tra.
+- `frontend/src/test/navigation-motion.test.tsx`: áp dụng đúng bản sửa type mock một dòng đã có trên main để build TypeScript qua; không đổi animation điều hướng.
+
+### 40.3. Ví dụ dễ hiểu
+
+Bạn hỏi “Thiết bị nào đang offline?”. Backend nhận đúng mẫu câu, chạy `get_devices_by_temperature_status({status: 'offline'})`, rồi trả danh sách ID thật được truy xuất và thời gian truy vấn. Nếu chỉ lấy được một phần, đáp án nói “Trong kết quả đã truy xuất”, không nói đã kiểm tra toàn nhà máy.
+
+Bạn hỏi tiếp “Nó mất kết nối từ khi nào?”. Đây không phải mẫu câu độc lập: Gemini đọc context, xác định thiết bị khi đủ rõ và chọn tool có dữ liệu phù hợp. Nếu không có lịch sử heartbeat, không được bịa thời điểm bắt đầu offline.
+
+Thời gian truy vấn database khác lần thiết bị gửi số đo cuối. Vì vậy không gắn nhãn “cập nhật cuối” vào thời gian vừa bấm hỏi. Tương tự offline chỉ nói về kết nối gateway, không chứng minh máy CNC đã hỏng hoặc đang dừng sản xuất.
+
+### 40.4. Conflict và kiểm chứng
+
+Trước sửa: local sạch, không merge dang dở, không có unmerged paths. Fetch main thấy thay đổi desktop và các điểm tích hợp App/session, còn các file chat/backend AI chính không khác main. Mô phỏng merge HEAD với main bằng git merge-tree thành công, không đổi working tree. Không merge hay push trong lượt này. Những thay đổi local cần tự commit/push theo quy trình đội.
+
+Đã chạy build frontend, lint, 89 test frontend và 35 test module backend AI. Có test giữ 12 lượt, tìm/chọn đúng lượt, conversation ID không đổi, ẩn gợi ý thừa, rule không bắt nhầm câu chứa ID/historical/prompt injection. Build còn cảnh báo bundle chính trên 500KB, chưa tối ưu chunk trong phạm vi này.
+
+Chưa nghiệm thu trực quan desktop/mobile: browser automation mất kết nối sau khi mở trang đăng nhập, inventory không còn browser. Không tuyên bố giống ảnh 100%, không xác nhận animation/overflow bằng mắt và chưa gọi Gemini thật để đánh giá chất lượng chỉ dẫn mới. Chạy test AI dùng model giả lập để kiểm tra logic, không chứng minh nhà cung cấp luôn trả lời tốt.
+
+### 40.5. Câu hỏi khi present
+
+1. Vì sao câu đơn giản không cần AI? Lọc trạng thái là phép truy vấn xác định; dùng rules cho kết quả nhanh và tiết kiệm quota. AI có giá trị khi hiểu câu hỏi phức tạp và giải thích bằng chứng.
+2. Chọn câu hỏi cũ có đổi ngữ cảnh không? Không. Chỉ đổi vị trí xem. Câu hỏi gửi tiếp vẫn nối theo conversation hiện tại, không tự quay về thời điểm cũ.
+3. Vì sao không luôn hiện tất cả nguồn? Đáp án cần đọc ngay. Chi tiết vẫn mở được khi cần xác minh, còn lỗi/dữ liệu thiếu không bị giấu.
+4. Nút ngắn gọn có làm AI suy luận ít đi không? Không. Hiện tại nó điều khiển chi tiết UI; hướng dẫn backend mặc định đã yêu cầu câu trả lời ngắn theo độ phức tạp.
+5. Nếu hỏi hơn 10 câu thì sao? UI không tự xóa lượt cũ. Backend vẫn giới hạn 4 lượt context gần nhất và thời hạn phiên để kiểm soát chi phí; UI giữ lịch sử không đồng nghĩa Gemini nhớ vô hạn.
+6. API Gemini tốt hơn sau sửa có chắc chắn không? Không. Cần bộ câu hỏi và nghiệm thu live provider riêng. Điều đã chứng minh là rules, validation, history và luồng lỗi qua test.
+
+Review code lần cuối đã sửa màu bảng/nhãn của báo cáo nền sáng, chỉ hiện “Truy vấn lúc” khi có queriedAt thật, và search dùng nhãn quick action theo ngôn ngữ đang hiển thị. Có test regression cho hai trường hợp thời gian và tiếng Anh.
+
+Cảnh báo partial cũng xét report.status khi một tool lỗi dù tool thành công không có cờ partial. Regression test xác nhận cảnh báo luôn thấy ở chế độ ngắn gọn.
