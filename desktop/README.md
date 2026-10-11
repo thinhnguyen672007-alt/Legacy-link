@@ -11,3 +11,7 @@ Thông báo theo dõi API alarm trong 24 giờ gần nhất, mỗi lượt kho�
 Node 22+, trong `desktop`: `npm ci`, `npm test`, `npm run dist:win` trên Windows x64. Bản Electron/builder được pin trong lockfile. Người cài không cần Node. GitHub Actions **Windows app** chạy ngay trên nhánh `feat/windows-app`; tải artifact ZIP của push commit, giải nén, đối chiếu `manifest.json` và `SHA256SUMS.txt`, chạy `.exe`. Artifact giữ 30 ngày và cần đăng nhập GitHub/quyền repo để tải. Chưa cần merge PR.
 
 Frontend Linux phải được build/deploy cùng thay đổi bridge; app sẽ báo không theo dõi nếu web chưa tích hợp. Test/lint/build web riêng trong `frontend`. Phần mềm và installer phải kiểm thử trên Windows đã cài; unit tests không thay thế kiểm chứng toast/tray. Kết quả thực tế ghi trong `docs/PROJECT-FINISH-STATUS.md`.
+
+## Bản đã kiểm tra
+
+[Installer 0.1.3 trên GitHub](https://github.com/thinhnguyen672007-alt/Legacy-link/actions/runs/38088154883/artifacts/11683370850), source `8305396`. Đã cài Windows 11 VM, đăng nhập/đăng xuất qua bàn phím ảo, xem lịch sử, X/tray, click toast thử phục hồi phiên, áp dụng URL và mất mạng/phục hồi (xem [kết quả từng phiên bản](../docs/WINDOWS-APP-VALIDATION.md)). Video liên tục và bản x5 đã gửi. ESP32 khác mạng nên alarm mới còn chờ; cần đồng bộ giờ Windows trước test alarm. Installer chưa ký số; kiểm manifest/checksum trước khi cho phép SmartScreen chạy.

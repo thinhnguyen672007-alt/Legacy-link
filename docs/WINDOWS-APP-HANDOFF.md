@@ -132,3 +132,9 @@ Không thêm auto-update, auto-start Windows, lưu mật khẩu, tự dò mạng
 - https://docs.github.com/en/actions/concepts/workflows-and-actions/workflow-artifacts
 
 Prompt bàn giao: “Đọc docs/WINDOWS-APP-HANDOFF.md, PROJECT-FINISH-PLAN.md và PROJECT-FINISH-STATUS.md. Thực hiện kế hoạch Windows từ A đến G, dùng ponytail và computer-use đúng chỗ. ESP32 khác mạng nên chưa nghiệm thu alarm phần cứng, nhưng tiếp tục installer/VM/video/gửi Messenger đúng quyền đã có. Giữ dữ liệu/bí mật/VM, tạo feat/windows-app, push và PR, không merge. Ghi kết quả thật sau mỗi chặng.”
+
+## Kết quả thực thi 2026-10-11
+
+A–G phần mềm đã thực hiện: installer 0.1.3 từ source 8305396, cài/test VM bằng computer-use và bàn phím ảo, quay liên tục có nhập tài khoản rồi đăng nhập, máy/đồ thị/cảnh báo lịch sử/tray/toast, tạo x5 và gửi thành công hai cuộc trò chuyện chỉ định. Xem [nghiệm thu](WINDOWS-APP-VALIDATION.md). Yêu cầu mới của người dùng về nhập tài khoản trong clip thay hướng dẫn đăng nhập sẵn ở G1. Không đóng bàn phím ảo; chỉ minimize. Alarm ESP32 mới chưa nghiệm thu; đồng hồ VM cần đồng bộ trước test đó.
+
+Người dùng đã thay quyền cũ không merge bằng cho phép merge PR #81 nếu mọi CI xanh và không conflict. Lượt merge thường bị GitHub yêu cầu review; chưa merge, không bỏ qua bảo vệ nhánh.
