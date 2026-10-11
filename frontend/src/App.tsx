@@ -17,7 +17,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { useSession } from "./session";
-import { AnimatedLoginBackground } from "./components/AnimatedLoginBackground";
+import { LoginBackdrop } from "./components/LoginBackdrop";
 import { DashboardTransition } from "./components/DashboardTransition";
 import { SlidingSidebarIndicator } from "./components/SlidingSidebarIndicator";
 import { Connection } from "./pages/Connection";
@@ -29,7 +29,7 @@ const MachineDetail = lazy(() =>
 import { Copilot } from "./components/Copilot";
 import { Alarms } from "./pages/Alarms";
 import "./dashboard.css";
-import { Commissioning } from "./pages/Commissioning";
+const Commissioning = lazy(() => import("./pages/Commissioning").then(m => ({ default: m.Commissioning })));
 export class ErrorBoundary extends Component<
   { children: ReactNode },
   { failed: boolean }
@@ -66,7 +66,7 @@ export function App() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
-  const wallpaper = <div className={`ll-login ll-morph-surface${session || collapsing ? " collapsed" : ""}`} aria-hidden="true"><AnimatedLoginBackground /></div>;
+  const wallpaper = <LoginBackdrop collapsed={Boolean(session) || collapsing} />;
   if (!session) return <><DesktopControls />{wallpaper}<Connection onEntering={() => setCollapsing(true)} onAbort={() => setCollapsing(false)} /></>;
   return (
     <>{wallpaper}<div className="app-shell">
