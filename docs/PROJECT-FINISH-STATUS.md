@@ -81,3 +81,7 @@ Nhánh `feat/windows-app` từ main `2ecc859` (PR #80). Có Electron shell/NSIS,
 - Đồng hồ VM lệch; clip dùng biểu đồ 7 ngày với lịch sử thật, không mô phỏng DB live. Cần đồng bộ giờ trước kiểm alarm mới.
 - Người dùng cho phép merge #81 khi xanh/không conflict. CI của commit d1637db đều xanh, không conflict, nhưng GitHub REVIEW_REQUIRED chặn merge thường; không vượt chính sách review.
 - ESP32 khác mạng: alarm mới từ thiết bị thật chưa nghiệm thu. Không dùng toast thử để khẳng định phần cứng hoạt động.
+
+## 2026-10-11 — Reload/session và login sau đổi mật khẩu
+
+Nhánh `feature/frontend` từ main 5b9ceb7 (đã gồm PR #84 sửa reload). Tái hiện bằng UI admin → tạo tài khoản mới → đăng nhập employee → đổi mật khẩu trên backend/PostgreSQL test riêng. Root cause là cờ `collapsing` trong App còn true, nền chỉ 228px và lộ nền trắng; không phải clone DashboardTransition hoặc logout 401. Sửa cờ ở chỗ dùng chung cho mọi đường logout, giữ CSS/thời lượng. Giữ nguyên cơ chế khôi phục phiên mới của main; bỏ phần session sửa trùng. Frontend 99 tests/typecheck/lint/build và backend test:accounts PASS; Chromium thực 13 kiểm DOM/CSS desktop/mobile/reduced motion PASS. Ảnh/bằng chứng tại [AUTH-TRANSITION-FIX.md](AUTH-TRANSITION-FIX.md). Chưa deploy ngrok/live; tạo PR vào main, không tự merge.

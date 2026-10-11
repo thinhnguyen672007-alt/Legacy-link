@@ -60,6 +60,9 @@ export function App() {
   const location = useLocation();
   const nav = useRef<HTMLElement>(null);
   const [collapsing, setCollapsing] = useState(false);
+  // Cờ chỉ thuộc animation đăng nhập; session đã có thì mọi đường logout
+  // phải tự mở lại nền, kể cả đổi mật khẩu hoặc phiên bị thu hồi.
+  if (session && collapsing) setCollapsing(false);
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
@@ -133,7 +136,7 @@ export function App() {
             className="quiet dashboard-logout"
             aria-label={tr("Đăng xuất")}
             title={tr("Đăng xuất")}
-            onClick={() => { setCollapsing(false); disconnect(); }}
+            onClick={disconnect}
           >
             <LogOut size={16} />
           </button>
