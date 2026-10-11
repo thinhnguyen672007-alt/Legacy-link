@@ -31,3 +31,16 @@ test('toast XML escapes device content and embeds explicit activation tag', () =
   assert.match(xml,/value&apos;s/);
   assert.match(xml,/file:\/\/\/a&amp;b/);
 });
+test('macOS uses native notifications and clicks restore the dashboard exactly once', () => {
+  let instance, clicks = 0;
+  class MacNotification extends EventEmitter {
+    static isSupported() {return true;}
+    constructor(options) {super(); this.options = options; instance = this;}
+    show() {} close() {}
+  }
+  const toast = createNotifications(MacNotification, {platform: 'darwin', icon: 'icon', failed: () => assert.fail()});
+  toast('Machine alarm', 'HIGH · OVERHEAT', () => clicks++);
+  assert.equal(instance.options.toastXml, undefined);
+  instance.emit('click'); instance.emit('click');
+  assert.equal(clicks, 1);
+});

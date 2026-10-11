@@ -1,4 +1,4 @@
-const {app, BrowserWindow, Tray, Menu, Notification, ipcMain, session, dialog} = require('electron');
+const {app, BrowserWindow, Tray, Menu, Notification, ipcMain, session, dialog, nativeImage} = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
@@ -20,7 +20,14 @@ function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 function focus() {if (win && !win.isDestroyed()) {win.show(); win.restore(); win.focus();} else openSetup();}
-function testToast() {toast('Legacy Link · THÔNG BÁO THỬ', 'Đây là thông báo thử Windows, không phải cảnh báo ESP32.', focus);}
+function testToast() {toast('Legacy Link · THÔNG BÁO THỬ', 'Đây là thông báo thử desktop, không phải cảnh báo ESP32.', focus);}
+function applicationMenu() {
+  const actions = [{label: 'Đổi máy chủ', click: openSetup}, {label: 'Thử thông báo', click: testToast}];
+  return Menu.buildFromTemplate(process.platform === 'darwin' ? [
+    {label: app.name, submenu: [{role: 'about'}, {type: 'separator'}, ...actions, {type: 'separator'}, {role: 'hide'}, {role: 'hideOthers'}, {role: 'unhide'}, {type: 'separator'}, {role: 'quit'}]},
+    {role: 'editMenu'}, {role: 'windowMenu'}
+  ] : [{label: 'Ứng dụng', submenu: [...actions, {label: 'Thoát', click: () => app.quit()}]}]);
+}
 function setStatus(value, expiredToken) {
   state = value; refreshTray(); send('status', {text: value, expiredToken});
 }
@@ -65,7 +72,7 @@ function secureWindow(w, allowed) {
 function openDashboard() {
   if (win && !win.isDestroyed()) win.destroy();
   win = new BrowserWindow({width: 1320, height: 900, minWidth: 900, minHeight: 640, title: 'Legacy Link', icon, webPreferences: preferences});
-  win.setMenu(Menu.buildFromTemplate([{label: 'Ứng dụng', submenu: [{label: 'Đổi máy chủ', click: openSetup}, {label: 'Thử thông báo', click: testToast}, {label: 'Thoát', click: () => app.quit()}]}]));
+  if (process.platform !== 'darwin') win.setMenu(applicationMenu());
   secureWindow(win, url => {try {return new URL(url).origin === server;} catch {return false;}});
   win.webContents.on('did-start-navigation', (_e, _url, inPlace, isMainFrame) => {
     if (isMainFrame && !inPlace) {poller.stop(); pending = undefined; setStatus('Cần đăng nhập');}
@@ -82,7 +89,8 @@ function openDashboard() {
 function openSetup() {
   if (setup && !setup.isDestroyed()) {setup.show(); setup.focus(); return;}
   setup = new BrowserWindow({width: 620, height: 640, resizable: false, title: 'Kết nối Legacy Link', icon, webPreferences: preferences});
-  setup.removeMenu(); secureWindow(setup, url => url === setupURL);
+  if (process.platform !== 'darwin') setup.removeMenu();
+  secureWindow(setup, url => url === setupURL);
   setup.on('closed', () => {setup = undefined;});
   void setup.loadURL(setupURL);
 }
@@ -120,15 +128,19 @@ else {
     if (url) toast?.activateURL(url); else focus();
   });
   app.on('before-quit', () => {quitting = true; poller.stop();});
+  app.on('activate', focus);
   app.on('window-all-closed', () => {});
   app.whenReady().then(() => {
-    app.setAppUserModelId(APP_ID);
+    if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
+    if (process.platform === 'darwin') Menu.setApplicationMenu(applicationMenu());
     if (process.platform === 'win32' && app.isPackaged && !app.setAsDefaultProtocolClient('legacylink-notify')) throw new Error('Notification activation registration failed');
-    toast = createNotifications(Notification, {icon, iconURL: pathToFileURL(icon).href, failed: () => setStatus('Windows không gửi được thông báo')});
+    toast = createNotifications(Notification, {icon, iconURL: pathToFileURL(icon).href, failed: () => setStatus('Không gửi được thông báo desktop')});
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, cb) => cb(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     try {server = normalizeServer(JSON.parse(fs.readFileSync(configPath(), 'utf8')).server);} catch {}
-    registerIPC(); tray = new Tray(icon); tray.on('double-click', focus); refreshTray();
+    registerIPC();
+    const trayIcon = process.platform === 'darwin' ? nativeImage.createFromPath(icon).resize({width: 18, height: 18}) : icon;
+    tray = new Tray(trayIcon); tray.on('double-click', focus); refreshTray();
     if (server) openDashboard(); else openSetup();
   }).catch(() => {dialog.showErrorBox('Legacy Link', 'Không thể khởi động app.'); app.quit();});
 }

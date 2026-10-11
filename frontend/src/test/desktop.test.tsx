@@ -10,7 +10,7 @@ function Harness() {
 afterEach(()=>{delete window.legacyDesktop;});
 it('browser needs no desktop bridge',()=>{
  render(<MemoryRouter><SessionProvider><Harness/></SessionProvider></MemoryRouter>);
- expect(screen.queryByText(/Windows/)).not.toBeInTheDocument();
+ expect(screen.queryByText(/Desktop ·/)).not.toBeInTheDocument();
 });
 it('session sync, two notification targets and matching expiry',async()=>{
  let alarm: (v:{device:string|null;eventId:string})=>void=()=>{};

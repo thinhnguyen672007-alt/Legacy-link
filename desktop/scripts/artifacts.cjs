@@ -1,0 +1,12 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const {createHash} = require('node:crypto');
+const {execFileSync} = require('node:child_process');
+const [platform, architecture] = process.argv.slice(2);
+if (!['windows', 'macos'].includes(platform) || !['x64', 'arm64'].includes(architecture)) throw new Error('Invalid artifact platform');
+const files = fs.readdirSync('dist').filter(file => /\.(exe|dmg|zip)$/.test(file));
+const expected = platform === 'windows' ? ['exe'] : ['dmg', 'zip'];
+for (const ext of expected) if (!files.some(file => file.endsWith(`.${ext}`))) throw new Error(`Missing ${ext} installer`);
+const prefix = `${platform}-${architecture}`;
+fs.writeFileSync(path.join('dist', `${prefix}-SHA256SUMS.txt`), files.sort().map(file => `${createHash('sha256').update(fs.readFileSync(path.join('dist', file))).digest('hex')}  ${file}`).join('\n') + '\n');
+fs.writeFileSync(path.join('dist', `${prefix}-manifest.json`), JSON.stringify({version: require('../package.json').version, commit: execFileSync('git', ['rev-parse', 'HEAD'], {encoding: 'utf8'}).trim(), platform, architecture, files, signing: platform === 'macos' ? 'ad-hoc; not notarized' : 'unsigned'}, null, 2) + '\n');
