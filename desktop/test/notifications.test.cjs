@@ -8,7 +8,7 @@ test('Windows activation routes once by opaque tag even after timeout; unknown o
     static isSupported() {return true;}
     static handleActivation(h) {handler = h;}
     constructor(options) {super(); this.options = options; instances.push(this);}
-    show() {} close() {}
+    show() {this.emit('show');} close() {}
   }
   const toast = createNotifications(Fake, {platform:'win32', icon:'icon', iconURL:'file:///icon', failed:()=>assert.fail()});
   toast('test','body',()=>clicks++);
@@ -36,11 +36,47 @@ test('macOS uses native notifications and clicks restore the dashboard exactly o
   class MacNotification extends EventEmitter {
     static isSupported() {return true;}
     constructor(options) {super(); this.options = options; instance = this;}
-    show() {} close() {}
+    show() {this.emit('show');} close() {}
   }
   const toast = createNotifications(MacNotification, {platform: 'darwin', icon: 'icon', failed: () => assert.fail()});
   toast('Machine alarm', 'HIGH · OVERHEAT', () => clicks++);
   assert.equal(instance.options.toastXml, undefined);
   instance.emit('click'); instance.emit('click');
   assert.equal(clicks, 1);
+});
+
+test('failed native delivery returns false with the OS reason', async () => {
+  const reasons = [];
+  class Fake extends EventEmitter {
+    static isSupported() {return true;}
+    show() {this.emit('failed', {}, 'Permission denied');}
+    close() {}
+  }
+  const toast = createNotifications(Fake, {platform: 'darwin', failed: reason => reasons.push(reason)});
+  assert.equal(await toast('alarm', 'body', () => {}), false);
+  assert.deepEqual(reasons, ['Permission denied']);
+});
+test('missing native confirmation times out instead of silently succeeding', async () => {
+  let closed = false;
+  class Fake extends EventEmitter {
+    static isSupported() {return true;}
+    show() {} close() {closed = true;}
+  }
+  const reasons = [];
+  const toast = createNotifications(Fake, {platform: 'darwin', timeout: 5, failed: reason => reasons.push(reason)});
+  assert.equal(await toast('alarm', 'body', () => {}), false);
+  assert.ok(closed);
+  assert.match(reasons[0], /permissions/);
+});
+test('unsupported OS and constructor errors return a diagnostic without crashing', async () => {
+  for (const supported of [false, true]) {
+    class Fake {
+      static isSupported() {return supported;}
+      constructor() {throw new Error('Native initialization failed');}
+    }
+    const reasons = [];
+    const toast = createNotifications(Fake, {platform: 'darwin', failed: reason => reasons.push(reason)});
+    assert.equal(await toast('alarm', 'body', () => {}), false);
+    assert.equal(reasons.length, 1);
+  }
 });

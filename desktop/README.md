@@ -42,3 +42,5 @@ The canonical green Unplug mark from the supplied login reference is `frontend/p
 rsvg-convert -w 1024 -h 1024 frontend/public/legacy-link.svg -o desktop/assets/icon.png
 magick desktop/assets/icon.png -define icon:auto-resize=256,128,64,48,32,16 desktop/assets/icon.ico
 ```
+
+Notification failures remain visible in the desktop status and tray. Failed alarms are retried after at least one minute while the session remains active and the alarm is within the 24-hour polling window. Successful native delivery confirmation prevents duplicate retries; it does not prove a banner was visible when Focus mode is enabled. **Thử thông báo** displays the native failure reason if delivery fails or no confirmation arrives within ten seconds. Logs include notification errors, without API tokens.

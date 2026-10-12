@@ -6,7 +6,7 @@ const page = (items, nextCursor = null) => ({items, nextCursor});
 const flush = () => new Promise(r => setImmediate(r));
 function create(fetchPage) {
  const events=[], states=[];
- const p = new AlarmPoller({fetchPage, notify: rows => events.push(rows), status:(...s)=>states.push(s), now:()=>100000000, interval:1000000});
+ const p = new AlarmPoller({fetchPage, notify: rows => {events.push(rows);}, status:(...s)=>states.push(s), now:()=>100000000, interval:1000000});
  return {p,events,states};
 }
 async function tick(p) {clearTimeout(p.timer);await p.tick(p.generation);clearTimeout(p.timer);}
@@ -45,4 +45,19 @@ test('invalid JSON schema and cursor loop do not commit baseline',async()=>{
 test('new session cancels old response',async()=>{
  let resolve;const {p}=create(q=>q.token==='old'?new Promise(r=>{resolve=r;}):Promise.resolve(page([a('2')])));
  p.start('old');p.start('new');await flush();resolve(page([a('1')]));await flush();assert.deepEqual([...p.seen.keys()],['2']);p.stop();
+});
+test('failed alerts retry while successful alerts are not duplicated', async () => {
+ let rows=[a('1')];const {p}=create(async()=>page(rows));p.start('token');await flush();
+ const attempts=[];let fail=true;
+ p.notify=async alarms=>{attempts.push(alarms.map(a=>a.id));return fail?['2']:alarms.map(a=>a.id);};
+ rows=[a('1'),a('2'),a('3')];await tick(p);
+ assert.deepEqual([...p.seen.keys()],['1','2']);
+ fail=false;await tick(p);assert.deepEqual(attempts,[['2','3'],['3']]);
+ await tick(p);assert.equal(attempts.length,2);p.stop();
+});
+test('logout during native delivery does not restore old seen IDs',async()=>{
+ let rows=[];const {p}=create(async()=>page(rows));p.start('token');await flush();
+ let resolve;p.notify=()=>new Promise(r=>{resolve=r;});rows=[a('1')];
+ const pending=tick(p);await flush();p.stop();resolve(['1']);await pending;
+ assert.equal(p.seen.size,0);assert.equal(p.baseline,false);
 });

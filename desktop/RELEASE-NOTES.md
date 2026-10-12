@@ -1,10 +1,17 @@
+## Fixes in 0.1.6
+
+- Wait for Electron startup before Dock activation or a second launch opens a window.
+- Keep failed alarm notifications eligible for retry, with a one-minute retry delay.
+- Preserve notification failure status and show native error details when testing notifications.
+- Add regression tests for macOS/Windows startup, partial delivery, failures and logout during delivery.
+
 ## Download
 
 | Your computer | Installer |
 |---|---|
-| Windows 10/11 · 64-bit | [Download for Windows](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.5/Legacy-Link-Setup-0.1.5-x64.exe) |
-| Mac · Apple Silicon (M-series) | [Download for Apple Silicon](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.5/Legacy-Link-0.1.5-macOS-arm64.dmg) |
-| Mac · Intel | [Download for Intel Mac](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.5/Legacy-Link-0.1.5-macOS-x64.dmg) |
+| Windows 10/11 · 64-bit | [Download for Windows](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.6/Legacy-Link-Setup-0.1.6-x64.exe) |
+| Mac · Apple Silicon (M-series) | [Download for Apple Silicon](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.6/Legacy-Link-0.1.6-macOS-arm64.dmg) |
+| Mac · Intel | [Download for Intel Mac](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/download/desktop-v0.1.6/Legacy-Link-0.1.6-macOS-x64.dmg) |
 
 **Install:** Windows: run the installer. Mac: open the DMG and drag Legacy Link to Applications. Open the app and sign in with your team's account. Windows and Mac automatically connect to https://vineyard-fifteen-elusive.ngrok-free.dev; no server setup is required. Windows installs for the current user in one step. If the server is unavailable, use **Thử lại**.
 

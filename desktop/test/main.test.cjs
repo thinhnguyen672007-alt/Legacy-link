@@ -5,19 +5,23 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const SERVER = 'https://vineyard-fifteen-elusive.ngrok-free.dev';
-async function launch(platform) {
+async function launch(platform, earlyEvent, notificationFailure = false) {
   const windows = [], handlers = {}, menus = [], requests = [];
   let poller, headerHook, headerFilter, tray;
+  const errors = [];
+  let ready = false, resolveReady;
+  const readyPromise = new Promise(resolve => {resolveReady = resolve;});
   const app = Object.assign(new EventEmitter(), {
     name: 'Legacy Link', isPackaged: true,
-    requestSingleInstanceLock: () => true, whenReady: () => Promise.resolve(),
+    requestSingleInstanceLock: () => true, whenReady: () => readyPromise,
     getPath: () => {throw new Error('Must not read old server.json');},
     setAppUserModelId() {}, setAsDefaultProtocolClient: () => true,
     quit: () => assert.fail('Unexpected quit'),
   });
   class Window extends EventEmitter {
     constructor() {
-      super(); this.webContents = Object.assign(new EventEmitter(), {
+      super(); assert.ok(ready, 'Window created before app ready');
+      this.webContents = Object.assign(new EventEmitter(), {
         mainFrame: {url: ''}, send() {}, setWindowOpenHandler() {},
       }); this.loads = []; windows.push(this);
     }
@@ -41,18 +45,31 @@ async function launch(platform) {
       webRequest: {onBeforeSendHeaders: (filter, hook) => {headerFilter = filter; headerHook = hook;}},
     }},
     nativeImage: {createFromPath: () => ({resize: () => ({})})},
-    dialog: {showErrorBox: () => assert.fail('Unexpected startup error')},
+    dialog: {showErrorBox: (title, message) => errors.push({title, message})},
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../main.cjs'), 'utf8'), {
-    __dirname: path.join(__dirname, '..'), process: {platform}, URL, URLSearchParams, AbortSignal,
+    __dirname: path.join(__dirname, '..'), process: {platform}, URL, URLSearchParams, AbortSignal, console: {error() {}},
     fetch: async (url, options) => {requests.push({url, options}); return new Response(JSON.stringify({items: [], nextCursor: null}));},
-    require: name => name === 'electron' ? electron : name === './alarms.cjs' ? {AlarmPoller: Poller} : name === './notifications.cjs' ? {createNotifications: () => () => {}} : require(name),
+    require: name => name === 'electron' ? electron : name === './alarms.cjs' ? {AlarmPoller: Poller} : name === './notifications.cjs' ? {createNotifications: (_Notification, options) => async () => {if (notificationFailure) options.failed('Permission denied'); return !notificationFailure;}} : require(name),
   });
+  if (earlyEvent) {
+    app.emit(earlyEvent, {}, []);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(windows.length, 0);
+  }
+  ready = true; resolveReady();
   await new Promise(resolve => setImmediate(resolve));
   const event = (win = windows.at(-1)) => ({sender: win.webContents, senderFrame: win.webContents.mainFrame});
-  return {windows, handlers, menus, requests, poller, headerHook, headerFilter, event, tooltip: () => tray.tooltip};
+  return {windows, handlers, menus, requests, errors, poller, headerHook, headerFilter, event, tooltip: () => tray.tooltip};
 }
 for (const platform of ['win32', 'darwin']) {
+  for (const event of ['activate', 'second-instance']) {
+    test(`${platform}: ${event} waits for startup readiness`, async () => {
+      const h = await launch(platform, event);
+      assert.equal(h.windows.length, 1);
+      assert.deepEqual(h.windows[0].loads, [SERVER]);
+    });
+  }
   test(`${platform}: opens fixed server without setup or saved URL`, async () => {
     const h = await launch(platform);
     assert.equal(h.windows.length, 1);
@@ -99,3 +116,13 @@ for (const platform of ['win32', 'darwin']) {
     assert.equal(h.requests[0].options.redirect, 'error');
   });
 }
+
+test('notification failure stays visible across healthy polls and test shows details', async () => {
+  const h = await launch('darwin', undefined, true);
+  h.handlers['test-notification'](h.event());
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(h.errors[0].message, /Permission denied/);
+  h.poller.options.status('Đang theo dõi');
+  assert.match(h.tooltip(), /Không gửi được thông báo/);
+  assert.match(h.handlers.session(h.event(), 'fixture-token-123456').text, /Không gửi được thông báo/);
+});
