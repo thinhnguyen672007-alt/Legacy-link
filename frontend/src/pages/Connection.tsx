@@ -1,5 +1,6 @@
+import { BrandLogo } from "../components/BrandLogo";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowUpRight, Eye, EyeOff, Unplug } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff } from "lucide-react";
 import { normalizeUrl } from "../api/client";
 import { useSession } from "../session";
 import { login } from "../api/accounts";
@@ -8,16 +9,15 @@ import { tr, useLanguage } from "../language";
 import "../login.css";
 
 const copy = {
-  vi: { first: "Hiểu rõ thiết bị.", active: "Chủ động", last: "vận hành.", description: "Nền tảng giám sát thông minh kết nối dữ liệu, con người và AI trong một trải nghiệm thống nhất.", welcome: "Chào mừng trở lại.", intro: "Đăng nhập để truy cập trung tâm điều hành.", username: "Tên đăng nhập", password: "Mật khẩu", userPlaceholder: "Nhập tên đăng nhập", passwordPlaceholder: "Nhập mật khẩu", note: "Tài khoản được quản lý bởi quản trị viên.", cta: "Đăng nhập & trải nghiệm", busy: "Đang kiểm tra…", entering: "Đang vào trung tâm điều hành", secure: "SECURE SESSION · Tài khoản do quản trị viên cấp", advanced: "Thiết lập kết nối", api: "Địa chỉ API", hint: "Nếu dùng máy khác, nhập IP máy backend. Backend cần cho phép origin hiện tại trong CORS. Trang HTTPS cần API HTTPS.", error: "Không thể đăng nhập. Vui lòng thử lại." },
-  en: { first: "Know your machines.", active: "Take control.", last: "Operate smarter.", description: "An intelligent monitoring platform connecting data, people and AI in one unified experience.", welcome: "Welcome back.", intro: "Sign in to access your control center.", username: "Username", password: "Password", userPlaceholder: "Enter your username", passwordPlaceholder: "Enter your password", note: "Accounts are managed by your administrator.", cta: "Sign in & explore", busy: "Checking access…", entering: "Entering the control center", secure: "SECURE SESSION · Administrator-issued accounts", advanced: "Connection settings", api: "API address", hint: "On another computer, enter the backend IP. The backend must allow this origin in CORS. HTTPS pages require an HTTPS API.", error: "Unable to sign in. Please try again." },
+  vi: { first: "Hiểu rõ thiết bị.", active: "Chủ động", last: "vận hành.", description: "Nền tảng giám sát thông minh kết nối dữ liệu, con người và AI trong một trải nghiệm thống nhất.", welcome: "Chào mừng trở lại.", intro: "Đăng nhập để truy cập trung tâm điều hành.", username: "Tên đăng nhập", password: "Mật khẩu", userPlaceholder: "Nhập tên đăng nhập", passwordPlaceholder: "Nhập mật khẩu", note: "Tài khoản được quản lý bởi quản trị viên.", cta: "Đăng nhập & trải nghiệm", busy: "Đang kiểm tra…", entering: "Đang vào trung tâm điều hành", secure: "SECURE SESSION · Tài khoản do quản trị viên cấp", error: "Không thể đăng nhập. Vui lòng thử lại." },
+  en: { first: "Know your machines.", active: "Take control.", last: "Operate smarter.", description: "An intelligent monitoring platform connecting data, people and AI in one unified experience.", welcome: "Welcome back.", intro: "Sign in to access your control center.", username: "Username", password: "Password", userPlaceholder: "Enter your username", passwordPlaceholder: "Enter your password", note: "Accounts are managed by your administrator.", cta: "Sign in & explore", busy: "Checking access…", entering: "Entering the control center", secure: "SECURE SESSION · Administrator-issued accounts", error: "Unable to sign in. Please try again." },
 };
 
 export function Connection({ onEntering, onAbort }: { onEntering?: () => void; onAbort?: () => void } = {}) {
   const { connect } = useSession();
-  const [base, setBase] = useState(import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? `${location.origin}/api` : "http://localhost:3000"));
+  const base = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? `${location.origin}/api` : "http://localhost:3000");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  // Chỉ đổi cách hiển thị; giá trị mật khẩu gửi tới API vẫn giữ nguyên.
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [entering, setEntering] = useState(false);
@@ -39,7 +39,6 @@ export function Connection({ onEntering, onAbort }: { onEntering?: () => void; o
     locked.current = true;
     setBusy(true); setError("");
     try {
-      // Chỉ API thật được xác nhận tài khoản; animation không thay thế xác thực.
       const url = normalizeUrl(base);
       const result = await login(url, username.trim(), password);
       if (!alive.current) return;
@@ -75,7 +74,7 @@ export function Connection({ onEntering, onAbort }: { onEntering?: () => void; o
   return <div className={`ll-login${entering ? " entering" : ""}`} lang={language}>
     <main className="login-scene">
       <div className="hero" ref={hero}>
-        <div className="brand"><Unplug aria-hidden="true" /><span>LEGACY LINK</span><small>/ DENSO</small></div>
+        <div className="brand"><BrandLogo /><span>LEGACY LINK</span><small>/ DENSO</small></div>
         <div className="hero-copy"><p className="eyebrow">DENSO FACTORY HACKS 2026</p><h1>{c.first}<br /><em>{c.active}</em><br />{c.last}</h1><p className="description">{c.description}</p><div className="features"><span><i className="live-dot" />Real-time monitoring</span><span><b aria-hidden="true">+</b>AI-powered insights</span></div></div>
         <footer>LEGACY LINK × DENSO FACTORY HACKS</footer>
       </div>
@@ -89,7 +88,6 @@ export function Connection({ onEntering, onAbort }: { onEntering?: () => void; o
           {error && <p className="error" role="alert">{error}</p>}
           <button className="cta" aria-label={tr("Đăng nhập")} disabled={busy} type="submit"><span>{entering ? c.entering : busy ? c.busy : c.cta}</span><ArrowUpRight className="cta-arrow" aria-hidden="true" /><span className="spinner" aria-hidden="true" /></button>
           <p className="demo-note"><span aria-hidden="true">◆</span>{c.secure}</p>
-          <details className="advanced"><summary>{c.advanced}</summary><label htmlFor="login-api">{c.api}</label><input id="login-api" type="url" required autoComplete="url" value={base} disabled={busy} onChange={e => setBase(e.target.value)} /><p>{c.hint}</p></details>
         </form>
         <div className="entering-label" role="status"><i className="live-dot" /><span>{c.entering}</span></div>
       </section></div>

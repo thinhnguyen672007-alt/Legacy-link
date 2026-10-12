@@ -177,6 +177,8 @@ Lưu screenshot/log đã che bí mật, commit/profile/gateway/device và kết 
 
 ## 6. Chặng C — app Windows
 
+**Cập nhật quyết định 2026-10-11:** Windows/Mac 0.1.5 dùng cố định `https://vineyard-fifteen-elusive.ngrok-free.dev`, bỏ nhập/đổi máy chủ và bỏ đọc cấu hình URL cũ. Offline có trang local với nút Thử lại. Các bước nhập URL trong kế hoạch gốc bên dưới đã được thay thế. Web trên ngrok dùng `/api` cùng origin; localhost giữ backend local để phát triển. Windows cài một bước cho user hiện tại; Mac kéo vào Applications.
+
 ### C1. Workflow
 
 1. Cài `Legacy-Link-Setup-<version>.exe`; mở form Địa chỉ máy chủ. Nhập URL web đầy đủ, lưu URL. Nếu server không lên: hiển thị lỗi, Thử lại và Đổi địa chỉ.

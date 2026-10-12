@@ -1,0 +1,53 @@
+{
+  "name": "legacy-link-desktop",
+  "version": "0.1.6",
+  "private": true,
+  "description": "Legacy-link Windows and macOS desktop",
+  "author": "Legacy-link team",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "dist:win": "electron-builder --win nsis --x64 --publish never",
+    "predist:mac": "node scripts/mac-icon.cjs",
+    "dist:mac": "electron-builder --mac dmg zip --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "vn.legacylink.desktop",
+    "productName": "Legacy Link",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "*.cjs",
+      "connection-error.html",
+      "connection-error.js",
+      "assets/**"
+    ],
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.business",
+      "icon": "assets/icon.icns",
+      "identity": "-",
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "notarize": false,
+      "artifactName": "Legacy-Link-${version}-macOS-${arch}.${ext}"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico",
+      "artifactName": "Legacy-Link-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

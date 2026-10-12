@@ -1,0 +1,21 @@
+/* Confine decorative painting without changing its geometry or timing. */
+.ll-morph-surface .background { contain: paint; }
+
+/* Only the three continuously animated SVG groups get a compositing hint.
+   Do not promote every path, card or dashboard row. */
+.ll-morph-surface #contours,
+.ll-morph-surface #streams { will-change: transform; }
+.ll-morph-surface #particles { will-change: transform, opacity; }
+
+/* Hidden browser tabs / minimized desktop windows keep their animation phase.
+   Native desktop alarm monitoring is independent of this decorative layer. */
+.ll-morph-surface[data-paused="true"] .aurora,
+.ll-morph-surface[data-paused="true"] #contours,
+.ll-morph-surface[data-paused="true"] #streams,
+.ll-morph-surface[data-paused="true"] #particles { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ll-morph-surface #contours,
+  .ll-morph-surface #streams,
+  .ll-morph-surface #particles { will-change: auto; }
+}

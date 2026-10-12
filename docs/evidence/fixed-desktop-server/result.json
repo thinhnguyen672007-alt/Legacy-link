@@ -1,0 +1,11 @@
+{
+  "runtime": "Electron 43 Linux headed",
+  "actualTunnel": "online; login screen reached, credentials not submitted",
+  "errorScenario": "controlled HTTP404 to exercise local error and retry",
+  "noServerInput": true,
+  "retryFixedServer": true,
+  "oldServerIgnored": true,
+  "navigationAttempts": [
+    "https://vineyard-fifteen-elusive.ngrok-free.dev/"
+  ]
+}

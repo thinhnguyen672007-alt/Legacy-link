@@ -1,0 +1,56 @@
+{
+  "ordinary": {
+    "collapsed": "ll-login ll-morph-surface",
+    "width": "1440px",
+    "bodyBackground": "rgba(0, 0, 0, 0)",
+    "hero": {
+      "opacity": "1",
+      "filter": "none"
+    },
+    "card": {
+      "opacity": "1",
+      "filter": "none"
+    },
+    "cloneCount": 0,
+    "viewportCount": 0,
+    "animations": 0
+  },
+  "forced": {
+    "collapsed": "ll-login ll-morph-surface collapsed",
+    "width": "228px",
+    "bodyBackground": "rgba(0, 0, 0, 0)",
+    "hero": {
+      "opacity": "1",
+      "filter": "none"
+    },
+    "card": {
+      "opacity": "1",
+      "filter": "none"
+    },
+    "cloneCount": 0,
+    "viewportCount": 0,
+    "animations": 0
+  },
+  "responses": [
+    {
+      "path": "/auth/login",
+      "status": 200
+    },
+    {
+      "path": "/auth/logout",
+      "status": 200
+    },
+    {
+      "path": "/auth/login",
+      "status": 200
+    },
+    {
+      "path": "/auth/password",
+      "status": 200
+    },
+    {
+      "path": "/auth/logout",
+      "status": 401
+    }
+  ]
+}

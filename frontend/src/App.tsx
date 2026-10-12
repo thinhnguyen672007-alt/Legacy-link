@@ -1,3 +1,5 @@
+import { BrandLogo } from "./components/BrandLogo";
+import { DesktopControls } from "./desktop";
 import { tr, useLanguage } from "./language";
 import { LanguageToggle } from "./components/LanguageToggle";
 import { Accounts, PasswordChange } from "./pages/Accounts";
@@ -16,7 +18,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { useSession } from "./session";
-import { AnimatedLoginBackground } from "./components/AnimatedLoginBackground";
+import { LoginBackdrop } from "./components/LoginBackdrop";
 import { DashboardTransition } from "./components/DashboardTransition";
 import { SlidingSidebarIndicator } from "./components/SlidingSidebarIndicator";
 import { Connection } from "./pages/Connection";
@@ -28,7 +30,7 @@ const MachineDetail = lazy(() =>
 import { Copilot } from "./components/Copilot";
 import { Alarms } from "./pages/Alarms";
 import "./dashboard.css";
-import { Commissioning } from "./pages/Commissioning";
+const Commissioning = lazy(() => import("./pages/Commissioning").then(m => ({ default: m.Commissioning })));
 export class ErrorBoundary extends Component<
   { children: ReactNode },
   { failed: boolean }
@@ -59,11 +61,15 @@ export function App() {
   const location = useLocation();
   const nav = useRef<HTMLElement>(null);
   const [collapsing, setCollapsing] = useState(false);
+  // Cờ chỉ thuộc animation đăng nhập; session đã có thì mọi đường logout
+  // phải tự mở lại nền, kể cả đổi mật khẩu hoặc phiên bị thu hồi.
+  if (session && collapsing) setCollapsing(false);
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
-  const wallpaper = <div className={`ll-login ll-morph-surface${session || collapsing ? " collapsed" : ""}`} aria-hidden="true"><AnimatedLoginBackground /></div>;
-  if (!session) return <>{wallpaper}<Connection onEntering={() => setCollapsing(true)} onAbort={() => setCollapsing(false)} /></>;
+  const wallpaper = <LoginBackdrop collapsed={Boolean(session) || collapsing} />;
+  // Nền luôn ở vị trí đầu: giữ DOM/timeline để CSS chạy ngược khi logout.
+  if (!session) return <>{wallpaper}<DesktopControls /><Connection onEntering={() => setCollapsing(true)} onAbort={() => setCollapsing(false)} /></>;
   return (
     <>{wallpaper}<div className="app-shell">
       <a className="skip-link" href="#content">
@@ -71,7 +77,7 @@ export function App() {
       </a>
       <aside className="sidebar">
         <Link className="brand dashboard-brand" to="/machines">
-          <span className="dashboard-logo" aria-hidden="true"><svg viewBox="0 0 32 40" fill="none"><path d="M4 4h21v9H13v9h12v10H4V4Z" stroke="currentColor" strokeWidth="4"/><path d="m13 13 13-9M13 23l13-9M4 35l21-10" stroke="#5772ff" strokeWidth="3"/></svg></span><span className="dashboard-wordmark"><strong>LEGACY LINK</strong><small>/ DENSO</small></span>
+          <span className="dashboard-logo" aria-hidden="true"><BrandLogo /></span><span className="dashboard-wordmark"><strong>LEGACY LINK</strong><small>/ DENSO</small></span>
         </Link>
         <nav ref={nav} aria-label={tr("Điều hướng chính")}><SlidingSidebarIndicator nav={nav} />
           <NavLink to="/overview">
@@ -132,11 +138,12 @@ export function App() {
             className="quiet dashboard-logout"
             aria-label={tr("Đăng xuất")}
             title={tr("Đăng xuất")}
-            onClick={() => { setCollapsing(false); disconnect(); }}
+            onClick={disconnect}
           >
             <LogOut size={16} />
           </button>
         </header>
+        <DesktopControls />
         <main id="content" tabIndex={-1}><DashboardTransition pathname={location.pathname}>
           {session.user?.mustChangePassword ? (
             <PasswordChange />

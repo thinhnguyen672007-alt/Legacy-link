@@ -1,0 +1,93 @@
+name: Desktop app
+on:
+  push:
+    branches: [main, feat/windows-app, codex/macos-desktop]
+    tags: ['desktop-v*']
+    paths: ['desktop/**', 'frontend/**', '.github/workflows/windows-app.yml']
+  pull_request:
+    paths: ['desktop/**', 'frontend/**', '.github/workflows/windows-app.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, platform: windows, arch: x64}
+          - {os: macos-15, platform: macos, arch: arm64}
+          - {os: macos-15, platform: macos, arch: x64}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Build Windows installer
+        if: matrix.platform == 'windows'
+        run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Build macOS installers
+        if: matrix.platform == 'macos'
+        run: npm run dist:mac -- --${{ matrix.arch }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # Only an ad-hoc identity is used; no signing certificate or secret is supplied.
+          CSC_FOR_PULL_REQUEST: 'true'
+      - name: Verify macOS bundle
+        if: matrix.platform == 'macos'
+        run: |
+          bundle=$(find dist -maxdepth 2 -name '*.app' -type d -print -quit)
+          test -n "$bundle"
+          binary_arch=${{ matrix.arch }}
+          if [ "$binary_arch" = x64 ]; then binary_arch=x86_64; fi
+          lipo "$bundle/Contents/MacOS/Legacy Link" -verify_arch "$binary_arch"
+          codesign --verify --deep --strict "$bundle"
+          if [ "$binary_arch" = "$(uname -m)" ]; then
+            node scripts/smoke.cjs "$bundle/Contents/MacOS/Legacy Link"
+          fi
+      - name: Record source and checksums
+        run: node scripts/artifacts.cjs ${{ matrix.platform }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Legacy-Link-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*-SHA256SUMS.txt
+            desktop/dist/*-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+  release:
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Legacy-Link-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish desktop release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version=$(node -p "require('./desktop/package.json').version")
+          test "$RELEASE_TAG" = "desktop-v$version"
+          gh release create "$RELEASE_TAG" release-assets/* --verify-tag --title "Legacy Link Desktop $version — Windows and macOS" --notes-file desktop/RELEASE-NOTES.md

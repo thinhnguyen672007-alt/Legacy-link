@@ -35,7 +35,7 @@ The command refuses to run when any account already exists. There is no built-in
 4. Role changes, disable, password reset and password change revoke all existing sessions for the affected employee. Already accepted operations are not retroactively canceled.
 5. A password reset requires another first-login password change. Re-enabling an account does not restore old sessions.
 
-Passwords use salted scrypt hashes. Session tokens are random, stored only as SHA-256 hashes in PostgreSQL, expire after eight hours and stay in browser memory. Refreshing the page requires signing in again. Logout removes the server session. Use HTTPS for real deployments; a private HTTP bench does not encrypt passwords in transit.
+Passwords use salted scrypt hashes. Session tokens are random and stored as SHA-256 hashes in PostgreSQL, with an eight-hour expiry. The frontend saves the account token in sessionStorage for the current tab so refresh preserves login, and checks `/auth/me` before showing the restored dashboard. It derives permissions from that response, not browser storage. Passwords are not saved; logout/expiry/revocation remove saved credentials. Closing the tab or restarting the desktop app requires login again. Logout removes the server session. Use HTTPS for real deployments; a private HTTP bench does not encrypt passwords in transit.
 
 The existing API rate limiter also covers login requests. Limits are per socket IP/process; users behind a proxy share a bucket. This is a small deployment design, not enterprise SSO or MFA.
 

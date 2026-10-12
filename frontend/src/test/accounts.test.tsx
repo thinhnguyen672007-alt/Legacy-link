@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../App";
 import { SessionProvider } from "../session";
+import { SESSION_STORAGE_KEY } from "../session-storage";
 const admin = {
   id: "owner",
   username: "owner",
@@ -85,6 +86,8 @@ it("admin creates an employee and can revoke access through disable", async () =
 });
 it("temporary password blocks dashboard until change and requires fresh sign-in", async () => {
   const calls = setup({ ...admin, role: "viewer", mustChangePassword: true });
+  const surface = document.querySelector(".ll-morph-surface");
+  const artwork = surface?.querySelector("svg");
   const u = await signIn();
   await screen.findByRole("heading", { name: "Đổi mật khẩu" });
   expect(
@@ -108,6 +111,12 @@ it("temporary password blocks dashboard until change and requires fresh sign-in"
   await u.click(screen.getByRole("button", { name: "Lưu và đăng nhập lại" }));
   await screen.findByRole("heading", { name: "Đăng nhập" });
   expect(calls.some((c) => c.path === "/auth/password")).toBe(true);
+  expect(document.querySelector(".ll-morph-surface")).toBe(surface);
+  expect(surface?.querySelector("svg")).toBe(artwork);
+  expect(document.querySelector('.ll-morph-surface')).not.toHaveClass('collapsed');
+  expect(document.querySelector('.dashboard-page-outgoing')).toBeNull();
+  expect(document.querySelector('.dashboard-transition-viewport')).toBeNull();
+  expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
 });
 it("blocks oversized UTF-8 passwords before creating an employee", async () => {
   const calls = setup();
