@@ -38,10 +38,16 @@ class AlarmPoller {
       } while (cursor);
       const fresh = this.baseline ? [...found.values()].filter(a => !this.seen.has(a.id)) : [];
       for (const [id, ts] of this.seen) if (ts < from) this.seen.delete(id);
-      for (const a of found.values()) this.seen.set(a.id, a.timestamp);
+      const delivered = fresh.length ? await this.notify(fresh, generation) : [];
+      if (generation !== this.generation) return;
+      const accepted = new Set(delivered ?? fresh.map(a => a.id));
+      for (const a of found.values()) {
+        if (!this.baseline || this.seen.has(a.id) || accepted.has(a.id)) this.seen.set(a.id, a.timestamp);
+      }
+      const incomplete = fresh.some(a => !accepted.has(a.id));
       this.baseline = true; this.failures = 0;
       this.status('Đang theo dõi');
-      if (fresh.length) this.notify(fresh, generation);
+      if (incomplete) delay = Math.max(this.interval, 60000);
     } catch (e) {
       if (generation !== this.generation) return;
       if (e.status === 401 || e.status === 403) {

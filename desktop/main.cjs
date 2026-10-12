@@ -8,7 +8,7 @@ const server = 'https://vineyard-fifteen-elusive.ngrok-free.dev';
 let win, tray, quitting = false, hiddenHint = false, pending, state = 'Cần đăng nhập';
 const errorURL = pathToFileURL(path.join(__dirname, 'connection-error.html')).href;
 const icon = path.join(__dirname, 'assets/icon.png');
-let toast;
+let toast, notificationError = '', notificationDetail = '';
 const preferences = {preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true};
 function trusted(event, local = false) {
   const target = win;
@@ -18,8 +18,18 @@ function trusted(event, local = false) {
 function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
-function focus() {if (win && !win.isDestroyed()) {win.show(); win.restore(); win.focus();} else openDashboard();}
-function testToast() {toast('Legacy Link · THÔNG BÁO THỬ', 'Đây là thông báo thử desktop, không phải cảnh báo ESP32.', focus);}
+function focus() {
+  void app.whenReady().then(() => {
+    if (quitting) return;
+    if (win && !win.isDestroyed()) {win.show(); win.restore(); win.focus();}
+    else openDashboard();
+  });
+}
+async function testToast() {
+  if (await toast('Legacy Link · THÔNG BÁO THỬ', 'Đây là thông báo thử desktop, không phải cảnh báo ESP32.', focus)) {
+    notificationError = ''; setStatus(state);
+  } else dialog.showErrorBox('Không gửi được thông báo', `${notificationDetail || notificationError}\n\nBật thông báo cho Legacy Link trong cài đặt hệ điều hành và tắt Focus / Do Not Disturb. Trên Mac, dùng bản app trong Applications.`);
+}
 function applicationMenu() {
   const actions = [{label: 'Thử kết nối lại', click: openDashboard}, {label: 'Thử thông báo', click: testToast}];
   return Menu.buildFromTemplate(process.platform === 'darwin' ? [
@@ -28,8 +38,9 @@ function applicationMenu() {
   ] : [{label: 'Ứng dụng', submenu: [...actions, {label: 'Thoát', click: () => app.quit()}]}]);
 }
 function setStatus(value, expiredToken) {
-  state = value; refreshTray(); send('status', {text: value, expiredToken});
+  state = value; refreshTray(); send('status', {text: displayStatus(), expiredToken});
 }
+function displayStatus() {return notificationError ? `${state} · ${notificationError}` : state;}
 const poller = new AlarmPoller({
   fetchPage: async ({from, to, cursor, token, signal}) => {
     const query = new URLSearchParams({from: String(from), to: String(to), limit: '500'});
@@ -46,19 +57,28 @@ const poller = new AlarmPoller({
     return JSON.parse(body);
   },
   status: setStatus,
-  notify: (alarms, generation) => {
-    const notifications = alarms.length > 3 ? [{title: `Legacy Link · ${alarms.length} cảnh báo mới`, body: 'Bấm để xem danh sách cảnh báo.', device: null}] : alarms.map(a => ({title: `Legacy Link · ${a.deviceId}`, body: `${a.severity.toUpperCase()} · ${a.code}${a.value == null ? '' : ` · ${a.value}`}`, device: a.deviceId}));
-    for (const n of notifications) toast(n.title, n.body, () => {
-      if (generation !== poller.generation || !poller.token) return;
-      pending = {device: n.device, eventId: `${Date.now()}-${Math.random()}`}; focus(); send('alarm', pending);
-    });
+  notify: async (alarms, generation) => {
+    const delivered = [];
+    const notifications = alarms.length > 3 ? [{title: `Legacy Link · ${alarms.length} cảnh báo mới`, body: 'Bấm để xem danh sách cảnh báo.', device: null, ids: alarms.map(a => a.id)}] : alarms.map(a => ({title: `Legacy Link · ${a.deviceId}`, body: `${a.severity.toUpperCase()} · ${a.code}${a.value == null ? '' : ` · ${a.value}`}`, device: a.deviceId, ids: [a.id]}));
+    for (const n of notifications) {
+      if (generation !== poller.generation || !poller.token) break;
+      const ok = await toast(n.title, n.body, () => {
+        if (generation !== poller.generation || !poller.token) return;
+        pending = {device: n.device, eventId: `${Date.now()}-${Math.random()}`}; focus(); send('alarm', pending);
+      });
+      if (ok) {
+        notificationError = '';
+        delivered.push(...n.ids);
+      } else break;
+    }
+    return delivered;
   }
 });
 function refreshTray() {
   if (!tray) return;
-  tray.setToolTip(`Legacy Link · ${state}`);
+  tray.setToolTip(`Legacy Link · ${displayStatus()}`);
   tray.setContextMenu(Menu.buildFromTemplate([
-    {label: 'Mở dashboard', click: focus}, {label: state, enabled: false}, {type: 'separator'},
+    {label: 'Mở dashboard', click: focus}, {label: displayStatus(), enabled: false}, {type: 'separator'},
     {label: 'Thử thông báo', click: testToast}, {label: 'Thử kết nối lại', click: openDashboard},
     {type: 'separator'}, {label: 'Thoát', click: () => app.quit()}
   ]));
@@ -99,9 +119,9 @@ function registerIPC() {
   ipcMain.handle('session', (e, token) => {
     if (!trusted(e) || typeof token !== 'string' || token.length > 512 || token && !/^[\w.-]{16,512}$/.test(token)) throw new Error('Invalid session');
     if (token !== poller.token) pending = undefined;
-    poller.start(token); return {text: state};
+    poller.start(token); return {text: displayStatus()};
   });
-  ipcMain.handle('ready', e => {if (!trusted(e)) throw new Error('Forbidden'); send('status', {text: state}); if (pending && poller.token) {send('alarm', pending); pending = undefined;} });
+  ipcMain.handle('ready', e => {if (!trusted(e)) throw new Error('Forbidden'); send('status', {text: displayStatus()}); if (pending && poller.token) {send('alarm', pending); pending = undefined;} });
   ipcMain.handle('test-notification', e => {if (!trusted(e)) throw new Error('Forbidden'); testToast();});
 }
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -117,7 +137,12 @@ else {
     if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
     if (process.platform === 'darwin') Menu.setApplicationMenu(applicationMenu());
     if (process.platform === 'win32' && app.isPackaged && !app.setAsDefaultProtocolClient('legacylink-notify')) throw new Error('Notification activation registration failed');
-    toast = createNotifications(Notification, {icon, iconURL: pathToFileURL(icon).href, failed: () => setStatus('Không gửi được thông báo desktop')});
+    toast = createNotifications(Notification, {icon, iconURL: pathToFileURL(icon).href, failed: reason => {
+      notificationError = 'Không gửi được thông báo desktop';
+      notificationDetail = String(reason || 'Unknown notification error');
+      console.error('[desktop notification]', reason);
+      setStatus(state);
+    }});
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, cb) => cb(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     session.defaultSession.webRequest.onBeforeSendHeaders({urls: [`${server}/*`]}, (details, callback) => {
