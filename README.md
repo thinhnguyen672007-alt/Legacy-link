@@ -5,6 +5,63 @@ Built for DENSO D1: low-cost connectivity for equipment without an industrial PC
 Machine register maps and alarm thresholds can change through JSON configuration
 without reflashing the gateway.
 
+## Start here — DENSO D1 submission
+
+Legacy Link targets monitoring on legacy Modbus equipment without an industrial
+PC. A physical ESP32 collects register values; reusable profiles and a test-read
+before apply help check the configuration before it becomes active.
+
+- [Live demo](https://vineyard-fifteen-elusive.ngrok-free.dev/) — requires a
+  team-provided Viewer account and the team server to be online. Share judge
+  credentials privately through the submission form.
+- [Windows/macOS client](https://github.com/thinhnguyen672007-alt/Legacy-link/releases/latest)
+  — connects to the team server; it is not a standalone offline backend.
+- [Measured evidence and limits](docs/submission-evidence.md).
+- [Cost scope and comparison method](docs/cost-analysis.md).
+
+**Video:** the final 2–3 minute narrated recording has not been published yet.
+Add its verified URL here and to the submission form before submission.
+
+**Bench scope:** Modbus register values are simulated; the ESP32 and the
+MQTT/backend/database path are physical/running components. No real CNC/PLC or
+industrial RS-485 acceptance is claimed.
+
+```mermaid
+flowchart LR
+    M[Modbus simulator / legacy machine] -->|Modbus RTU| E[ESP32]
+    E -->|Wi-Fi / MQTT| B[Mosquitto]
+    B --> C[Node.js consumer]
+    C -->|COMMIT| D[(PostgreSQL)]
+    D --> A[HTTP API]
+    A --> U[Web / Windows client]
+    C -->|Storage ACK| B
+    B -->|Delivery ACK| E
+```
+
+![Device measurements from the team's recorded Web demo](docs/evidence/demo-web-frame.png)
+
+*Frame from the supplied Web recording. Values originate from the Modbus bench
+simulator; this screenshot does not establish a physical CNC measurement or the
+current live state.*
+
+| Recorded result | Scope |
+| --- | --- |
+| Profile A/B without reflashing | Physical ESP32 bench; machine register maps |
+| Lost ACK: four replays, one database row | Bounded firmware acceptance test |
+| Consumer/database/broker outage recovery | Short outages; pending RAM samples drained |
+
+Pending samples are held in RAM: 32 telemetry samples and 8 alarms. Power loss
+clears them, and a full queue drops new samples. See the evidence report before
+interpreting recovery as a lossless-storage guarantee.
+
+## Team
+
+| Member | Main role |
+| --- | --- |
+| Nguyễn Vũ Đức Thịnh | Backend, telemetry persistence and API |
+| Trần Hoàng Anh | ESP32 firmware, Modbus acquisition and profiles |
+| Phạm Tuấn Huy | MQTT, PostgreSQL and Docker infrastructure |
+
 ```text
 Modbus RTU machine / OpenModSim
     -> ESP32 -> Wi-Fi / MQTT -> Node.js backend -> PostgreSQL -> HTTP API
@@ -165,8 +222,7 @@ received, applied, flash-saved and restored-after-restart evidence separately.
 `/machines` also exposes per-register diagnostics and `lastMeasurementAt` so the
 team frontend can distinguish gateway contact from fresh machine measurements.
 Run the updated schema, firmware, consumer and `npm run start:http`; see the
-[API contract and curl demo](docs/commissioning-demo.md). This contribution does
-not include a frontend. The probe/apply flow has been exercised on a real ESP32
+[API contract and curl demo](docs/commissioning-demo.md). The probe/apply flow has been exercised on a real ESP32
 with a Modbus simulator (see the October 10 reports); commissioning on real
 CNC/RS-485 hardware remains pending.
 
